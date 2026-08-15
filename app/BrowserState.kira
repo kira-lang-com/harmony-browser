@@ -1,0 +1,107 @@
+import KiraUI
+
+// Browser state is intentionally small and shared by the shell and the native
+// page host. The widget tree can rebuild every frame without losing the active
+// tab or the address field.
+construct HarmonyBrowserStore {
+    @Required let version: Int
+}
+
+HarmonyBrowserStore HarmonyBrowserState() {
+    @State var selectedTab: Int = 0
+    @State var address: String = "google.com"
+    let version: Int = 1
+
+    function selectedTabValue() -> Int {
+        return selectedTab
+    }
+
+    function addressValue() -> String {
+        return address
+    }
+
+    // Each row in the tab list owns a tab of its own, addressed by its slot.
+    // Selecting a row shows that tab where it had got to rather than reloading
+    // its home page over whatever the one shared view was showing.
+    function open(displayAddress: String, url: String, tab: Int) {
+        webkitActivateSlot(tab, url)
+        address = move displayAddress
+        selectedTab = tab
+        return
+    }
+
+    // The address bar navigates the tab that is showing, which is the one the
+    // typed address belongs to.
+    function submitAddress() {
+        let next = textFieldText(harmonyBrowserAddressFieldKey())
+        webkitLoadURL(next)
+        address = move next
+        return
+    }
+
+    function newTab() {
+        webkitActivateSlot(0, "https://www.google.com/")
+        address = "google.com"
+        selectedTab = 0
+        return
+    }
+}
+
+function harmonyBrowserAddressFieldKey() -> Int {
+    return 41001
+}
+
+function harmonyBrowserOpenGoogle() {
+    HarmonyBrowserState().open("google.com", "https://www.google.com/", 0)
+    return
+}
+
+function harmonyBrowserOpenGmail() {
+    HarmonyBrowserState().open("mail.google.com", "https://mail.google.com/", 1)
+    return
+}
+
+function harmonyBrowserOpenGitHub() {
+    HarmonyBrowserState().open("github.com", "https://github.com/", 2)
+    return
+}
+
+function harmonyBrowserOpenFigma() {
+    HarmonyBrowserState().open("figma.com", "https://www.figma.com/", 3)
+    return
+}
+
+function harmonyBrowserOpenYouTube() {
+    HarmonyBrowserState().open("youtube.com", "https://www.youtube.com/", 4)
+    return
+}
+
+function harmonyBrowserOpenKira() {
+    HarmonyBrowserState().open("kira-lang.org", "https://kira-lang.org/", 5)
+    return
+}
+
+function harmonyBrowserSubmitAddress() {
+    HarmonyBrowserState().submitAddress()
+    return
+}
+
+function harmonyBrowserNewTab() {
+    HarmonyBrowserState().newTab()
+    return
+}
+
+function harmonyBrowserBack() {
+    webkitGoBack()
+    return
+}
+
+function harmonyBrowserForward() {
+    webkitGoForward()
+    return
+}
+
+function harmonyBrowserReload() {
+    webkitReload()
+    return
+}

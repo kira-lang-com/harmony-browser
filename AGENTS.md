@@ -1,0 +1,1 @@
+DO NOT create any "smoke test", "probe" and anything that isn't meant to either: showcase Kira UI or be driven by a real human. Anything called "smoke" or "probe" is outright **banned** from this repo.

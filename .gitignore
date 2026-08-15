@@ -1,0 +1,16 @@
+# Kira build output
+.kira-build/
+generated/
+*.kbc
+.kira/
+
+# Vendored WebKit checkout. It is a separate clone with its own history and its
+# own remote, deployed alongside the app rather than tracked here.
+third_party/WebKit/
+
+# WebKit build tree, for builds configured outside third_party.
+WebKitBuild/
+
+# Windows
+Thumbs.db
+desktop.ini

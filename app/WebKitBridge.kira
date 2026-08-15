@@ -1,0 +1,75 @@
+import KiraGraphics
+
+// The wrapper owns the WebKit C API pointers, the WebKit thread, and one child
+// HWND per tab. Keeping that state native avoids making the UI tree responsible
+// for WebKit lifetimes, and keeping it on its own thread keeps WebKit off this
+// one: nothing below blocks, so a frame costs what the UI costs and not what
+// the page costs.
+@FFI.Extern { library: harmony_webkit; symbol: hb_webkit_start; abi: c; }
+function webkitStart(parentWindow: RawPtr, initialURL: CString) -> I32;
+
+@FFI.Extern { library: harmony_webkit; symbol: hb_webkit_supported; abi: c; }
+function webkitSupported() -> I32;
+
+@FFI.Extern { library: harmony_webkit; symbol: hb_webkit_set_bounds; abi: c; }
+function webkitSetBounds(x: I32, y: I32, width: I32, height: I32) -> Void;
+
+@FFI.Extern { library: harmony_webkit; symbol: hb_webkit_tab_activate_slot; abi: c; }
+function webkitActivateSlot(slot: I32, url: CString) -> Void;
+
+@FFI.Extern { library: harmony_webkit; symbol: hb_webkit_tab_close_slot; abi: c; }
+function webkitCloseSlot(slot: I32) -> Void;
+
+@FFI.Extern { library: harmony_webkit; symbol: hb_webkit_tab_count; abi: c; }
+function webkitTabCount() -> I32;
+
+@FFI.Extern { library: harmony_webkit; symbol: hb_webkit_tab_active; abi: c; }
+function webkitActiveTab() -> I32;
+
+@FFI.Extern { library: harmony_webkit; symbol: hb_webkit_shutdown; abi: c; }
+function webkitShutdown() -> Void;
+
+@FFI.Extern { library: harmony_webkit; symbol: hb_webkit_go_back; abi: c; }
+function webkitGoBack() -> Void;
+
+@FFI.Extern { library: harmony_webkit; symbol: hb_webkit_go_forward; abi: c; }
+function webkitGoForward() -> Void;
+
+@FFI.Extern { library: harmony_webkit; symbol: hb_webkit_reload; abi: c; }
+function webkitReload() -> Void;
+
+@FFI.Extern { library: harmony_webkit; symbol: hb_webkit_load_url; abi: c; }
+function webkitLoadURL(url: CString) -> Void;
+
+// Run before KiraUI renders each frame. KiraGraphics supplies the active
+// backend's top-level HWND; WebKit owns a native child view inside it, one per
+// tab, and only the active tab's view is visible.
+//
+// The bounds are recorded before the thread is asked to start so the first tab
+// is created at the size it will be shown at rather than at nothing.
+function harmonyBrowserFrame(frame: borrow mut KiraGraphics.RenderFrame) {
+    let ignored = frame.backend
+    let parentWindow = KiraGraphics.kiraGraphicsHostWindowHandle(frame)
+    if pointerIsNull(parentWindow) {
+        return
+    }
+    let scale = KiraGraphics.kiraGraphicsHostBackingScale(frame)
+    let width = KiraGraphics.kiraGraphicsHostDrawableWidth(frame)
+    let height = KiraGraphics.kiraGraphicsHostDrawableHeight(frame)
+    let shellWidth = I32(harmonyBrowserSidebarWidth() * scale)
+    let toolbarHeight = I32(harmonyBrowserToolbarHeight() * scale)
+    var webkitX = shellWidth
+    var webkitWidth = width - shellWidth
+    var webkitHeight = height - toolbarHeight
+    if webkitWidth <= 0 {
+        webkitX = 0
+        webkitWidth = width
+    }
+    if webkitHeight <= 0 {
+        webkitHeight = height
+    }
+
+    webkitSetBounds(webkitX, toolbarHeight, webkitWidth, webkitHeight)
+    let ignoredStart = webkitStart(parentWindow, "https://www.google.com/")
+    return
+}

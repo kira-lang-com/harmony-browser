@@ -1,0 +1,27 @@
+Package HarmonyBrowser {
+    let version = "0.1.0"
+    let kira = "0.1.0"
+    let kind = PackageKind.App
+    let defaults = Defaults { executionMode: Backend.Hybrid, buildTarget: BuildTarget.Host }
+    let allowThinFfiShim = true
+    let dependencies = [
+        Dependency { name: "KiraUI", path: "../kira-ui" },
+        Dependency { name: "OpacityUI", path: "../opacity-ui" },
+        Dependency { name: "KiraGraphics", path: "../kira-graphics" }
+    ]
+    let nativeLibraries = [
+        NativeLibrary {
+            name: "harmony_webkit",
+            linkMode: LinkMode.Static,
+            headers: Headers { entrypoint: "NativeLibs/harmony_webkit.h", includeDirs: ["NativeLibs"] },
+            sources: ["NativeLibs/harmony_webkit.cpp"],
+            nativeTargets: [
+                NativeTarget {
+                    triple: "x86_64-windows-msvc",
+                    staticLib: "generated/native/x86_64-windows-msvc/harmony_webkit.lib",
+                    systemLibs: ["kernel32", "user32", "ole32"]
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,368 @@
+import KiraUI
+
+// The chrome the WebKit child view has to sit clear of. The widgets below and
+// the native surface bounds both read these, so the two can never drift.
+function harmonyBrowserSidebarWidth() -> Float {
+    return 300.0
+}
+
+function harmonyBrowserToolbarHeight() -> Float {
+    return 35.0
+}
+
+Widget BrowserTrafficLights() {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            Text("●")
+                .font(size = 15.0)
+                .foregroundColor(.Red)
+
+            Text("●")
+                .font(size = 15.0)
+                .foregroundColor(.Yellow)
+
+            Text("●")
+                .font(size = 15.0)
+                .foregroundColor(.Green)
+        }
+        .hugWidth()
+    }
+}
+
+// Sized to sit ON the 35-point toolbar with air on both sides, like every
+// other control there: the slots are 26, and so is this.
+Widget BrowserAddressField() {
+    body {
+        Panel(radius = CornerRadius.Capsule) {
+            HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+                Icon(.Globe)
+                    .imageScale(.Small)
+                    .foregroundColor(.Secondary)
+
+                TextField(
+                    key = harmonyBrowserAddressFieldKey(),
+                    initial = HarmonyBrowserState().addressValue(),
+                    placeholder = "Search or enter address",
+                    width = 290.0,
+                    height = 22.0,
+                    onSubmit = harmonyBrowserSubmitAddress
+                )
+                    .fill(Color { a: 0.0 })
+                    .foregroundColor(.Primary)
+
+                Icon(.DotsThree)
+                    .imageScale(.Small)
+                    .foregroundColor(.Secondary)
+            }
+            .height(26.0)
+        }
+        .backgroundStyle(.Control)
+        .width(360.0)
+        .height(26.0)
+    }
+}
+
+Widget BrowserGlobalToolbar() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            BrowserTrafficLights()
+
+            ControlSlot() {
+                Icon(.SidebarSimple)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyBrowserNewTab)
+
+            Spacer()
+
+            ControlSlot() {
+                Icon(.ArrowLeft)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyBrowserBack)
+
+            ControlSlot() {
+                Icon(.ArrowRight)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyBrowserForward)
+
+            ControlSlot() {
+                Icon(.ArrowClockwise)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyBrowserReload)
+
+            BrowserAddressField()
+
+            Text(HarmonyBrowserState().addressValue())
+                .typography(.caption)
+                .foregroundColor(.Secondary)
+                .opacity(0.78)
+
+            Spacer()
+
+            ControlSlot() {
+                Icon(.Copy)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyBrowserNewTab)
+
+            ControlSlot() {
+                Icon(.DotsThree)
+                    .imageScale(.Small)
+            }
+        }
+        .foregroundColor(.Secondary)
+        .height(harmonyBrowserToolbarHeight())
+        .inset(horizontal = Spacing.Small)
+        .backgroundStyle(.Surface)
+    }
+}
+
+function browserQuickLinkSymbol(id: Int) -> Symbol {
+    if id == 0 {
+        return Symbol.GoogleLogo
+    }
+    if id == 1 {
+        return Symbol.Envelope
+    }
+    if id == 2 {
+        return Symbol.GithubLogo
+    }
+    if id == 3 {
+        return Symbol.FigmaLogo
+    }
+    if id == 4 {
+        return Symbol.YoutubeLogo
+    }
+    return Symbol.GlobeSimple
+}
+
+Widget BrowserQuickLink(id: Int) {
+    body {
+        Card(material = Material.Frosted) {
+            Icon(browserQuickLinkSymbol(id))
+                .imageScale(.Medium)
+                .foregroundColor(.Secondary)
+        }
+        .width(108.0)
+        .height(48.0)
+    }
+}
+
+Widget BrowserGoogleQuickLink() {
+    body {
+        BrowserQuickLink(id = 0)
+            .onClick(harmonyBrowserOpenGoogle)
+    }
+}
+
+Widget BrowserGmailQuickLink() {
+    body {
+        BrowserQuickLink(id = 1)
+            .onClick(harmonyBrowserOpenGmail)
+    }
+}
+
+Widget BrowserGitHubQuickLink() {
+    body {
+        BrowserQuickLink(id = 2)
+            .onClick(harmonyBrowserOpenGitHub)
+    }
+}
+
+Widget BrowserFigmaQuickLink() {
+    body {
+        BrowserQuickLink(id = 3)
+            .onClick(harmonyBrowserOpenFigma)
+    }
+}
+
+Widget BrowserYouTubeQuickLink() {
+    body {
+        BrowserQuickLink(id = 4)
+            .onClick(harmonyBrowserOpenYouTube)
+    }
+}
+
+Widget BrowserKiraQuickLink() {
+    body {
+        BrowserQuickLink(id = 5)
+            .onClick(harmonyBrowserOpenKira)
+    }
+}
+
+Widget BrowserQuickLinks() {
+    body {
+        VStack(spacing = Spacing.ExtraSmall) {
+            HStack(spacing = Spacing.ExtraSmall) {
+                BrowserGoogleQuickLink()
+                BrowserGmailQuickLink()
+                BrowserGitHubQuickLink()
+            }
+
+            HStack(spacing = Spacing.ExtraSmall) {
+                BrowserFigmaQuickLink()
+                BrowserYouTubeQuickLink()
+                BrowserKiraQuickLink()
+            }
+        }
+    }
+}
+
+Widget BrowserSectionHeader(title: String) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text(title)
+                .typography(.footnote)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+
+            Icon(.CaretDown)
+                .imageScale(.Small)
+                .foregroundColor(.Tertiary)
+        }
+        .height(28.0)
+    }
+}
+
+function browserTabSymbol(tab: Int) -> Symbol {
+    if tab == 0 {
+        return Symbol.Plus
+    }
+    if tab == 1 {
+        return Symbol.Envelope
+    }
+    if tab == 2 {
+        return Symbol.GithubLogo
+    }
+    if tab == 3 {
+        return Symbol.FigmaLogo
+    }
+    if tab == 4 {
+        return Symbol.YoutubeLogo
+    }
+    return Symbol.GlobeSimple
+}
+
+Widget BrowserTabRow(title: String, tab: Int) {
+    body {
+        ListRow(selected = HarmonyBrowserState().selectedTabValue() == tab) {
+            Icon(browserTabSymbol(tab))
+                .imageScale(.Small)
+
+            Text(title)
+                .typography(.subheadline)
+        }
+    }
+}
+
+Widget BrowserNewTabRow() {
+    body {
+        BrowserTabRow(title = "New Tab", tab = 0)
+            .onClick(harmonyBrowserNewTab)
+    }
+}
+
+Widget BrowserGmailTabRow() {
+    body {
+        BrowserTabRow(title = "Gmail", tab = 1)
+            .onClick(harmonyBrowserOpenGmail)
+    }
+}
+
+Widget BrowserGitHubTabRow() {
+    body {
+        BrowserTabRow(title = "GitHub", tab = 2)
+            .onClick(harmonyBrowserOpenGitHub)
+    }
+}
+
+Widget BrowserFigmaTabRow() {
+    body {
+        BrowserTabRow(title = "Figma", tab = 3)
+            .onClick(harmonyBrowserOpenFigma)
+    }
+}
+
+Widget BrowserYouTubeTabRow() {
+    body {
+        BrowserTabRow(title = "YouTube", tab = 4)
+            .onClick(harmonyBrowserOpenYouTube)
+    }
+}
+
+Widget BrowserKiraTabRow() {
+    body {
+        BrowserTabRow(title = "Kira", tab = 5)
+            .onClick(harmonyBrowserOpenKira)
+    }
+}
+
+Widget BrowserSidebarFooter() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            ControlSlot() {
+                Icon(.DownloadSimple)
+                    .imageScale(.Small)
+            }
+
+            Spacer()
+
+            ControlSlot() {
+                Icon(.Gear)
+                    .imageScale(.Small)
+            }
+
+            ControlSlot() {
+                Icon(.Plus)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyBrowserNewTab)
+        }
+        .height(34.0)
+        .foregroundColor(.Secondary)
+    }
+}
+
+Widget HarmonyBrowserSidebar() {
+    body {
+        Sidebar(background = .Surface, material = .Frosted) {
+            BrowserQuickLinks()
+
+            BrowserSectionHeader(title = "Bookmarks")
+
+            Divider()
+                .themeBorder(.Subtle)
+
+            BrowserSectionHeader(title = "Tabs")
+
+            BrowserNewTabRow()
+
+            BrowserSectionHeader(title = "Work")
+
+            BrowserGmailTabRow()
+
+            BrowserGitHubTabRow()
+
+            BrowserFigmaTabRow()
+
+            BrowserSectionHeader(title = "Personal")
+
+            BrowserYouTubeTabRow()
+
+            BrowserKiraTabRow()
+
+            Spacer()
+
+            Divider()
+                .themeBorder(.Subtle)
+
+            BrowserSidebarFooter()
+        }
+        .width(harmonyBrowserSidebarWidth())
+        .fillHeight()
+    }
+}

@@ -1,0 +1,47 @@
+import KiraUI
+import OpacityUI
+
+Widget HarmonyBrowserHome() {
+    body {
+        AppSurface {
+            VStack(spacing = Spacing.None) {
+                BrowserGlobalToolbar()
+
+                Expanded(flex = 1) {
+                    HStack(spacing = Spacing.None, alignment = VerticalAlignment.Stretch) {
+                        HarmonyBrowserSidebar()
+
+                        Expanded(flex = 1) {
+                            BackgroundFill(style = .Window)
+                        }
+                    }
+                    .fillHeight()
+                }
+            }
+            .fillHeight()
+        }
+    }
+}
+
+@Main
+function entry() {
+    RunWidgetInteractiveApp(
+        title: "Harmony Browser",
+        width: 1280,
+        height: 800,
+        rootBuilder: { in
+            kiraUiTapSeqReset()
+            return KiraUIApp(
+                name: "Harmony Browser",
+                content: HarmonyBrowserHome()
+                    .theme(Opacity())
+            )
+        },
+        engineFrame: { frame in
+            harmonyBrowserFrame(frame)
+        },
+        showFpsOverlay: false,
+        rebuildOnResize: true
+    )
+    return
+}
