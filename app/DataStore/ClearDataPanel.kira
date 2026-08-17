@@ -1,0 +1,301 @@
+import KiraUI
+
+// "Clear browsing data": what to delete, how far back, and what it costs.
+//
+// It belongs in the sidebar column and nowhere else: the page is a native child
+// window inside this one, so it is composited above everything KiraUI draws, and
+// a panel over the page would be a panel nobody can see. The sidebar is the part
+// of the window the browser still owns.
+//
+// Every row carries the size the profile actually holds for its type, so the
+// panel answers "what would this free" before it is pressed rather than after.
+
+function clearDataPanelWidth() -> Float {
+    return harmonyBrowserSidebarWidth() - 24.0
+}
+
+function clearDataRowHeight() -> Float {
+    return 38.0
+}
+
+// --- One type ----------------------------------------------------------------
+
+Widget ClearDataTypeText(kind: BrowsingDataType, size: Float) {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            Text(browsingDataTypeName(kind))
+                .typography(.subheadline)
+                .foregroundColor(.Primary)
+
+            Text(browsingDataBytes(size) + " · " + browsingDataTypeNote(kind))
+                .typography(.caption)
+                .foregroundColor(.Secondary)
+        }
+    }
+}
+
+Widget ClearDataTypeRow(kind: BrowsingDataType) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(browsingDataTypeSymbol(kind))
+                .imageScale(.Small)
+                .foregroundColor(clearDataTypeInk(kind))
+
+            Expanded(flex = 1) {
+                ClearDataTypeText(kind = kind, size = harmonyDataStoreTypeSize(kind))
+            }
+
+            Toggle(isOn = harmonyDataStoreIsSelected(kind))
+        }
+        .height(clearDataRowHeight())
+        .onClick(harmonyDataStoreToggleAction(kind))
+    }
+}
+
+function clearDataTypeInk(kind: BrowsingDataType) -> PrimaryColor {
+    if harmonyDataStoreIsSelected(kind) {
+        return PrimaryColor.Accent
+    }
+    return PrimaryColor.Tertiary
+}
+
+function clearDataTypeRowAt(index: Int) -> Any Widget {
+    return ClearDataTypeRow(kind = browsingDataTypeAt(index))
+}
+
+Widget ClearDataTypeList() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            For(index in indices(browsingDataTypes().count)) {
+                clearDataTypeRowAt(index)
+            }
+        }
+    }
+}
+
+// --- The range ---------------------------------------------------------------
+
+Widget ClearDataRangeRow() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(.Clock)
+                .imageScale(.Small)
+                .foregroundColor(.Secondary)
+
+            Text("Time range")
+                .typography(.subheadline)
+                .foregroundColor(.Primary)
+
+            Spacer()
+
+            Picker(
+                options = browsingDataRangeNames(),
+                selection = harmonyDataStoreRangeSelection(),
+                onSelect = harmonyDataStoreSetRange
+            )
+        }
+        .height(clearDataRowHeight())
+    }
+}
+
+// A range the cookie jar cannot honour is a range the panel has to say it
+// cannot honour, rather than one that quietly clears more than was asked.
+// Nothing KiraUI draws wraps, so the sentence is written as the lines it is.
+Widget ClearDataCookieNote() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Top) {
+            Icon(.Warning)
+                .imageScale(.Small)
+                .foregroundColor(.Yellow)
+
+            VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+                Text("The cookie jar has no per-cookie age,")
+                    .typography(.caption)
+                    .foregroundColor(.Secondary)
+
+                Text("so clearing cookies clears all of them.")
+                    .typography(.caption)
+                    .foregroundColor(.Secondary)
+            }
+        }
+        .inset(vertical = Spacing.ExtraSmall)
+    }
+}
+
+// --- The action --------------------------------------------------------------
+
+function clearDataButtonLabel() -> String {
+    if harmonyDataStoreIsClearing() {
+        return "Clearing…"
+    }
+    if harmonyDataStoreSelectionCount() == 0 {
+        return "Nothing selected"
+    }
+    return browsingDataClearLabel(harmonyDataStoreRange())
+}
+
+function clearDataButtonStyle() -> BackgroundStyle {
+    if harmonyDataStoreSelectionCount() == 0 || harmonyDataStoreIsClearing() {
+        return BackgroundStyle.Control
+    }
+    return BackgroundStyle.Accent
+}
+
+function clearDataButtonInk() -> PrimaryColor {
+    if harmonyDataStoreSelectionCount() == 0 || harmonyDataStoreIsClearing() {
+        return PrimaryColor.Tertiary
+    }
+    return PrimaryColor.Primary
+}
+
+Widget ClearDataButton() {
+    body {
+        Panel(radius = CornerRadius.Medium) {
+            HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+                Spacer()
+
+                Icon(.Broom)
+                    .imageScale(.Small)
+
+                Text(clearDataButtonLabel())
+                    .typography(.subheadline)
+
+                Spacer()
+            }
+            .height(30.0)
+        }
+        .backgroundStyle(clearDataButtonStyle())
+        .foregroundColor(clearDataButtonInk())
+        .width(clearDataPanelWidth() - 16.0)
+        .height(30.0)
+        .onClick(harmonyDataStoreClear)
+    }
+}
+
+// What the last removal freed. A browser that says nothing after deleting a
+// gigabyte leaves the user wondering whether it did anything.
+Widget ClearDataResult() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(.CheckCircle)
+                .imageScale(.Small)
+                .foregroundColor(.Green)
+
+            Text(browsingDataBytes(harmonyDataStoreFreedBytes()) + " freed")
+                .typography(.caption)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+        }
+        .height(22.0)
+    }
+}
+
+// --- The panel ---------------------------------------------------------------
+
+Widget ClearDataHeader() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text("Clear browsing data")
+                .typography(.footnote)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+
+            ControlSlot() {
+                Icon(.ArrowCounterClockwise)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyDataStoreRefresh)
+
+            ControlSlot() {
+                Icon(.X)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyDataStoreClosePanel)
+        }
+        .height(28.0)
+        .foregroundColor(.Tertiary)
+    }
+}
+
+// Where the profile is, so a person who wants to see the files can find them.
+Widget ClearDataFooter() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            Text(harmonyDataStoreProfilePath())
+                .typography(.caption)
+                .foregroundColor(.Quaternary)
+
+            if harmonyDataStoreError().count > 0 {
+                Text(harmonyDataStoreError())
+                    .typography(.caption)
+                    .foregroundColor(.Red)
+            }
+        }
+    }
+}
+
+Widget ClearDataPanelBody() {
+    body {
+        Panel(radius = CornerRadius.Medium) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
+                VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
+                    ClearDataHeader()
+
+                    Divider()
+                        .themeBorder(.Subtle)
+
+                    ClearDataRangeRow()
+
+                    ClearDataTypeList()
+
+                    if harmonyDataStoreIsSelected(BrowsingDataType.Cookies) {
+                        ClearDataCookieNote()
+                    }
+
+                    ClearDataButton()
+
+                    if harmonyDataStoreFreedBytes() > 0.0 {
+                        ClearDataResult()
+                    }
+
+                    Divider()
+                        .themeBorder(.Subtle)
+
+                    SiteDataSection()
+
+                    ClearDataFooter()
+                }
+            }
+        }
+        .backgroundStyle(.Raised)
+        .themeBorder(.Subtle)
+        .width(clearDataPanelWidth())
+        .hugHeight()
+    }
+}
+
+// What the sidebar places. It draws nothing at all while the panel is closed,
+// so the column it sits in keeps its shape.
+Widget ClearDataPanel() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            if harmonyDataStoreIsOpen() {
+                ClearDataPanelBody()
+            }
+        }
+    }
+}
+
+// The control that opens the panel, for the sidebar footer beside the downloads
+// and settings controls.
+Widget ClearBrowsingDataControl() {
+    body {
+        ControlSlot(active = harmonyDataStoreIsOpen()) {
+            Icon(.Broom)
+                .imageScale(.Small)
+        }
+        .onClick(harmonyDataStoreTogglePanel)
+    }
+}

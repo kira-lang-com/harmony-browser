@@ -1,0 +1,244 @@
+import KiraUI
+
+// What a shortcut does.
+//
+// The chord was matched natively, before the widget tree or the page could act
+// on it; this is where the decision is carried out, by calling the system that
+// already owns the thing being asked for. Nothing here reimplements a
+// navigation, a tab or an address: a shortcut is a second way to press a button
+// the browser already has, and the two must not be able to disagree.
+
+// --- Tabs -------------------------------------------------------------------
+
+function harmonyInputNewTab() {
+    let ignored = nativeTabsOpen(harmonyTabsHomeURL(), I32(1))
+    return
+}
+
+function harmonyInputCloseTab() {
+    let tab = harmonyTabsActiveId()
+    if tab <= 0 {
+        return
+    }
+    nativeTabsClose(I32(tab))
+    return
+}
+
+function harmonyInputReopenClosedTab() {
+    let ignored = nativeTabsReopenClosed()
+    return
+}
+
+function harmonyInputSelectTab(index: Int) {
+    // Ctrl+9 is the last tab however many there are, which is what the negative
+    // index carries.
+    if index < 0 {
+        let count = harmonyTabsCount()
+        if count <= 0 {
+            return
+        }
+        nativeTabsSelectIndex(I32(count - 1))
+        return
+    }
+    if index >= harmonyTabsCount() {
+        return
+    }
+    nativeTabsSelectIndex(I32(index))
+    return
+}
+
+// --- Printing ---------------------------------------------------------------
+
+// The active tab through the system print dialog. The dialog runs on a thread of
+// the input system's own, so neither the frame thread nor the engine thread stops
+// while it is up, and this returns immediately.
+function harmonyInputPrint() {
+    nativeInputPrint()
+    return
+}
+
+// --- Editing routed to a chrome field ---------------------------------------
+
+// KiraUI's field navigation codes: forward-delete, and the four caret moves.
+function harmonyInputNavDeleteForward() -> Int { return 261 }
+function harmonyInputNavLeft() -> Int { return 263 }
+function harmonyInputNavRight() -> Int { return 262 }
+function harmonyInputNavHome() -> Int { return 268 }
+function harmonyInputNavEnd() -> Int { return 269 }
+
+// A field the find bar owns searches as it is typed, so the page moves under
+// the typing rather than after it.
+function harmonyInputFieldEdited(target: Int) {
+    if target == harmonyInputTargetFind() {
+        harmonyInputFindApplyQuery()
+    }
+    return
+}
+
+function harmonyInputSubmitTarget(target: Int) {
+    if target == harmonyInputTargetAddress() {
+        harmonyChromeSubmitAddress()
+        nativeInputSetChromeTextTarget(I32(harmonyInputTargetNone()))
+        nativeInputFocusContent()
+        return
+    }
+    if target == harmonyInputTargetFind() {
+        harmonyInputFindNext()
+    }
+    return
+}
+
+// Escape. The address bar gives up the edit and shows where the page actually
+// is; the find bar closes, taking the highlight with it.
+function harmonyInputCancelTarget(target: Int) {
+    if target == harmonyInputTargetAddress() {
+        textFieldReset(harmonyInputAddressFieldKey())
+        return
+    }
+    if target == harmonyInputTargetFind() {
+        harmonyInputFindCloseBar()
+    }
+    return
+}
+
+function harmonyInputApplyEdit(kind: Int, argument: Int, target: Int) {
+    let key = harmonyInputFieldKeyFor(target)
+    if key == 0 {
+        return
+    }
+
+    if kind == harmonyInputEventText() {
+        textFieldInsert(key, argument)
+        harmonyInputFieldEdited(target)
+        return
+    }
+    if kind == harmonyInputEventBackspace() {
+        textFieldBackspace(key)
+        harmonyInputFieldEdited(target)
+        return
+    }
+    if kind == harmonyInputEventDelete() {
+        textFieldNav(key, harmonyInputNavDeleteForward())
+        harmonyInputFieldEdited(target)
+        return
+    }
+    if kind == harmonyInputEventCaretLeft() {
+        textFieldNav(key, harmonyInputNavLeft())
+        return
+    }
+    if kind == harmonyInputEventCaretRight() {
+        textFieldNav(key, harmonyInputNavRight())
+        return
+    }
+    if kind == harmonyInputEventCaretHome() {
+        textFieldNav(key, harmonyInputNavHome())
+        return
+    }
+    if kind == harmonyInputEventCaretEnd() {
+        textFieldNav(key, harmonyInputNavEnd())
+        return
+    }
+    if kind == harmonyInputEventSelectAll() {
+        textFieldSelectAll(key)
+        return
+    }
+    if kind == harmonyInputEventSubmit() {
+        harmonyInputSubmitTarget(target)
+        return
+    }
+    if kind == harmonyInputEventCancel() {
+        harmonyInputCancelTarget(target)
+    }
+    return
+}
+
+// --- One event --------------------------------------------------------------
+
+function harmonyInputApplyEvent(kind: Int, argument: Int, target: Int) {
+    if kind >= harmonyInputEventText() {
+        harmonyInputApplyEdit(kind, argument, target)
+        return
+    }
+
+    if kind == harmonyInputEventFocusAddress() {
+        harmonyInputFocusAddressBar()
+        return
+    }
+    if kind == harmonyInputEventNewTab() {
+        harmonyInputNewTab()
+        return
+    }
+    if kind == harmonyInputEventCloseTab() {
+        harmonyInputCloseTab()
+        return
+    }
+    if kind == harmonyInputEventReopenTab() {
+        harmonyInputReopenClosedTab()
+        return
+    }
+    if kind == harmonyInputEventNextTab() {
+        nativeTabsSelectNext()
+        return
+    }
+    if kind == harmonyInputEventPreviousTab() {
+        nativeTabsSelectPrevious()
+        return
+    }
+    if kind == harmonyInputEventSelectTab() {
+        harmonyInputSelectTab(argument)
+        return
+    }
+    if kind == harmonyInputEventReload() {
+        harmonyNavigationReload()
+        return
+    }
+    if kind == harmonyInputEventReloadIgnoringCache() {
+        harmonyNavigationReloadIgnoringCache()
+        return
+    }
+    if kind == harmonyInputEventBack() {
+        harmonyNavigationGoBack()
+        return
+    }
+    if kind == harmonyInputEventForward() {
+        harmonyNavigationGoForward()
+        return
+    }
+    if kind == harmonyInputEventStop() {
+        harmonyNavigationStop()
+        return
+    }
+    if kind == harmonyInputEventOpenFind() {
+        harmonyInputFindOpenBar()
+        return
+    }
+    if kind == harmonyInputEventCloseFind() {
+        harmonyInputFindCloseBar()
+        return
+    }
+    if kind == harmonyInputEventFindNext() {
+        harmonyInputFindNext()
+        return
+    }
+    if kind == harmonyInputEventFindPrevious() {
+        harmonyInputFindPrevious()
+    }
+    return
+}
+
+// Everything the two message pumps matched since the last frame, in the order
+// it was typed. The bound is a bound and not a policy: a frame drains what is
+// there, and a queue longer than this is a run of held keys nobody could have
+// meant.
+function harmonyInputDrainEvents() {
+    var drained = 0
+    while drained < 256 {
+        let kind = Int(nativeInputNextEvent())
+        if kind == harmonyInputEventNone() {
+            return
+        }
+        harmonyInputApplyEvent(kind, Int(nativeInputEventArgument()), Int(nativeInputEventTarget()))
+        drained = drained + 1
+    }
+    return
+}

@@ -1,0 +1,182 @@
+import KiraUI
+
+// The tabs the browser comes back with.
+//
+// The profile writes the session on its own, from the WebKit thread, whenever
+// the tab list settles. Reading it back is the host's, because only the host
+// decides how its window comes up: it opens a tab per entry, in the order they
+// were written, and hands each tab's id back so the profile can restore that
+// tab's back/forward list onto its page once the page exists.
+//
+// The registry opens one tab of its own when it starts, so the first entry
+// adopts that tab rather than adding to it. A restore that opened N tabs beside
+// the registry's one would come back with N+1 every time.
+construct HarmonySessionStore {
+    @Required let version: Int
+}
+
+HarmonySessionStore HarmonySession() {
+    @State var restored: Bool = false
+    @State var restoredCount: Int = 0
+    let version: Int = 1
+
+    function isRestored() -> Bool {
+        return restored
+    }
+
+    function markRestored(count: Int) {
+        restored = true
+        restoredCount = count
+        return
+    }
+
+    // How many tabs came back, so the window can say so while their pages load.
+    function count() -> Int {
+        return restoredCount
+    }
+}
+
+// Whether the registry is far enough along to be given tabs: the thread is
+// serving, and the tab it opens for itself exists to be adopted.
+function harmonySessionRegistryIsReady() -> Bool {
+    if harmonyTabsReady() == false {
+        return false
+    }
+    return harmonyTabsCount() > 0
+}
+
+// The first entry takes over the tab the registry opened for itself.
+function harmonySessionAdoptFirstTab(index: Int) {
+    let tabId = harmonyTabsIdAt(0)
+    if tabId <= 0 {
+        return
+    }
+
+    let url = hbDataSessionURL(I32(index))
+    if url.count > 0 {
+        nativeTabsLoad(I32(tabId), url)
+    }
+    if hbDataSessionPinned(I32(index)) != I32(0) {
+        nativeTabsSetPinned(I32(tabId), I32(1))
+    }
+    hbDataSessionAdopt(I32(index), I32(tabId))
+    return
+}
+
+// Every entry after the first opens a tab of its own, in the background and at
+// the position it was written from, so the strip comes back in its own order
+// rather than in the order the pages happen to load.
+function harmonySessionOpenTab(index: Int) {
+    let url = hbDataSessionURL(I32(index))
+    if url.count == 0 {
+        return
+    }
+
+    let tabId = Int(nativeTabsOpenAt(url, I32(index), I32(0)))
+    if tabId <= 0 {
+        return
+    }
+    if hbDataSessionPinned(I32(index)) != I32(0) {
+        nativeTabsSetPinned(I32(tabId), I32(1))
+    }
+    hbDataSessionAdopt(I32(index), I32(tabId))
+    return
+}
+
+// The tab that was showing when the browser was last closed comes back showing.
+function harmonySessionSelectActive(count: Int) {
+    let active = Int(hbDataSessionActiveIndex())
+    if active < 0 || active >= count {
+        return
+    }
+    nativeTabsSelectIndex(I32(active))
+    return
+}
+
+function harmonySessionRestore() {
+    let count = Int(hbDataSessionCount())
+    if count <= 0 {
+        HarmonySession().markRestored(0)
+        hbDataSessionRestoreFinished()
+        return
+    }
+
+    harmonySessionAdoptFirstTab(0)
+
+    var index = 1
+    while index < count {
+        harmonySessionOpenTab(index)
+        index = index + 1
+    }
+
+    harmonySessionSelectActive(count)
+    HarmonySession().markRestored(count)
+
+    // The entries have been handed out; the copies the adoptions carry are what
+    // the restore runs on from here.
+    hbDataSessionRestoreFinished()
+    return
+}
+
+// --- The frame hook ----------------------------------------------------------
+
+// Run once per frame, after the tabs registry's own frame hook. Restoring is the
+// only thing this side of the profile has to drive: records, removals and the
+// session writer are serviced by the profile's pump on the WebKit thread.
+function harmonyDataStoreFrame() {
+    if HarmonySession().isRestored() {
+        return
+    }
+    if harmonySessionRegistryIsReady() == false {
+        return
+    }
+    harmonySessionRestore()
+    return
+}
+
+// Runs at the end of the process, BEFORE the tabs registry is stopped: the last
+// session write reads the tab list, and the registry clears it on the way down.
+function harmonyDataStoreShutdown() {
+    hbDataShutdown()
+    return
+}
+
+// --- What the window can say about the restore -------------------------------
+
+function harmonySessionRestoredCount() -> Int {
+    return HarmonySession().count()
+}
+
+function harmonySessionIsRestoring() -> Bool {
+    return hbDataSessionRestorePending() != I32(0)
+}
+
+// A line for the sidebar while the restored tabs are still getting their history
+// back. It says what the browser is doing rather than leaving a strip of tabs
+// that cannot go back yet unexplained.
+Widget SessionRestoreNote() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            if harmonySessionIsRestoring() {
+                SessionRestoreNoteBody()
+            }
+        }
+    }
+}
+
+Widget SessionRestoreNoteBody() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(.ClockCounterClockwise)
+                .imageScale(.Small)
+                .foregroundColor(.Accent)
+
+            Text("Restoring " + String(harmonySessionRestoredCount()) + " tabs")
+                .typography(.caption)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+        }
+        .height(22.0)
+    }
+}

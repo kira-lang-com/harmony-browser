@@ -1,0 +1,102 @@
+// The seam onto the download engine.
+//
+// The engine owns the WebKit download objects, the destination decision and the
+// history file; this file is the only place that names its C symbols. Every read
+// answers from the record store behind its own lock and never enters WebKit, so
+// a widget may call any of them while it builds. Every command is queued and
+// applied on the WebKit thread, so a click returns immediately.
+//
+// Joining the engine to the page registry is the browser's host's, because it has
+// to happen before that registry creates its first page and five other systems
+// have the same requirement.
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_revision; abi: c; }
+function downloadsNativeRevision() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_count; abi: c; }
+function downloadsNativeCount() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_id_at; abi: c; }
+function downloadsNativeIdAt(index: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_active_count; abi: c; }
+function downloadsNativeActiveCount() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_state; abi: c; }
+function downloadsNativeState(id: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_received_bytes; abi: c; }
+function downloadsNativeReceivedBytes(id: I32) -> Int;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_total_bytes; abi: c; }
+function downloadsNativeTotalBytes(id: I32) -> Int;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_text; abi: c; }
+function downloadsNativeText(id: I32, field: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_directory; abi: c; }
+function downloadsNativeDirectory() -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_cancel; abi: c; }
+function downloadsNativeCancel(id: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_remove; abi: c; }
+function downloadsNativeRemove(id: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_clear_finished; abi: c; }
+function downloadsNativeClearFinished() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_reveal; abi: c; }
+function downloadsNativeReveal(id: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_open; abi: c; }
+function downloadsNativeOpen(id: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_reveal_directory; abi: c; }
+function downloadsNativeRevealDirectory() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_downloads_force_next; abi: c; }
+function downloadsNativeForceNext(url: CString) -> Void;
+
+// --- The Kira-side surface ---------------------------------------------------
+
+// Bumped on every change the panel would draw differently, including a byte
+// count arriving.
+function downloadsRevision() -> Int {
+    return Int(downloadsNativeRevision())
+}
+
+// The text fields, in the order harmony_downloads.h numbers them.
+function downloadFieldUrl() -> Int {
+    return 0
+}
+
+function downloadFieldFileName() -> Int {
+    return 1
+}
+
+function downloadFieldPath() -> Int {
+    return 2
+}
+
+function downloadFieldMimeType() -> Int {
+    return 3
+}
+
+function downloadFieldError() -> Int {
+    return 4
+}
+
+function downloadFieldCompleted() -> Int {
+    return 5
+}
+
+function downloadTextOf(id: Int, field: Int) -> String {
+    return downloadsNativeText(I32(id), I32(field))
+}
+
+// Where files are saved. A folder that could not be created answers with
+// nothing rather than with a path that is not there.
+function downloadsDirectoryPath() -> String {
+    return downloadsNativeDirectory()
+}

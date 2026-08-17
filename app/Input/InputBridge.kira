@@ -1,0 +1,110 @@
+// The input system's C surface, one declaration per export.
+//
+// The browser's keyboard is not the widget tree's: the page lives in a native
+// child window on another thread, and once it has been clicked it is the only
+// window in this process receiving keys. So the shortcuts are matched in a hook
+// on each of the two message pumps, and what reaches Kira is the decision --
+// "the user asked to reload", "this character belongs in the address bar" --
+// rather than the keystroke.
+//
+// Nothing outside `app/Input` calls these: the files beside this one are where
+// the rest of the browser finds them, in Kira types.
+
+// --- Lifetime ---------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_frame; abi: c; }
+function nativeInputFrame(hostWindow: RawPtr) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_shutdown; abi: c; }
+function nativeInputShutdown() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_ready; abi: c; }
+function nativeInputReady() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_error; abi: c; }
+function nativeInputError() -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_revision; abi: c; }
+function nativeInputRevision() -> I32;
+
+// --- Events -----------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_next_event; abi: c; }
+function nativeInputNextEvent() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_event_argument; abi: c; }
+function nativeInputEventArgument() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_event_target; abi: c; }
+function nativeInputEventTarget() -> I32;
+
+// --- Focus ------------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_focus_owner; abi: c; }
+function nativeInputFocusOwner() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_focus_chrome; abi: c; }
+function nativeInputFocusChrome() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_focus_content; abi: c; }
+function nativeInputFocusContent() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_chrome_text_target; abi: c; }
+function nativeInputChromeTextTarget() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_set_chrome_text_target; abi: c; }
+function nativeInputSetChromeTextTarget(target: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_focus_cycle; abi: c; }
+function nativeInputFocusCycle(direction: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_press_serial; abi: c; }
+function nativeInputPressSerial() -> I32;
+
+// --- Page zoom --------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_zoom_in; abi: c; }
+function nativeInputZoomIn() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_zoom_out; abi: c; }
+function nativeInputZoomOut() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_zoom_reset; abi: c; }
+function nativeInputZoomReset() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_zoom_set; abi: c; }
+function nativeInputZoomSet(percent: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_zoom_percent; abi: c; }
+function nativeInputZoomPercent() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_zoom_origin; abi: c; }
+function nativeInputZoomOrigin() -> CString;
+
+// --- Find in page -----------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_find_open; abi: c; }
+function nativeInputFindOpen() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_find_close; abi: c; }
+function nativeInputFindClose() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_find_is_open; abi: c; }
+function nativeInputFindIsOpen() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_find_search; abi: c; }
+function nativeInputFindSearch(text: CString, backwards: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_find_match_count; abi: c; }
+function nativeInputFindMatchCount() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_find_match_index; abi: c; }
+function nativeInputFindMatchIndex() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_find_searched; abi: c; }
+function nativeInputFindSearched() -> I32;
+
+// --- Printing ---------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_input_print; abi: c; }
+function nativeInputPrint() -> Void;

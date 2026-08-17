@@ -1,0 +1,132 @@
+import KiraUI
+
+// The certificate warning.
+//
+// It replaces the page rather than floating over it, because what it is warning
+// about IS the page: a sheet with the document behind it would be a warning a
+// person can read while the thing it warns about is already on screen. The
+// refusing button is the plain one and the accepting button is the quiet one,
+// which is the one place in this browser where the safe answer is the loud one.
+
+function harmonyDialogInterstitialWidth() -> Float {
+    return 520.0
+}
+
+Widget HarmonyDialogInterstitialHeading(origin: String) {
+    body {
+        VStack(spacing = Spacing.Small, alignment = HorizontalAlignment.Leading) {
+            Icon(.ShieldWarning)
+                .imageScale(.Large)
+                .foregroundColor(.Warning)
+
+            Text("Your connection is not private")
+                .typography(.title2)
+                .foregroundColor(.Primary)
+
+            Text(harmonyDialogCertificateSummary(origin))
+                .typography(.body)
+                .foregroundColor(.Secondary)
+        }
+    }
+}
+
+Widget HarmonyDialogInterstitialDetail(message: String, code: Int) {
+    body {
+        VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
+            Divider()
+                .themeBorder(.Subtle)
+
+            HarmonyDialogTextBlock(lines = harmonyDialogWrapped(message))
+
+            Text(harmonyDialogCertificateCodeLine(code))
+                .typography(.caption)
+                .foregroundColor(.Tertiary)
+        }
+    }
+}
+
+Widget HarmonyDialogInterstitialDetailToggle(open: Bool) {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            Icon(open ? Symbol.CaretDown : Symbol.CaretRight)
+                .imageScale(.Small)
+
+            Text(harmonyDialogCertificateDetailLabel(open))
+                .typography(.caption)
+
+            Spacer()
+        }
+        .height(22.0)
+        .foregroundColor(.Secondary)
+        .onClick(harmonyDialogToggleCertificateDetail)
+    }
+}
+
+Widget HarmonyDialogInterstitialButtons() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Button(
+                label = harmonyDialogDismissLabel(HarmonyDialogKind.Certificate),
+                onPress = harmonyDialogDismiss
+            )
+                .foregroundColor(.Inverse)
+                .backgroundStyle(.Accent)
+
+            Button(
+                label = harmonyDialogAcceptLabel(HarmonyDialogKind.Certificate),
+                role = ButtonRole.Destructive,
+                onPress = harmonyDialogAccept
+            )
+
+            Spacer()
+        }
+        .height(28.0)
+    }
+}
+
+Widget HarmonyDialogInterstitialBody(
+    origin: String,
+    message: String,
+    code: Int,
+    remember: Bool,
+    detailOpen: Bool,
+) {
+    body {
+        VStack(spacing = Spacing.Medium, alignment = HorizontalAlignment.Leading) {
+            HarmonyDialogInterstitialHeading(origin = origin)
+
+            HarmonyDialogRememberRow(
+                label = "Trust this certificate for the rest of this session",
+                isOn = remember
+            )
+
+            HarmonyDialogInterstitialButtons()
+
+            HarmonyDialogInterstitialDetailToggle(open = detailOpen)
+
+            if detailOpen {
+                HarmonyDialogInterstitialDetail(message = message, code = code)
+            }
+        }
+        .width(harmonyDialogInterstitialWidth())
+    }
+}
+
+// What the shell puts where the page would be. It paints the window's own
+// surface edge to edge: the page's view is held down while it is up, and a
+// transparent warning over a blank child window is a warning nobody can read.
+Widget HarmonyDialogInterstitial() {
+    body {
+        ZStack(alignment = StackAlignment.Center) {
+            BackgroundFill(style = .Window)
+
+            HarmonyDialogInterstitialBody(
+                origin = HarmonyDialogState().origin(),
+                message = HarmonyDialogState().message(),
+                code = HarmonyDialogState().code(),
+                remember = HarmonyDialogState().remember(),
+                detailOpen = HarmonyDialogState().certificateDetailShown()
+            )
+        }
+    }
+}

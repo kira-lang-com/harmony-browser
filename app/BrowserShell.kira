@@ -1,368 +1,210 @@
 import KiraUI
 
-// The chrome the WebKit child view has to sit clear of. The widgets below and
-// the native surface bounds both read these, so the two can never drift.
-function harmonyBrowserSidebarWidth() -> Float {
-    return 300.0
-}
+// The browser's window: what is above the page, what is beside it, what floats
+// over it, and the hole in the middle the page's own window shows through.
+//
+// A page is a native child window of this one, composited above everything KiraUI
+// paints. So the window never draws over the page: the rectangle the page
+// occupies is left empty, everything the browser has to say goes above it or
+// beside it, and anything that genuinely has to cover it goes into a layer that
+// takes the page's window down for as long as it is up.
+//
+// Nothing here reaches an engine. Every control is a system's own widget, placed;
+// every measurement comes from `BrowserState.kira`, which is where the window's
+// arithmetic lives.
 
-function harmonyBrowserToolbarHeight() -> Float {
-    return 35.0
-}
+// --- The toolbar's leading run ------------------------------------------------
 
-Widget BrowserTrafficLights() {
+// Which arrangement the tabs are in. One control, because there are two
+// arrangements and no third state worth a menu.
+Widget HarmonyBrowserLayoutToggle() {
     body {
-        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
-            Text("●")
-                .font(size = 15.0)
-                .foregroundColor(.Red)
+        ControlSlot(active = harmonyBrowserUsesSidebar()) {
+            Icon(harmonyBrowserLayoutSymbol())
+                .imageScale(.Small)
+        }
+        .onClick(harmonyBrowserToggleLayout)
+    }
+}
 
-            Text("●")
-                .font(size = 15.0)
-                .foregroundColor(.Yellow)
+// The controls the window keeps at the leading end of the toolbar: the
+// arrangement, a private tab, and the three surfaces that are about the browser
+// rather than about the page. They are on the toolbar rather than in the sidebar
+// because the sidebar is one of two arrangements, and a control that vanished
+// with the tab list would be a control with no way back.
+//
+// The zoom badge is here only while a site is being read at anything but its own
+// size, which is the only time a badge like it has ever been shown, and
+// `harmonyChromeLeadingSlots` counts it so the address bar is sized against the
+// row that is actually drawn.
+Widget HarmonyBrowserToolbarControls() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            HarmonyBrowserLayoutToggle()
 
-            Text("●")
-                .font(size = 15.0)
-                .foregroundColor(.Green)
+            PrivateBrowsingControl()
+
+            DownloadsButton()
+
+            PermissionPanelButton()
+
+            ClearBrowsingDataControl()
+
+            HarmonyBrowserMenuButton()
+
+            if harmonyInputZoomIsDefault() == false {
+                HarmonyInputZoomBadge()
+            }
         }
         .hugWidth()
     }
 }
 
-// Sized to sit ON the 35-point toolbar with air on both sides, like every
-// other control there: the slots are 26, and so is this.
-Widget BrowserAddressField() {
-    body {
-        Panel(radius = CornerRadius.Capsule) {
-            HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-                Icon(.Globe)
-                    .imageScale(.Small)
-                    .foregroundColor(.Secondary)
+// --- The page's own area ------------------------------------------------------
 
-                TextField(
-                    key = harmonyBrowserAddressFieldKey(),
-                    initial = HarmonyBrowserState().addressValue(),
-                    placeholder = "Search or enter address",
-                    width = 290.0,
-                    height = 22.0,
-                    onSubmit = harmonyBrowserSubmitAddress
-                )
-                    .fill(Color { a: 0.0 })
-                    .foregroundColor(.Primary)
-
-                Icon(.DotsThree)
-                    .imageScale(.Small)
-                    .foregroundColor(.Secondary)
-            }
-            .height(26.0)
-        }
-        .backgroundStyle(.Control)
-        .width(360.0)
-        .height(26.0)
-    }
-}
-
-Widget BrowserGlobalToolbar() {
-    body {
-        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-            BrowserTrafficLights()
-
-            ControlSlot() {
-                Icon(.SidebarSimple)
-                    .imageScale(.Small)
-            }
-            .onClick(harmonyBrowserNewTab)
-
-            Spacer()
-
-            ControlSlot() {
-                Icon(.ArrowLeft)
-                    .imageScale(.Small)
-            }
-            .onClick(harmonyBrowserBack)
-
-            ControlSlot() {
-                Icon(.ArrowRight)
-                    .imageScale(.Small)
-            }
-            .onClick(harmonyBrowserForward)
-
-            ControlSlot() {
-                Icon(.ArrowClockwise)
-                    .imageScale(.Small)
-            }
-            .onClick(harmonyBrowserReload)
-
-            BrowserAddressField()
-
-            Text(HarmonyBrowserState().addressValue())
-                .typography(.caption)
-                .foregroundColor(.Secondary)
-                .opacity(0.78)
-
-            Spacer()
-
-            ControlSlot() {
-                Icon(.Copy)
-                    .imageScale(.Small)
-            }
-            .onClick(harmonyBrowserNewTab)
-
-            ControlSlot() {
-                Icon(.DotsThree)
-                    .imageScale(.Small)
-            }
-        }
-        .foregroundColor(.Secondary)
-        .height(harmonyBrowserToolbarHeight())
-        .inset(horizontal = Spacing.Small)
-        .backgroundStyle(.Surface)
-    }
-}
-
-function browserQuickLinkSymbol(id: Int) -> Symbol {
-    if id == 0 {
-        return Symbol.GoogleLogo
-    }
-    if id == 1 {
-        return Symbol.Envelope
-    }
-    if id == 2 {
-        return Symbol.GithubLogo
-    }
-    if id == 3 {
-        return Symbol.FigmaLogo
-    }
-    if id == 4 {
-        return Symbol.YoutubeLogo
-    }
-    return Symbol.GlobeSimple
-}
-
-Widget BrowserQuickLink(id: Int) {
+// Why there is no page, when there is none.
+//
+// A browser whose engine never loaded is otherwise a browser drawing an empty
+// window, and the difference between that and a browser that is still starting is
+// exactly what the host's diagnostic says.
+Widget HarmonyBrowserStartupNotice() {
     body {
         Card(material = Material.Frosted) {
-            Icon(browserQuickLinkSymbol(id))
-                .imageScale(.Medium)
-                .foregroundColor(.Secondary)
-        }
-        .width(108.0)
-        .height(48.0)
-    }
-}
+            Inset(horizontal = Spacing.Medium, vertical = Spacing.Small) {
+                HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+                    Icon(harmonyBrowserStartupSymbol())
+                        .imageScale(.Medium)
+                        .foregroundColor(harmonyBrowserStartupInk())
 
-Widget BrowserGoogleQuickLink() {
-    body {
-        BrowserQuickLink(id = 0)
-            .onClick(harmonyBrowserOpenGoogle)
-    }
-}
-
-Widget BrowserGmailQuickLink() {
-    body {
-        BrowserQuickLink(id = 1)
-            .onClick(harmonyBrowserOpenGmail)
-    }
-}
-
-Widget BrowserGitHubQuickLink() {
-    body {
-        BrowserQuickLink(id = 2)
-            .onClick(harmonyBrowserOpenGitHub)
-    }
-}
-
-Widget BrowserFigmaQuickLink() {
-    body {
-        BrowserQuickLink(id = 3)
-            .onClick(harmonyBrowserOpenFigma)
-    }
-}
-
-Widget BrowserYouTubeQuickLink() {
-    body {
-        BrowserQuickLink(id = 4)
-            .onClick(harmonyBrowserOpenYouTube)
-    }
-}
-
-Widget BrowserKiraQuickLink() {
-    body {
-        BrowserQuickLink(id = 5)
-            .onClick(harmonyBrowserOpenKira)
-    }
-}
-
-Widget BrowserQuickLinks() {
-    body {
-        VStack(spacing = Spacing.ExtraSmall) {
-            HStack(spacing = Spacing.ExtraSmall) {
-                BrowserGoogleQuickLink()
-                BrowserGmailQuickLink()
-                BrowserGitHubQuickLink()
-            }
-
-            HStack(spacing = Spacing.ExtraSmall) {
-                BrowserFigmaQuickLink()
-                BrowserYouTubeQuickLink()
-                BrowserKiraQuickLink()
+                    Text(harmonyBrowserStartupText())
+                        .typography(.subheadline)
+                        .foregroundColor(.Secondary)
+                }
             }
         }
+        .backgroundStyle(.Raised)
+        .themeBorder(.Subtle)
+        .hugWidth()
+        .hugHeight()
     }
 }
 
-Widget BrowserSectionHeader(title: String) {
+// The hole the page shows through.
+//
+// It paints the window's own surface and nothing else while a page is showing:
+// whatever were drawn here would be underneath the page's window and invisible,
+// and drawing it anyway is how a browser ends up with a interface it can only see
+// when the engine is broken.
+Widget HarmonyBrowserPageArea() {
     body {
-        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-            Text(title)
-                .typography(.footnote)
-                .foregroundColor(.Secondary)
+        ZStack(alignment = StackAlignment.Center) {
+            BackgroundFill(style = .Window)
 
-            Spacer()
-
-            Icon(.CaretDown)
-                .imageScale(.Small)
-                .foregroundColor(.Tertiary)
-        }
-        .height(28.0)
-    }
-}
-
-function browserTabSymbol(tab: Int) -> Symbol {
-    if tab == 0 {
-        return Symbol.Plus
-    }
-    if tab == 1 {
-        return Symbol.Envelope
-    }
-    if tab == 2 {
-        return Symbol.GithubLogo
-    }
-    if tab == 3 {
-        return Symbol.FigmaLogo
-    }
-    if tab == 4 {
-        return Symbol.YoutubeLogo
-    }
-    return Symbol.GlobeSimple
-}
-
-Widget BrowserTabRow(title: String, tab: Int) {
-    body {
-        ListRow(selected = HarmonyBrowserState().selectedTabValue() == tab) {
-            Icon(browserTabSymbol(tab))
-                .imageScale(.Small)
-
-            Text(title)
-                .typography(.subheadline)
-        }
-    }
-}
-
-Widget BrowserNewTabRow() {
-    body {
-        BrowserTabRow(title = "New Tab", tab = 0)
-            .onClick(harmonyBrowserNewTab)
-    }
-}
-
-Widget BrowserGmailTabRow() {
-    body {
-        BrowserTabRow(title = "Gmail", tab = 1)
-            .onClick(harmonyBrowserOpenGmail)
-    }
-}
-
-Widget BrowserGitHubTabRow() {
-    body {
-        BrowserTabRow(title = "GitHub", tab = 2)
-            .onClick(harmonyBrowserOpenGitHub)
-    }
-}
-
-Widget BrowserFigmaTabRow() {
-    body {
-        BrowserTabRow(title = "Figma", tab = 3)
-            .onClick(harmonyBrowserOpenFigma)
-    }
-}
-
-Widget BrowserYouTubeTabRow() {
-    body {
-        BrowserTabRow(title = "YouTube", tab = 4)
-            .onClick(harmonyBrowserOpenYouTube)
-    }
-}
-
-Widget BrowserKiraTabRow() {
-    body {
-        BrowserTabRow(title = "Kira", tab = 5)
-            .onClick(harmonyBrowserOpenKira)
-    }
-}
-
-Widget BrowserSidebarFooter() {
-    body {
-        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-            ControlSlot() {
-                Icon(.DownloadSimple)
-                    .imageScale(.Small)
+            if harmonyBrowserPageIsShowing() == false {
+                HarmonyBrowserStartupNotice()
             }
-
-            Spacer()
-
-            ControlSlot() {
-                Icon(.Gear)
-                    .imageScale(.Small)
-            }
-
-            ControlSlot() {
-                Icon(.Plus)
-                    .imageScale(.Small)
-            }
-            .onClick(harmonyBrowserNewTab)
         }
-        .height(34.0)
-        .foregroundColor(.Secondary)
-    }
-}
-
-Widget HarmonyBrowserSidebar() {
-    body {
-        Sidebar(background = .Surface, material = .Frosted) {
-            BrowserQuickLinks()
-
-            BrowserSectionHeader(title = "Bookmarks")
-
-            Divider()
-                .themeBorder(.Subtle)
-
-            BrowserSectionHeader(title = "Tabs")
-
-            BrowserNewTabRow()
-
-            BrowserSectionHeader(title = "Work")
-
-            BrowserGmailTabRow()
-
-            BrowserGitHubTabRow()
-
-            BrowserFigmaTabRow()
-
-            BrowserSectionHeader(title = "Personal")
-
-            BrowserYouTubeTabRow()
-
-            BrowserKiraTabRow()
-
-            Spacer()
-
-            Divider()
-                .themeBorder(.Subtle)
-
-            BrowserSidebarFooter()
-        }
-        .width(harmonyBrowserSidebarWidth())
         .fillHeight()
+    }
+}
+
+// --- What floats over the page ------------------------------------------------
+
+// The site menu, the downloads list and the clear-browsing-data panel, anchored
+// under the controls that open them. They are the window's own layer rather than
+// the dialogs one because none of them is a page's question: nothing is waiting on
+// them, and a press anywhere else leaves them open.
+//
+// Each draws nothing at all while it is closed, so the column they share is the
+// height of whichever of them is up.
+//
+// The column hangs under the toolbar rather than at the top of the window,
+// because the toolbar is where the controls that open them are and a panel drawn
+// over its own button is a panel that cannot be closed. The offset is a fill of
+// the toolbar's height: `Inset` takes spacing tokens, and this is a measurement.
+Widget HarmonyBrowserPanelLayer() {
+    body {
+        ZStack(alignment = StackAlignment.TopLeading) {
+            VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+                BackgroundFill(style = .Clear)
+                    .height(harmonyChromeHeight())
+
+                Inset(horizontal = Spacing.Small, vertical = Spacing.Small) {
+                    VStack(spacing = Spacing.Small, alignment = HorizontalAlignment.Leading) {
+                        HarmonyBrowserMenuSlot()
+
+                        DownloadsPanel()
+
+                        ClearDataPanel()
+                    }
+                    .hugHeight()
+                }
+            }
+            .hugHeight()
+        }
+    }
+}
+
+// --- The window ---------------------------------------------------------------
+
+// Everything above the page, in the order it is stacked: the toolbar and its load
+// lane, the tab strip when the tabs are across the top, and the find bar for as
+// long as a find session is open. `harmonyBrowserTopInset` measures exactly this,
+// and the page's own window is placed under it.
+Widget HarmonyBrowserHeader() {
+    body {
+        VStack(spacing = Spacing.None) {
+            HarmonyBrowserChrome() {
+                HarmonyBrowserToolbarControls()
+            }
+
+            if harmonyBrowserUsesSidebar() == false {
+                HarmonyTabStrip()
+            }
+
+            HarmonyInputFindBarSlot()
+        }
+        .hugHeight()
+    }
+}
+
+Widget HarmonyBrowserBody() {
+    body {
+        VStack(spacing = Spacing.None) {
+            HarmonyBrowserHeader()
+
+            Expanded(flex = 1) {
+                HStack(spacing = Spacing.None, alignment = VerticalAlignment.Stretch) {
+                    if harmonyBrowserUsesSidebar() {
+                        HarmonyBrowserSidebar()
+                    }
+
+                    Expanded(flex = 1) {
+                        HarmonyBrowserPageArea()
+                    }
+                }
+                .fillHeight()
+            }
+        }
+        .fillHeight()
+    }
+}
+
+// The window itself: the browser, the panels it floats, and the layer a page's
+// own questions arrive in, in the order they cover one another.
+Widget HarmonyBrowserWindow() {
+    body {
+        AppSurface {
+            ZStack(alignment = StackAlignment.TopLeading) {
+                HarmonyBrowserBody()
+
+                if harmonyBrowserPanelsOpen() {
+                    HarmonyBrowserPanelLayer()
+                }
+
+                HarmonyBrowserOverlay()
+            }
+            .fillHeight()
+        }
     }
 }

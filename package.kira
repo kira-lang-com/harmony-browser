@@ -9,17 +9,93 @@ Package HarmonyBrowser {
         Dependency { name: "OpacityUI", path: "../opacity-ui" },
         Dependency { name: "KiraGraphics", path: "../kira-graphics" }
     ]
+    // One archive, because this is one program.
+    //
+    // The browser's native side is nine groups of translation units that call
+    // each other in both directions: the tabs registry owns the engine and every
+    // other group reaches WebKit through its seam, while the registry itself
+    // calls the profile to bind a data store to a page it is about to create.
+    // Cutting a cycle like that into separate archives buys nothing -- none of
+    // the pieces is usable without the rest, and all of them go on the same link
+    // line whatever they are called -- and costs a duplicated declaration of the
+    // same include directory, the same target row and the same system libraries
+    // nine times over.
+    //
+    // The entrypoint is the host's own header because the host is what joins the
+    // groups together; every group's public header sits beside it in the same
+    // include directory.
     let nativeLibraries = [
         NativeLibrary {
-            name: "harmony_webkit",
+            name: "harmony_browser",
             linkMode: LinkMode.Static,
             headers: Headers { entrypoint: "NativeLibs/harmony_webkit.h", includeDirs: ["NativeLibs"] },
-            sources: ["NativeLibs/harmony_webkit.cpp"],
+            sources: [
+                "NativeLibs/harmony_webkit.cpp",
+                "NativeLibs/harmony_browser_chrome.cpp",
+                "NativeLibs/harmony_paths.cpp",
+                "NativeLibs/harmony_text.cpp",
+                "NativeLibs/harmony_tabs_api.cpp",
+                "NativeLibs/harmony_tabs_clients.cpp",
+                "NativeLibs/harmony_tabs_embed.cpp",
+                "NativeLibs/harmony_tabs_engine.cpp",
+                "NativeLibs/harmony_tabs_model.cpp",
+                "NativeLibs/harmony_tabs_view.cpp",
+                "NativeLibs/harmony_navigation_publish.cpp",
+                "NativeLibs/harmony_navigation_state.cpp",
+                "NativeLibs/harmony_navigation_webkit.cpp",
+                "NativeLibs/harmony_dialogs.cpp",
+                "NativeLibs/harmony_dialogs_filepicker.cpp",
+                "NativeLibs/harmony_dialogs_page.cpp",
+                "NativeLibs/harmony_dialogs_webkit.cpp",
+                "NativeLibs/harmony_permissions.cpp",
+                "NativeLibs/harmony_permissions_clients.cpp",
+                "NativeLibs/harmony_permissions_geolocation.cpp",
+                "NativeLibs/harmony_permissions_notify.cpp",
+                "NativeLibs/harmony_downloads_engine.cpp",
+                "NativeLibs/harmony_downloads_history.cpp",
+                "NativeLibs/harmony_downloads_host.cpp",
+                "NativeLibs/harmony_downloads_model.cpp",
+                "NativeLibs/harmony_downloads_paths.cpp",
+                "NativeLibs/harmony_downloads_text.cpp",
+                "NativeLibs/harmony_downloads_webkit.cpp",
+                "NativeLibs/harmony_data_store_api.cpp",
+                "NativeLibs/harmony_data_store_origins.cpp",
+                "NativeLibs/harmony_data_store_paths.cpp",
+                "NativeLibs/harmony_data_store_profile.cpp",
+                "NativeLibs/harmony_data_store_records.cpp",
+                "NativeLibs/harmony_data_store_remove.cpp",
+                "NativeLibs/harmony_data_store_session.cpp",
+                "NativeLibs/harmony_input_engine.cpp",
+                "NativeLibs/harmony_input_find.cpp",
+                "NativeLibs/harmony_input_focus.cpp",
+                "NativeLibs/harmony_input_hooks.cpp",
+                "NativeLibs/harmony_input_print.cpp",
+                "NativeLibs/harmony_input_zoom.cpp"
+            ],
             nativeTargets: [
                 NativeTarget {
                     triple: "x86_64-windows-msvc",
-                    staticLib: "generated/native/x86_64-windows-msvc/harmony_webkit.lib",
-                    systemLibs: ["kernel32", "user32", "ole32"]
+                    staticLib: "generated/native/x86_64-windows-msvc/harmony_browser.lib",
+                    // Every entry is reached by name from the sources above:
+                    // gdi32 for the bitmaps a suspended tab's last frame is kept
+                    // in and the device context a page is printed through,
+                    // ole32 and shell32 for the file picker, the known folders
+                    // and revealing a download, comdlg32 for the print dialog,
+                    // imm32 for the composition a key hook must not eat,
+                    // bcrypt for the origin digests the profile names its
+                    // storage directories with, and runtimeobject for the
+                    // Windows location source a geolocation grant reads.
+                    systemLibs: [
+                        "kernel32",
+                        "user32",
+                        "gdi32",
+                        "ole32",
+                        "shell32",
+                        "comdlg32",
+                        "imm32",
+                        "bcrypt",
+                        "runtimeobject"
+                    ]
                 }
             ]
         }

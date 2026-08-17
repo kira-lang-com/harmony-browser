@@ -1,0 +1,146 @@
+import KiraGraphics
+
+// The dialogs wrapper owns every WebKit object a page's question carries: the
+// listener that answers it, the challenge behind a sign-in, the Windows file
+// dialog a page's <input type=file> opens. All of that lives on WebKit's own
+// thread and in the Windows shell, and none of it may be touched from here.
+//
+// What crosses is a request id and its text. The host reads the id once a
+// frame, draws the question with it, and posts the answer back under it; the
+// wrapper hands the answer to WebKit on the next turn of its loop.
+//
+// Joining the wrapper to the page registry is the browser's host's, because it
+// has to happen before that registry creates its first page and five other
+// systems have the same requirement.
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_shutdown; abi: c; }
+function dialogsShutdownNative() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_frame; abi: c; }
+function dialogsFrameNative(hostWindow: RawPtr, hostOverlay: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_request_kind; abi: c; }
+function dialogsRequestKind(requestId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_request_flags; abi: c; }
+function dialogsRequestFlags(requestId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_request_code; abi: c; }
+function dialogsRequestCode(requestId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_request_message; abi: c; }
+function dialogsRequestMessage(requestId: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_request_origin; abi: c; }
+function dialogsRequestOrigin(requestId: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_request_default_value; abi: c; }
+function dialogsRequestDefaultValue(requestId: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_request_detail; abi: c; }
+function dialogsRequestDetail(requestId: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_respond_accept; abi: c; }
+function dialogsRespondAccept(requestId: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_respond_dismiss; abi: c; }
+function dialogsRespondDismiss(requestId: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_respond_text; abi: c; }
+function dialogsRespondText(requestId: I32, text: CString) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_respond_credential; abi: c; }
+function dialogsRespondCredential(requestId: I32, user: CString, password: CString, remember: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_respond_trust; abi: c; }
+function dialogsRespondTrust(requestId: I32, remember: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_dialogs_error; abi: c; }
+function dialogsError() -> CString;
+
+// What a page is asking. The wrapper never reports a file picker: that one is a
+// Windows common dialog, answered without the host drawing anything.
+enum HarmonyDialogKind {
+    None
+    Alert
+    Confirm
+    Prompt
+    BeforeUnload
+    Authenticate
+    Certificate
+}
+
+function harmonyDialogKind(raw: Int) -> HarmonyDialogKind {
+    if raw == 1 {
+        return HarmonyDialogKind.Alert
+    }
+    if raw == 2 {
+        return HarmonyDialogKind.Confirm
+    }
+    if raw == 3 {
+        return HarmonyDialogKind.Prompt
+    }
+    if raw == 4 {
+        return HarmonyDialogKind.BeforeUnload
+    }
+    if raw == 5 {
+        return HarmonyDialogKind.Authenticate
+    }
+    if raw == 6 {
+        return HarmonyDialogKind.Certificate
+    }
+    return HarmonyDialogKind.None
+}
+
+// The sign-in is for a proxy rather than for the site itself.
+function harmonyDialogFlagProxy() -> Int {
+    return 1
+}
+
+// A previous attempt at this sign-in was refused.
+function harmonyDialogFlagRetry() -> Int {
+    return 2
+}
+
+// The question came from a frame inside the page rather than the page itself,
+// which is worth saying: the origin shown is not the one in the address bar.
+function harmonyDialogFlagSubframe() -> Int {
+    return 4
+}
+
+function harmonyDialogHasFlag(flags: Int, flag: Int) -> Bool {
+    let shifted = flags / flag
+    let halved = shifted / 2
+    return shifted - halved * 2 == 1
+}
+
+// Why a question could not be asked or answered — the WebKit runtime missing an
+// entry point, the Windows file dialog refusing to open. Empty when there is
+// nothing to say. A person who pressed "Choose File" and saw nothing happen is
+// owed this.
+function harmonyDialogsDiagnostic() -> String {
+    return dialogsError()
+}
+
+// Refuses every question still on screen and stops the file picker. Call before
+// the page registry is shut down: a page left waiting on an answer is a web
+// process that never exits.
+function harmonyDialogsShutdown() {
+    dialogsShutdownNative()
+    HarmonyDialogState().close()
+    return
+}
+
+// Runs before the UI pass, on the frame thread. It records the window the host
+// draws in, holds the page views down for as long as anything is over them, and
+// brings whatever the wrapper has parked into this side's state.
+//
+// `hostOverlay` is what the host itself is drawing over the page this frame —
+// a permission prompt, a panel — because a page's view is a child window
+// composited above everything KiraUI paints, and something over it is only
+// visible while that window is down.
+function harmonyDialogsFrame(frame: borrow mut KiraGraphics.RenderFrame, hostOverlay: Bool) {
+    let hostWindow = KiraGraphics.kiraGraphicsHostWindowHandle(frame)
+    let active = Int(dialogsFrameNative(hostWindow, hostOverlay ? I32(1) : I32(0)))
+    HarmonyDialogState().sync(active)
+    return
+}

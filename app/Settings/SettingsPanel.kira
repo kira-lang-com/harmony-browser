@@ -1,0 +1,465 @@
+import KiraUI
+
+// The preferences panel: everything a person can change about how this browser
+// behaves, grouped by what it is about.
+//
+// It floats over the page in the window's own panel layer rather than sitting in
+// the flow, because a page is a native child window composited above everything
+// KiraUI paints: a panel in the flow would inset the page while it was open and
+// let it back out when it closed, and a page that resizes because a setting was
+// looked at is worse than any panel.
+
+function settingsPanelWidth() -> Float {
+    return 460.0
+}
+
+function settingsRowHeight() -> Float {
+    return 30.0
+}
+
+function settingsFieldHeight() -> Float {
+    return 24.0
+}
+
+function settingsFieldWidth() -> Float {
+    return settingsPanelWidth() - 140.0
+}
+
+// --- The pieces a row is built from ------------------------------------------
+
+Widget SettingsSectionHeader(title: String) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text(title)
+                .typography(.footnote)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+        }
+        .height(24.0)
+    }
+}
+
+// One property: what it is called, what it does, and the switch that turns it
+// on. The whole row is the target, because a switch this size is a small thing
+// to aim at and the label names exactly the same setting.
+Widget SettingsToggleRow(
+    title: String,
+    detail: String,
+    symbol: Symbol,
+    isOn: Bool,
+    action: () -> Void,
+) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(symbol)
+                .imageScale(.Small)
+                .foregroundColor(.Secondary)
+
+            VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+                Text(title)
+                    .typography(.subheadline)
+                    .foregroundColor(.Primary)
+
+                Text(detail)
+                    .typography(.caption)
+                    .foregroundColor(.Tertiary)
+            }
+
+            Spacer()
+
+            Toggle(isOn = isOn)
+        }
+        .height(settingsRowHeight() + 8.0)
+        .onClick(action)
+    }
+}
+
+// One of a short set of choices, drawn as the chip a press lands on. A set this
+// small is shown whole rather than behind a menu: every option fits on the row,
+// and a menu would hide the answer the panel exists to state.
+Widget SettingsChoiceChip(title: String, chosen: Bool, action: () -> Void) {
+    body {
+        Panel(radius = CornerRadius.Small) {
+            Inset(horizontal = Spacing.Small) {
+                Text(title)
+                    .typography(.caption)
+                    .foregroundColor(settingsChipInk(chosen))
+            }
+        }
+        .backgroundStyle(settingsChipStyle(chosen))
+        .height(22.0)
+        .hugWidth()
+        .onClick(action)
+    }
+}
+
+function settingsChipStyle(chosen: Bool) -> BackgroundStyle {
+    if chosen {
+        return BackgroundStyle.Accent
+    }
+    return BackgroundStyle.Control
+}
+
+function settingsChipInk(chosen: Bool) -> PrimaryColor {
+    if chosen {
+        return PrimaryColor.Primary
+    }
+    return PrimaryColor.Secondary
+}
+
+// --- Where the browser starts -------------------------------------------------
+
+Widget SettingsHomeRow() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(.House)
+                .imageScale(.Small)
+                .foregroundColor(.Secondary)
+
+            Text("Home page")
+                .typography(.subheadline)
+                .foregroundColor(.Primary)
+
+            Spacer()
+
+            Panel(radius = CornerRadius.Small) {
+                Inset(horizontal = Spacing.ExtraSmall) {
+                    TextField(
+                        key = harmonySettingsHomeFieldKey(),
+                        initial = harmonySettingsHomeFieldText(),
+                        placeholder = "https://",
+                        width = settingsFieldWidth(),
+                        height = settingsFieldHeight(),
+                        onSubmit = harmonySettingsSubmitHome
+                    )
+                        .fill(Color { a: 0.0 })
+                        .foregroundColor(.Primary)
+                        .typography(.control)
+                }
+            }
+            .backgroundStyle(.Control)
+            .themeBorder(.Subtle)
+            .height(settingsFieldHeight() + 4.0)
+            .hugWidth()
+
+            ControlSlot() {
+                Icon(.Check)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonySettingsSubmitHome)
+        }
+        .height(settingsRowHeight() + 4.0)
+    }
+}
+
+function settingsStartupChip(behaviour: StartupBehaviour) -> Any Widget {
+    return SettingsChoiceChip(
+        title = startupBehaviourTitle(behaviour),
+        chosen = startupBehaviourCode(harmonySettingsStartup()) == startupBehaviourCode(behaviour),
+        action = harmonySettingsStartupAction(behaviour)
+    )
+}
+
+Widget SettingsStartupRow() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(.Browsers)
+                .imageScale(.Small)
+                .foregroundColor(.Secondary)
+
+            Text("On start")
+                .typography(.subheadline)
+                .foregroundColor(.Primary)
+
+            Spacer()
+
+            For(behaviour in startupBehaviours()) {
+                settingsStartupChip(behaviour)
+            }
+        }
+        .height(settingsRowHeight())
+    }
+}
+
+Widget SettingsStartupSection() {
+    body {
+        VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
+            SettingsSectionHeader(title = "Startup")
+
+            SettingsHomeRow()
+
+            SettingsStartupRow()
+        }
+    }
+}
+
+// --- How large a page is read at ------------------------------------------------
+
+function settingsZoomChip(percent: Int) -> Any Widget {
+    return SettingsChoiceChip(
+        title = String(percent) + "%",
+        chosen = harmonySettingsDefaultZoom() == percent,
+        action = harmonySettingsZoomAction(percent)
+    )
+}
+
+// The level a site with no remembered zoom of its own is read at. A site that
+// has been zoomed keeps what it was given, which is why this row says so rather
+// than claiming to set the zoom of every page.
+Widget SettingsZoomSection() {
+    body {
+        VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
+            SettingsSectionHeader(title = "Page zoom")
+
+            HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+                Icon(.MagnifyingGlass)
+                    .imageScale(.Small)
+                    .foregroundColor(.Secondary)
+
+                Text("Default level")
+                    .typography(.subheadline)
+                    .foregroundColor(.Primary)
+
+                Spacer()
+
+                Text(harmonySettingsZoomLabel())
+                    .typography(.caption)
+                    .foregroundColor(.Accent)
+            }
+            .height(settingsRowHeight())
+
+            HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+                For(percent in harmonySettingsZoomPresets()) {
+                    settingsZoomChip(percent)
+                }
+
+                Spacer()
+            }
+
+            Text("Sites you zoom keep their own level.")
+                .typography(.caption)
+                .foregroundColor(.Quaternary)
+        }
+    }
+}
+
+// --- What a page may do ------------------------------------------------------
+
+Widget SettingsContentSection() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            SettingsSectionHeader(title = "Content")
+
+            SettingsToggleRow(
+                title = "JavaScript",
+                detail = "Pages may run scripts.",
+                symbol = Symbol.Code,
+                isOn = harmonySettingsJavaScriptEnabled(),
+                action = harmonySettingsToggleJavaScript
+            )
+
+            SettingsToggleRow(
+                title = "Images",
+                detail = "Pages may load pictures.",
+                symbol = Symbol.Image,
+                isOn = harmonySettingsImagesEnabled(),
+                action = harmonySettingsToggleImages
+            )
+
+            SettingsToggleRow(
+                title = "Pop-ups",
+                detail = "Scripts may open a window you did not ask for.",
+                symbol = Symbol.Browsers,
+                isOn = harmonySettingsPopupsEnabled(),
+                action = harmonySettingsTogglePopups
+            )
+        }
+    }
+}
+
+Widget SettingsPrivacySection() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            SettingsSectionHeader(title = "Privacy")
+
+            SettingsToggleRow(
+                title = "Do Not Track",
+                detail = "Tell sites you do not want to be tracked.",
+                symbol = Symbol.ShieldCheck,
+                isOn = harmonySettingsDoNotTrack(),
+                action = harmonySettingsToggleDoNotTrack
+            )
+        }
+    }
+}
+
+// --- Where a download lands ----------------------------------------------------
+
+Widget SettingsDownloadRow() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(.FolderOpen)
+                .imageScale(.Small)
+                .foregroundColor(.Secondary)
+
+            VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+                Text("Save files to")
+                    .typography(.subheadline)
+                    .foregroundColor(.Primary)
+
+                Text(harmonySettingsDownloadDirectoryLabel())
+                    .typography(.caption)
+                    .foregroundColor(.Tertiary)
+            }
+
+            Spacer()
+
+            ControlSlot() {
+                Icon(.ArrowSquareOut)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonySettingsRevealDownloadFolder)
+
+            if harmonySettingsDownloadDirectoryIsDefault() == false {
+                ControlSlot() {
+                    Icon(.ArrowCounterClockwise)
+                        .imageScale(.Small)
+                }
+                .onClick(harmonySettingsUseDefaultDownloadFolder)
+            }
+
+            ControlSlot(active = harmonySettingsDownloadPickerIsOpen()) {
+                Icon(.FolderSimple)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonySettingsChooseDownloadFolder)
+        }
+        .height(settingsRowHeight() + 8.0)
+    }
+}
+
+Widget SettingsDownloadSection() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            SettingsSectionHeader(title = "Downloads")
+
+            SettingsDownloadRow()
+        }
+    }
+}
+
+// --- The panel ------------------------------------------------------------------
+
+Widget SettingsPanelHeader() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text("Settings")
+                .typography(.footnote)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+
+            ControlSlot() {
+                Icon(.X)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonySettingsPanelClose)
+        }
+        .height(28.0)
+        .foregroundColor(.Tertiary)
+    }
+}
+
+// A profile directory that cannot be written to is worth saying out loud: the
+// settings hold for this run and none of them will survive it.
+Widget SettingsUnsavedNote() {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            Icon(.Warning)
+                .imageScale(.Small)
+
+            Text(harmonySettingsDiagnostic())
+                .typography(.caption)
+
+            Spacer()
+        }
+        .height(20.0)
+        .foregroundColor(.Warning)
+    }
+}
+
+Widget SettingsFooter() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            Text(harmonySettingsFilePath())
+                .typography(.caption)
+                .foregroundColor(.Quaternary)
+        }
+        .height(18.0)
+    }
+}
+
+Widget SettingsPanelBody() {
+    body {
+        Card(material = Material.Frosted) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.Small) {
+                VStack(spacing = Spacing.Small, alignment = HorizontalAlignment.Leading) {
+                    SettingsPanelHeader()
+
+                    Divider()
+                        .themeBorder(.Subtle)
+
+                    if harmonySettingsDiagnostic().count > 0 {
+                        SettingsUnsavedNote()
+                    }
+
+                    SettingsStartupSection()
+
+                    SettingsSearchSection()
+
+                    SettingsZoomSection()
+
+                    SettingsContentSection()
+
+                    SettingsPrivacySection()
+
+                    SettingsDownloadSection()
+
+                    Divider()
+                        .themeBorder(.Subtle)
+
+                    SettingsFooter()
+                }
+            }
+        }
+        .backgroundStyle(.Raised)
+        .themeBorder(.Standard)
+        .width(settingsPanelWidth())
+        .hugHeight()
+    }
+}
+
+// What the window places. It draws nothing at all while the panel is closed, so
+// the column it sits in keeps its shape.
+Widget SettingsPanel() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            if harmonySettingsPanelIsOpen() {
+                SettingsPanelBody()
+            }
+        }
+        .hugHeight()
+    }
+}
+
+// The control that opens it.
+Widget SettingsPanelButton() {
+    body {
+        ControlSlot(active = harmonySettingsPanelIsOpen()) {
+            Icon(.Gear)
+                .imageScale(.Small)
+        }
+        .onClick(harmonySettingsPanelToggle)
+    }
+}

@@ -1,0 +1,33 @@
+import KiraGraphics
+import KiraUI
+
+// The input system's per-frame hook.
+//
+// Three things happen here, in this order and for this reason: the native side
+// is given the window and brought up to date with the tab that is showing; the
+// keyboard's chrome target is settled against any press that has landed since
+// the last frame; and only then is the queue of matched shortcuts drained, so
+// an event that moves the keyboard has the last word over a press that came
+// before it.
+//
+// Called before the widget tree is built, from the host's engine frame, beside
+// the tab registry's own hook.
+function harmonyInputFrame(frame: borrow mut KiraGraphics.RenderFrame) {
+    let window = KiraGraphics.kiraGraphicsHostWindowHandle(frame)
+    if pointerIsNull(window) {
+        return
+    }
+
+    nativeInputFrame(window)
+    harmonyInputSyncTarget()
+    harmonyInputDrainEvents()
+    return
+}
+
+// Runs at the end of the process, before the tab registry is stopped: the
+// engine thread's hook is removed from that thread, and the zoom levels are
+// written out for the next run.
+function harmonyInputShutdown() {
+    nativeInputShutdown()
+    return
+}

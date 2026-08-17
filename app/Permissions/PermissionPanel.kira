@@ -1,0 +1,273 @@
+import KiraUI
+
+// The list of everything this browser remembers about what sites may do.
+//
+// A permission that can be granted and never taken back is not a permission, so
+// every answer here is reversible from one place: a row per site, a row per
+// thing it was answered about, and one press to take any of them back. Revoking
+// returns a site to being asked rather than blocking it, because that is what a
+// person taking an answer back means.
+
+function permissionPanelWidth() -> Float {
+    return 420.0
+}
+
+// --- What a press does -------------------------------------------------------
+
+function permissionExpandAction(origin: String) -> () -> Void {
+    let target = origin
+    let press: () -> Void = { in
+        harmonyPermissionPanelExpand(target)
+        return
+    }
+    return press
+}
+
+function permissionForgetOriginAction(origin: String) -> () -> Void {
+    let target = origin
+    let press: () -> Void = { in
+        harmonyPermissionForgetOrigin(target)
+        return
+    }
+    return press
+}
+
+// One press moves a grant to the next answer: allowed, blocked, then asked
+// about again. A row that only offered "forget" would make changing an answer a
+// two-step job through a prompt the site has to be persuaded to raise.
+function permissionCycleAction(origin: String, kind: PermissionKind) -> () -> Void {
+    let target = origin
+    let subject = kind
+    let press: () -> Void = { in
+        harmonyPermissionRemember(target, subject, permissionDecisionNext(harmonyPermissionStoredDecision(target, subject)))
+        return
+    }
+    return press
+}
+
+function permissionDecisionNext(decision: PermissionDecision) -> PermissionDecision {
+    match decision {
+        Ask -> return PermissionDecision.Allow;
+        Allow -> return PermissionDecision.Deny;
+        Deny -> return PermissionDecision.Ask;
+    }
+}
+
+// --- Rows --------------------------------------------------------------------
+
+Widget PermissionGrantRow(origin: String, kind: PermissionKind, decision: PermissionDecision) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(permissionKindSymbol(kind))
+                .imageScale(.Small)
+                .foregroundColor(.Secondary)
+
+            Text(permissionKindTitle(kind))
+                .typography(.subheadline)
+                .foregroundColor(.Primary)
+
+            Spacer()
+
+            Text(permissionDecisionLabel(decision))
+                .typography(.caption)
+                .foregroundColor(permissionDecisionColor(decision))
+        }
+        .height(26.0)
+        .onClick(permissionCycleAction(origin, kind))
+    }
+}
+
+function permissionGrantRowAt(origin: String, index: Int) -> Any Widget {
+    let grants = harmonyPermissionOriginGrants(origin)
+    let grant = grants[index]
+    return PermissionGrantRow(origin = origin, kind = grant.kind, decision = grant.decision)
+}
+
+Widget PermissionOriginGrants(origin: String) {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            For(index in indices(harmonyPermissionOriginGrants(origin).count)) {
+                permissionGrantRowAt(origin, index)
+            }
+        }
+        .inset(horizontal = Spacing.Medium)
+    }
+}
+
+Widget PermissionOriginHeader(origin: String, expanded: Bool) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(expanded ? Symbol.CaretDown : Symbol.CaretRight)
+                .imageScale(.Small)
+                .foregroundColor(.Tertiary)
+
+            Icon(permissionOriginIsSecure(origin) ? Symbol.Lock : Symbol.LockKeyOpen)
+                .imageScale(.Small)
+                .foregroundColor(permissionOriginIsSecure(origin) ? PrimaryColor.Secondary : PrimaryColor.Warning)
+
+            Text(permissionOriginDisplay(origin))
+                .typography(.subheadline)
+                .foregroundColor(.Primary)
+
+            Spacer()
+
+            ControlSlot() {
+                Icon(.TrashSimple)
+                    .imageScale(.Small)
+            }
+            .onClick(permissionForgetOriginAction(origin))
+        }
+        .height(28.0)
+        .onClick(permissionExpandAction(origin))
+    }
+}
+
+Widget PermissionOriginRow(origin: String, expanded: Bool) {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            PermissionOriginHeader(origin = origin, expanded = expanded)
+
+            if expanded {
+                PermissionOriginGrants(origin = origin)
+            }
+        }
+    }
+}
+
+function permissionOriginRowAt(index: Int) -> Any Widget {
+    let origins = harmonyPermissionOrigins()
+    let origin = origins[index]
+    return PermissionOriginRow(origin = origin, expanded = harmonyPermissionPanelOrigin() == origin)
+}
+
+// --- The panel ---------------------------------------------------------------
+
+Widget PermissionPanelHeader() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text("Site Permissions")
+                .typography(.footnote)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+
+            ControlSlot() {
+                Icon(.TrashSimple)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyPermissionForgetEverything)
+
+            ControlSlot() {
+                Icon(.X)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyPermissionPanelClose)
+        }
+        .height(28.0)
+        .foregroundColor(.Tertiary)
+    }
+}
+
+Widget PermissionPanelEmptyState() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            Text("No site has been answered yet")
+                .typography(.caption)
+                .foregroundColor(.Tertiary)
+
+            Text("Answers you give a site's prompt are kept here.")
+                .typography(.caption)
+                .foregroundColor(.Quaternary)
+        }
+        .height(40.0)
+    }
+}
+
+// A profile directory that cannot be written to is worth saying out loud: the
+// answers hold for this run and none of them will survive it.
+Widget PermissionPanelUnsavedNote() {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            Icon(.Warning)
+                .imageScale(.Small)
+
+            Text("These answers cannot be saved and will be forgotten when the browser closes.")
+                .typography(.caption)
+
+            Spacer()
+        }
+        .height(20.0)
+        .foregroundColor(.Warning)
+    }
+}
+
+Widget PermissionPanelList() {
+    body {
+        VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
+            For(index in indices(harmonyPermissionOrigins().count)) {
+                permissionOriginRowAt(index)
+            }
+        }
+    }
+}
+
+Widget PermissionPanelBody() {
+    body {
+        Card(material = Material.Frosted) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.Small) {
+                VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
+                    PermissionPanelHeader()
+
+                    Divider()
+                        .themeBorder(.Subtle)
+
+                    if harmonyPermissionUnsaved() {
+                        PermissionPanelUnsavedNote()
+                    }
+
+                    if harmonyPermissionGrantCount() == 0 {
+                        PermissionPanelEmptyState()
+                    }
+
+                    PermissionPanelList()
+                }
+            }
+        }
+        .backgroundStyle(.Raised)
+        .themeBorder(.Standard)
+        .width(permissionPanelWidth())
+        .hugHeight()
+    }
+}
+
+// What the shell places. It draws nothing while the panel is closed, so the
+// column it sits in keeps its shape.
+Widget PermissionPanel() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            if harmonyPermissionPanelOpen() {
+                PermissionPanelBody()
+            }
+        }
+    }
+}
+
+// The control that opens it, and the count of sites it would show.
+Widget PermissionPanelButton() {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            ControlSlot(active = harmonyPermissionPanelOpen()) {
+                Icon(.SlidersHorizontal)
+                    .imageScale(.Small)
+            }
+
+            if harmonyPermissionOrigins().count > 0 {
+                Text(String(harmonyPermissionOrigins().count))
+                    .typography(.caption)
+                    .foregroundColor(.Secondary)
+            }
+        }
+        .hugWidth()
+        .onClick(harmonyPermissionPanelToggle)
+    }
+}

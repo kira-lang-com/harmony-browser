@@ -5,60 +5,55 @@
 extern "C" {
 #endif
 
-// WebKit runs on its own thread and owns every WebKit object on it. The host's
-// frame thread never calls into WebKit: it starts the thread, posts commands,
-// and moves the child windows asynchronously. Nothing here blocks on WebKit,
-// which is what keeps a debug build of it off the host's frame time.
+// The browser's host: the one place every system of this browser is joined to
+// the engine.
 //
-// Every function below is safe to call from the host's frame thread. Calls made
-// before the thread finishes starting are queued, not dropped.
-
-// Starts the WebKit thread if it is not running and opens the first tab.
-// Returns immediately; non-zero once the thread is up and serving commands.
-int hb_webkit_start(void* parent_window, const char* initial_url);
-
-// Non-zero once the WebKit runtime loaded and the thread is serving commands.
-int hb_webkit_supported(void);
-
-// The rectangle the active tab's view should occupy, in the parent window's
-// client pixels. Applied asynchronously; safe to call every frame.
-void hb_webkit_set_bounds(int x, int y, int width, int height);
-
-// Opens a tab and returns its id, or 0 when the id could not be allocated. The
-// view behind the id is created on the WebKit thread shortly afterwards; the id
-// is valid for every call below as soon as it is returned.
+// WebKit keeps ONE client of each kind per page. A browser whose modules each
+// called WKPageSetPage*Client would keep whichever module happened to install
+// last and silently lose the rest, so the tabs registry owns the engine, the
+// thread, the process context, the views, and the three clients a page carries;
+// every other system fills its own fields in through that registry's hooks.
 //
-// Tabs do not share a web process: no tab is created as a related page, so each
-// one gets its own. They do share the context's data store, so a login in one
-// tab is a login in all of them, as in any other browser.
-int hb_webkit_tab_open(const char* url);
-void hb_webkit_tab_close(int tab_id);
-void hb_webkit_tab_select(int tab_id);
+// A page's clients are written once, when the registry creates it, and reach only
+// the hooks the registry holds at that moment. So every system has to be
+// registered before the first page exists, and no system can sequence that for
+// itself. This host is where all of them are, in one place, on the call that
+// starts the registry.
+//
+// Every function here is called from the host's frame thread and none of them
+// blocks on WebKit. Stopping the browser is a sequence too, and it lives beside
+// the frame order in `app/WebKitBridge.kira`, because every system it stops has a
+// Kira-side half to stop with it.
 
-// Shows the tab belonging to a host UI slot, opening it on first use. The url
-// is that slot's home: loaded when the tab is created, ignored afterwards, so
-// returning to a slot returns to wherever that tab had got to. This is the call
-// a fixed row in the host's tab list should make.
-void hb_webkit_tab_activate_slot(int slot, const char* url);
-void hb_webkit_tab_close_slot(int slot);
+// Registers every system on the first call, and on every call keeps the engine in
+// step with the window: the rectangle the showing tab's view occupies in the host
+// window's CLIENT PIXELS, and the host's device-pixel ratio, which every page is
+// laid out at so it reads at the same size as the chrome around it.
+//
+// The geometry is applied before the engine is asked to start, so the first tab
+// is created at the size it will be shown at rather than at nothing. Idempotent
+// and safe to call every frame; a call with a different window re-parents every
+// view. `home_url` is the address a tab opened with no URL of its own loads.
+//
+// Returns non-zero once the engine is up and serving commands.
+int hb_browser_frame(
+    void* host_window,
+    int x,
+    int y,
+    int width,
+    int height,
+    double backing_scale,
+    const char* home_url
+);
 
-// The tab list as the host last saw it. Index order is open order.
-int hb_webkit_tab_count(void);
-int hb_webkit_tab_id_at(int index);
-int hb_webkit_tab_active(void);
+// Non-zero once the engine is up and serving commands.
+int hb_browser_ready(void);
 
-// Navigation, applied to the active tab.
-void hb_webkit_go_back(void);
-void hb_webkit_go_forward(void);
-void hb_webkit_reload(void);
-void hb_webkit_load_url(const char* url);
-
-// Stops the WebKit thread and destroys everything it owns.
-void hb_webkit_shutdown(void);
-
-// A process-local diagnostic string for startup failures. It remains valid
-// until the next bridge call that changes the error.
-const char* hb_webkit_error(void);
+// Why the browser is not showing a page, or "" when nothing is wrong. The first
+// system with something to say answers, starting with the one that owns the
+// engine. The pointer is this thread's copy and holds until this thread asks
+// again.
+const char* hb_browser_error(void);
 
 #ifdef __cplusplus
 }

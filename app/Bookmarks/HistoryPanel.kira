@@ -1,0 +1,372 @@
+import KiraUI
+
+// The history panel: where the browser has been, by the day it was there, and
+// the field that finds one page among thousands.
+//
+// It belongs in the overlay column and nowhere else: the page is a native child
+// window inside this one, so it is composited above everything KiraUI draws, and
+// a panel over the page would be a panel nobody can see.
+//
+// The rows are grouped by day rather than listed flat, because that is how a
+// person looks for a page they have already read: not by its name, which they
+// have forgotten, but by when they were reading it.
+
+function historyPanelWidth() -> Float {
+    return harmonyBrowserSidebarWidth() - 24.0
+}
+
+function historyPanelRowHeight() -> Float {
+    return 34.0
+}
+
+function historyPanelFieldWidth() -> Float {
+    return historyPanelWidth() - 64.0
+}
+
+// --- The search field ----------------------------------------------------------
+
+Widget HistorySearchField() {
+    body {
+        Panel(radius = CornerRadius.Capsule) {
+            HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+                Icon(.MagnifyingGlass)
+                    .imageScale(.Small)
+                    .foregroundColor(.Secondary)
+
+                TextField(
+                    key = harmonyHistorySearchFieldKey(),
+                    initial = "",
+                    placeholder = "Search history",
+                    width = historyPanelFieldWidth(),
+                    height = 20.0,
+                    onSubmit = harmonyHistoryOpenPanel
+                )
+                    .fill(Color { a: 0.0 })
+                    .foregroundColor(.Primary)
+                    .typography(.control)
+            }
+            .fillHeight()
+            .inset(horizontal = Spacing.Small)
+        }
+        .backgroundStyle(.Control)
+        .themeBorder(.Subtle)
+        .height(24.0)
+    }
+}
+
+// --- One row --------------------------------------------------------------------
+
+Widget HistoryDayHeading(text: String) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text(text)
+                .typography(.footnote)
+                .foregroundColor(.Accent)
+
+            Spacer()
+        }
+        .height(24.0)
+    }
+}
+
+Widget HistoryRowText(name: String, detail: String) {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            Text(name)
+                .typography(.subheadline)
+                .foregroundColor(.Primary)
+
+            Text(detail)
+                .typography(.caption)
+                .foregroundColor(.Secondary)
+        }
+    }
+}
+
+// The line under a row's name: when in the day it was read, where it was, and
+// how many times the browser has been back.
+function historyRowDetail(visit: borrow HistoryVisit) -> String {
+    var text = harmonyHistoryClockText(visit.lastVisit)
+    let address = harmonyNavigationDisplayAddress(visit.url)
+    if text.count > 0 {
+        text = text + " · " + address
+    } else {
+        text = address
+    }
+    if visit.visitCount > 1 {
+        return text + " · " + String(visit.visitCount) + "×"
+    }
+    return text
+}
+
+Widget HistoryRow(url: String, host: String, name: String, detail: String) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(harmonyTabSiteSymbol(host))
+                .imageScale(.Small)
+                .foregroundColor(.Secondary)
+
+            Expanded(flex = 1) {
+                HistoryRowText(name = name, detail = detail)
+            }
+
+            ControlSlot() {
+                Icon(.ArrowSquareOut)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyHistoryOpenInNewTabAction(url))
+
+            ControlSlot() {
+                Icon(.TrashSimple)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyHistoryForgetAction(url))
+        }
+        .height(historyPanelRowHeight())
+        .foregroundColor(.Tertiary)
+        .onClick(harmonyHistoryOpenAction(url))
+    }
+}
+
+// One row, read out of the cache once rather than once per field: a row that
+// asked the module again for each of its texts could draw a name from one visit
+// beside an address from the next.
+function historyPanelRowAt(index: Int) -> Any Widget {
+    let visit = harmonyHistoryRowAt(index)
+    return HistoryPanelEntry(
+        opensDay = harmonyHistoryOpensDay(index),
+        heading = harmonyHistoryHeadingAt(index),
+        url = visit.url,
+        host = visit.host,
+        name = visit.label(),
+        detail = historyRowDetail(visit)
+    )
+}
+
+Widget HistoryPanelEntry(
+    opensDay: Bool,
+    heading: String,
+    url: String,
+    host: String,
+    name: String,
+    detail: String,
+) {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            if opensDay {
+                HistoryDayHeading(text = heading)
+            }
+
+            HistoryRow(url = url, host = host, name = name, detail = detail)
+        }
+    }
+}
+
+Widget HistoryPanelRows() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            For(index in indices(harmonyHistoryRowCount())) {
+                historyPanelRowAt(index)
+            }
+        }
+    }
+}
+
+// --- Clearing --------------------------------------------------------------------
+
+Widget HistoryRangeRow() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(.Clock)
+                .imageScale(.Small)
+                .foregroundColor(.Secondary)
+
+            Text("Forget")
+                .typography(.subheadline)
+                .foregroundColor(.Primary)
+
+            Spacer()
+
+            Picker(
+                options = browsingDataRangeNames(),
+                selection = harmonyHistoryRangeSelection(),
+                onSelect = harmonyHistorySetRange
+            )
+        }
+        .height(30.0)
+    }
+}
+
+Widget HistoryClearButton() {
+    body {
+        Panel(radius = CornerRadius.Medium) {
+            HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+                Spacer()
+
+                Icon(.Broom)
+                    .imageScale(.Small)
+
+                Text(browsingDataClearLabel(harmonyHistoryRange()))
+                    .typography(.subheadline)
+
+                Spacer()
+            }
+            .height(30.0)
+        }
+        .backgroundStyle(historyClearButtonStyle())
+        .foregroundColor(historyClearButtonInk())
+        .width(historyPanelWidth() - 16.0)
+        .height(30.0)
+        .onClick(harmonyHistoryClearSelectedRange)
+    }
+}
+
+function historyClearButtonStyle() -> BackgroundStyle {
+    if harmonyHistoryTotalCount() == 0 {
+        return BackgroundStyle.Control
+    }
+    return BackgroundStyle.Accent
+}
+
+function historyClearButtonInk() -> PrimaryColor {
+    if harmonyHistoryTotalCount() == 0 {
+        return PrimaryColor.Tertiary
+    }
+    return PrimaryColor.Primary
+}
+
+// --- The panel ---------------------------------------------------------------------
+
+Widget HistoryPanelHeader() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text("History")
+                .typography(.footnote)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+
+            Text(historyPanelCountText())
+                .typography(.caption)
+                .foregroundColor(.Quaternary)
+
+            ControlSlot() {
+                Icon(.X)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyHistoryClosePanel)
+        }
+        .height(28.0)
+        .foregroundColor(.Tertiary)
+    }
+}
+
+// How much the browser is remembering. A history panel that says nothing about
+// its own size leaves the person guessing what a clear would actually clear.
+function historyPanelCountText() -> String {
+    let addresses = harmonyHistoryTotalCount()
+    if addresses == 0 {
+        return ""
+    }
+    if addresses == 1 {
+        return "1 page · " + String(harmonyHistoryVisitTotal()) + " visits"
+    }
+    return String(addresses) + " pages · " + String(harmonyHistoryVisitTotal()) + " visits"
+}
+
+Widget HistoryPanelEmpty() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            Text(historyPanelEmptyText())
+                .typography(.caption)
+                .foregroundColor(.Tertiary)
+
+            Text("Private tabs are never recorded.")
+                .typography(.caption)
+                .foregroundColor(.Quaternary)
+        }
+        .height(36.0)
+    }
+}
+
+function historyPanelEmptyText() -> String {
+    if harmonyHistorySearchText().count > 0 {
+        return "Nothing here matches that"
+    }
+    return "Nowhere yet"
+}
+
+Widget HistoryPanelOverflow(hidden: Int) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text(String(hidden) + " earlier pages — search to reach them")
+                .typography(.caption)
+                .foregroundColor(.Tertiary)
+
+            Spacer()
+        }
+        .height(22.0)
+    }
+}
+
+Widget HistoryPanelBody() {
+    body {
+        Panel(radius = CornerRadius.Medium) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
+                VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
+                    HistoryPanelHeader()
+
+                    Divider()
+                        .themeBorder(.Subtle)
+
+                    HistorySearchField()
+
+                    if harmonyHistoryRowCount() == 0 {
+                        HistoryPanelEmpty()
+                    }
+
+                    HistoryPanelRows()
+
+                    if harmonyHistoryHiddenCount() > 0 {
+                        HistoryPanelOverflow(hidden = harmonyHistoryHiddenCount())
+                    }
+
+                    Divider()
+                        .themeBorder(.Subtle)
+
+                    HistoryRangeRow()
+
+                    HistoryClearButton()
+                }
+            }
+        }
+        .backgroundStyle(.Raised)
+        .themeBorder(.Subtle)
+        .width(historyPanelWidth())
+        .hugHeight()
+    }
+}
+
+// What the window hangs under its toolbar. It draws nothing at all while the
+// panel is closed, so the column it sits in keeps its shape.
+Widget HistoryPanel() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            if harmonyHistoryPanelIsOpen() {
+                HistoryPanelBody()
+            }
+        }
+        .hugHeight()
+    }
+}
+
+// The control that opens it, for the toolbar beside the bookmarks one.
+Widget HistoryPanelButton() {
+    body {
+        ControlSlot(active = harmonyHistoryPanelIsOpen()) {
+            Icon(.ClockCounterClockwise)
+                .imageScale(.Small)
+        }
+        .onClick(harmonyHistoryTogglePanel)
+    }
+}

@@ -1,0 +1,40 @@
+import KiraUI
+
+// What the chrome above the page measures, and therefore part of what the page's
+// own window has to sit clear of.
+//
+// The widgets and the window's own arithmetic both read these, so a toolbar drawn
+// over the page — or a band of empty window under the toolbar — is not a thing
+// that can happen by editing one of them.
+
+// The toolbar's own height: a 26-point address field with air above and below
+// it, which is what a control that is the tallest thing on a bar needs.
+function harmonyChromeToolbarHeight() -> Float {
+    return 38.0
+}
+
+// The band under the toolbar the load indicator is drawn in.
+//
+// It is reserved whether or not a load is running. A lane that appeared with the
+// load would push the page down two points every time a link was followed and
+// pull it back up when it finished, and a page that jumps on navigation is a
+// worse fault than a two-point band that is sometimes empty. Idle, the lane
+// paints the toolbar's own surface and reads as part of it.
+function harmonyChromeProgressHeight() -> Float {
+    return 2.0
+}
+
+// Everything the chrome paints above the page.
+function harmonyChromeHeight() -> Float {
+    return harmonyChromeToolbarHeight() + harmonyChromeProgressHeight()
+}
+
+// The address field's outer height. The editable run inside it is shorter by its
+// own inset, so the caret never touches the pill's edge.
+function harmonyChromeAddressFieldHeight() -> Float {
+    return 26.0
+}
+
+function harmonyChromeAddressTextHeight() -> Float {
+    return harmonyChromeAddressFieldHeight() - 6.0
+}

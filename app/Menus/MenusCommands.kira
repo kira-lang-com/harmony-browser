@@ -1,0 +1,149 @@
+import KiraUI
+
+// What a context-menu item does.
+//
+// The item was chosen in a Windows menu, on the engine's thread, before this
+// side of the browser heard about it; this is where the decision is carried out,
+// by calling the system that already owns the thing being asked for. Nothing
+// here reimplements a tab, a download or a navigation: a menu is a second way to
+// reach a command the browser already has, and the two must not be able to
+// disagree.
+
+// A menu is raised in a tab, and the command names it, so an item chosen in a
+// background tab acts on that tab rather than on whichever one is in front by
+// the time the frame drains the queue.
+function harmonyMenuTargetTab(tab: Int) -> Int {
+    if tab > 0 {
+        return tab
+    }
+    return harmonyTabsActiveId()
+}
+
+// --- Tabs --------------------------------------------------------------------
+
+// A link opened from a menu belongs beside the page it was on, which is the
+// position a browser has always opened it at.
+function harmonyMenuOpenInNewTab(url: String, tab: Int, foreground: Bool) {
+    let target = url.trim()
+    if target.count == 0 {
+        return
+    }
+
+    let list = HarmonyTabList()
+    let source = harmonyMenuTargetTab(tab)
+    let at = harmonyTabsIndexOf(source)
+    if at < 0 {
+        let appended = list.open(target)
+        if appended <= 0 {
+            return
+        }
+        if foreground == false {
+            list.select(source)
+        }
+        return
+    }
+
+    let opened = list.openAt(target, at + 1)
+    if opened <= 0 {
+        return
+    }
+    // `openAt` selects what it opens, because that is what a tab opened from the
+    // strip means. A background tab is the one case that does not, so the page
+    // it was opened from is put back in front.
+    if foreground == false {
+        list.select(source)
+    }
+    return
+}
+
+// --- Downloads ---------------------------------------------------------------
+
+// Save link as, save image as, save media as: one thing, three items. The
+// download engine marks the address and the load that follows turns into a file
+// rather than a document.
+function harmonyMenuSaveAs(url: String, tab: Int) {
+    downloadsSaveLinkAs(url, harmonyMenuTargetTab(tab))
+    return
+}
+
+// --- Navigation --------------------------------------------------------------
+
+function harmonyMenuNavigate(kind: Int, tab: Int) {
+    let target = harmonyMenuTargetTab(tab)
+    if target <= 0 {
+        return
+    }
+
+    if kind == harmonyMenuCommandBack() {
+        harmonyNavigationGoBack(target)
+        return
+    }
+    if kind == harmonyMenuCommandForward() {
+        harmonyNavigationGoForward(target)
+        return
+    }
+    if kind == harmonyMenuCommandReload() {
+        harmonyNavigationReload(target)
+        return
+    }
+    if kind == harmonyMenuCommandStop() {
+        harmonyNavigationStop(target)
+    }
+    return
+}
+
+// --- One command -------------------------------------------------------------
+
+function harmonyMenuApplyCommand(kind: Int, text: String, tab: Int) {
+    if kind == harmonyMenuCommandOpenInNewTab() {
+        harmonyMenuOpenInNewTab(text, tab, true)
+        return
+    }
+    if kind == harmonyMenuCommandOpenInBackgroundTab() {
+        harmonyMenuOpenInNewTab(text, tab, false)
+        return
+    }
+    if kind == harmonyMenuCommandSaveAs() {
+        harmonyMenuSaveAs(text, tab)
+        return
+    }
+    harmonyMenuNavigate(kind, tab)
+    return
+}
+
+// Everything chosen since the last frame, in the order it was chosen. The bound
+// is a bound and not a policy: a frame drains what is there, and a queue longer
+// than this is not a menu anyone opened.
+function harmonyMenusDrainCommands() {
+    var drained = 0
+    while drained < 64 {
+        let kind = Int(nativeMenusNextCommand())
+        if kind == harmonyMenuCommandNone() {
+            return
+        }
+        harmonyMenuApplyCommand(kind, nativeMenusCommandText(), Int(nativeMenusCommandTab()))
+        drained = drained + 1
+    }
+    return
+}
+
+// --- The frame hook ----------------------------------------------------------
+
+// Run once per frame, before the widget tree is built.
+//
+// Attaching is idempotent and happens here rather than at the browser's start,
+// because the client this module installs is written into a page the tabs
+// registry creates: a module that attached after the first page was made
+// installs onto that page too, from the same call.
+function harmonyMenusFrame() {
+    nativeMenusAttach()
+    harmonyMenusDrainCommands()
+    return
+}
+
+// Runs at the end of the process, before the tabs registry is stopped: the
+// client this module installed sits on pages that registry is about to destroy.
+function harmonyMenusShutdown() {
+    nativeMenusShutdown()
+    return
+}

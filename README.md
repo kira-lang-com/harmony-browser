@@ -14,13 +14,23 @@ That means Harmony needs a pinned WebKit source checkout and a local/source
 build for its first Windows implementation. WebKitGTK and WPE are not a
 Windows shortcut: they are Linux ports.
 
-The app currently uses a deliberately narrow native boundary:
+The native boundary is one archive, `harmony_browser`, holding nine groups of
+translation units that call each other in both directions. It works like this:
 
 1. KiraUI/KiraGraphics create the top-level Sokol window.
-2. `NativeLibs/harmony_webkit.cpp` dynamically loads `WebKit2.dll`.
-3. WebKit creates a native `WKView` child HWND inside the Kira window.
-4. The Kira frame callback resizes the child and services WebKit's hidden
-   `RunLoopMessageWindow`.
+2. The tab registry dynamically loads `WebKit2.dll` on a thread of its own and
+   owns everything WebKit: the process context, one `WKView` child HWND per tab,
+   and the run loop. Nothing else loads the engine or cycles that loop.
+3. WebKit keeps ONE client of each kind per page, so the registry installs the
+   one `WKPageUIClient`, `WKPageNavigationClient` and `WKPageStateClient` a page
+   carries, and every other system fills its own fields in through the registry's
+   hooks in `NativeLibs/harmony_tabs_embed.h`.
+4. `NativeLibs/harmony_webkit.cpp` is the host: it registers every system with
+   the registry before the first page exists, keeps the showing tab's view sized
+   for the chrome above it at the host's DPI backing scale, and answers with the
+   first system that has something to say about why there is no page.
+5. `app/WebKitBridge.kira` is the frame: one ordered pass per frame, and the
+   shutdown order the systems require.
 
 Loading WebKit dynamically keeps the large WebKit build out of the Kira package
 build. The WebKit runtime and its WebContent/Network process binaries still
@@ -71,13 +81,39 @@ everything.
 
 ## Current scope
 
-This first slice is a WebKit host showcase: it creates a Google home page in a
-WebKit view covering the Kira window. The host presents the Windows desktop
-Safari/WebKit user-agent shape and the window's rounded DPI backing scale so
-desktop sites get their normal layout without claiming to be Chromium.
+Harmony Browser is a browser. Eight systems are wired into one window:
+
+- **Tabs.** Open, close, reopen closed, reorder, pin, and select, with the list
+  drawn as a column of rows or as a strip across the top. Pages that call
+  `window.open` or follow `target=_blank` create tabs from inside WebKit, so the
+  native registry is the source of truth and the window draws what it publishes.
+  Background tabs are suspended and show their last frame while they wake.
+- **Chrome.** Toolbar with back, forward, reload/stop, home, an address bar with
+  a transport indicator, a determinate load lane, and the window title.
+- **Navigation.** Per-tab address, title, progress, load state, back/forward
+  availability, failure text, and the full back/forward list, published from
+  WebKit's own callbacks and read without entering WebKit.
+- **Downloads.** Attachments, files the engine cannot render, and "save link as",
+  with a panel carrying progress, cancel, reveal, open, and a history that
+  survives a restart.
+- **Dialogs.** `alert`, `confirm`, `prompt`, before-unload, HTTP and proxy
+  sign-in, the certificate interstitial, and the native file picker.
+- **Permissions.** Geolocation, notifications, camera, microphone and screen
+  capture, prompted once per origin and remembered, with a panel to review and
+  revoke what was granted.
+- **Data store.** A profile under `%LOCALAPPDATA%\HarmonyBrowser`, private tabs
+  in an ephemeral store, per-origin and time-scoped clearing, a site-data list,
+  and session restore across a restart.
+- **Input.** Shortcuts matched in a message hook on both pumps, so they work
+  after a page has taken the keyboard: new/close/reopen/cycle tab, focus the
+  address bar, reload, back, forward, stop, find in page, page zoom remembered
+  per site, and print.
+
+The host presents the Windows desktop Safari/WebKit user-agent shape and the
+window's rounded DPI backing scale so desktop sites get their normal layout
+without claiming to be Chromium.
 
 Google may still show an unusual-traffic or human-verification page for an
 embedded WebKit session. That is Google's network and browser-integrity check,
 not a KiraUI rendering failure; it must be completed by a human when shown.
-Browser chrome, navigation state, downloads, permissions, and packaging of the
-WebKit process binaries are the next layer.
+Packaging the WebKit process binaries with the app is the next layer.

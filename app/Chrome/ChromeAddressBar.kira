@@ -1,0 +1,99 @@
+import KiraUI
+import KiraUIFoundation
+
+// The address bar: what the page's URL is, what protects it, and where a new one
+// is typed.
+
+// The bar's own width.
+//
+// TextField is HANDED a width rather than discovering one during layout, because
+// it places its caret by measuring the text it draws and a field that learned
+// its width later would have measured against a different one. So the bar's
+// width is the toolbar's arithmetic: the window, less everything else on the
+// row, held between a width too narrow to type an address into and one wide
+// enough to look like a mistake.
+//
+// Every length below is a token, so a `.controlSize(...)` on the chrome moves
+// the bar and the buttons beside it together.
+function harmonyChromeAddressBarWidth(
+    context: borrow KiraUIFoundation.FoundationUiContext,
+    modifiers: borrow ModifierContext,
+) -> Float {
+    let metrics = resolvedControlMetrics(modifiers)
+    let gap = spacingImplementation(Spacing.Small, modifiers)
+    // Four glyph slots share the row with the bar: back, forward, reload/stop
+    // and home.
+    let controls = 4.0 * metrics.buttonWidth
+    // What the window keeps at the leading edge of the row. The window is asked
+    // rather than assumed: a bar that only fits while the corner is empty is a
+    // bar that overruns the first thing put in it, and a bar sized for a corner
+    // fuller than the one drawn is a bar that never reaches the width it could.
+    let leading = harmonyChromeLeadingSlots() * metrics.buttonWidth
+    // A gap between each pair of items on the row, and the toolbar's own two.
+    let gaps = 10.0 * gap
+    var width = context.viewport.width - controls - leading - gaps
+    if width < 220.0 {
+        width = 220.0
+    }
+    if width > 760.0 {
+        width = 760.0
+    }
+    return width
+}
+
+// The editable run inside the pill: the bar, less its own inset and the security
+// glyph in front of it.
+function harmonyChromeAddressTextWidth(
+    context: borrow KiraUIFoundation.FoundationUiContext,
+    modifiers: borrow ModifierContext,
+) -> Float {
+    let metrics = resolvedControlMetrics(modifiers)
+    let gap = spacingImplementation(Spacing.Small, modifiers)
+    var width = harmonyChromeAddressBarWidth(context, modifiers) - 3.0 * gap - metrics.iconSmall
+    if width < 120.0 {
+        width = 120.0
+    }
+    return width
+}
+
+// The indicator in front of the address: what the scheme says about how the page
+// on screen got here.
+Widget ChromeSecurityIndicator(level: ChromeSecurity) {
+    body {
+        Icon(chromeSecuritySymbol(level))
+            .imageScale(.Small)
+            .foregroundColor(chromeSecurityInk(level))
+    }
+}
+
+Widget ChromeAddressBar() {
+    function lower(
+        context: borrow KiraUIFoundation.FoundationUiContext,
+        modifiers: borrow ModifierContext,
+    ) -> KiraUIFoundation.FoundationView {
+        let bar = Panel(radius = CornerRadius.Capsule) {
+            HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+                ChromeSecurityIndicator(level = harmonyChromeSecurityLevel())
+
+                TextField(
+                    key = harmonyChromeAddressFieldKey(),
+                    initial = harmonyChromeAddressText(),
+                    placeholder = "Search or enter address",
+                    width = harmonyChromeAddressTextWidth(context, modifiers),
+                    height = harmonyChromeAddressTextHeight(),
+                    onSubmit = harmonyChromeSubmitAddress
+                )
+                    .fill(Color { a: 0.0 })
+                    .foregroundColor(.Primary)
+                    .typography(.control)
+            }
+            .fillHeight()
+            .inset(horizontal = Spacing.Small)
+        }
+        .backgroundStyle(.Control)
+        .themeBorder(.Subtle)
+        .width(harmonyChromeAddressBarWidth(context, modifiers))
+        .height(harmonyChromeAddressFieldHeight())
+        return bar.lower(context, modifiers)
+    }
+}

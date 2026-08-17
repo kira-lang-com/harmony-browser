@@ -1,107 +1,241 @@
+import KiraGraphics
 import KiraUI
 
-// Browser state is intentionally small and shared by the shell and the native
-// page host. The widget tree can rebuild every frame without losing the active
-// tab or the address field.
-construct HarmonyBrowserStore {
+// What the window itself owns: how it is arranged, where that leaves the page,
+// and whether anything it draws has moved since it last drew.
+//
+// Every system of this browser measures itself. Nothing but the window knows what
+// it has put ABOVE and BESIDE the page, so the page's rectangle is arithmetic
+// that belongs here and in exactly one place: the widgets and the native view are
+// laid out from the same insets, and a toolbar drawn over the page is not a thing
+// that can happen by editing one of them.
+
+// --- How the window is arranged ----------------------------------------------
+
+// The tab list has two views -- a column beside the page and a strip above it --
+// and they are two views of one registry rather than two lists. A window shows
+// one of them at a time, and which one is the only thing the arrangement is.
+construct HarmonyBrowserLayoutStore {
     @Required let version: Int
 }
 
-HarmonyBrowserStore HarmonyBrowserState() {
-    @State var selectedTab: Int = 0
-    @State var address: String = "google.com"
+HarmonyBrowserLayoutStore HarmonyBrowserLayout() {
+    @State var sidebar: Bool = true
     let version: Int = 1
 
-    function selectedTabValue() -> Int {
-        return selectedTab
+    function usesSidebar() -> Bool {
+        return sidebar
     }
 
-    function addressValue() -> String {
-        return address
-    }
-
-    // Each row in the tab list owns a tab of its own, addressed by its slot.
-    // Selecting a row shows that tab where it had got to rather than reloading
-    // its home page over whatever the one shared view was showing.
-    function open(displayAddress: String, url: String, tab: Int) {
-        webkitActivateSlot(tab, url)
-        address = move displayAddress
-        selectedTab = tab
-        return
-    }
-
-    // The address bar navigates the tab that is showing, which is the one the
-    // typed address belongs to.
-    function submitAddress() {
-        let next = textFieldText(harmonyBrowserAddressFieldKey())
-        webkitLoadURL(next)
-        address = move next
-        return
-    }
-
-    function newTab() {
-        webkitActivateSlot(0, "https://www.google.com/")
-        address = "google.com"
-        selectedTab = 0
+    function toggle() {
+        sidebar = sidebar == false
         return
     }
 }
 
-function harmonyBrowserAddressFieldKey() -> Int {
-    return 41001
+function harmonyBrowserUsesSidebar() -> Bool {
+    return HarmonyBrowserLayout().usesSidebar()
 }
 
-function harmonyBrowserOpenGoogle() {
-    HarmonyBrowserState().open("google.com", "https://www.google.com/", 0)
+function harmonyBrowserToggleLayout() {
+    HarmonyBrowserLayout().toggle()
     return
 }
 
-function harmonyBrowserOpenGmail() {
-    HarmonyBrowserState().open("mail.google.com", "https://mail.google.com/", 1)
-    return
+function harmonyBrowserLayoutSymbol() -> Symbol {
+    if harmonyBrowserUsesSidebar() {
+        return Symbol.SidebarSimple
+    }
+    return Symbol.Rows
 }
 
-function harmonyBrowserOpenGitHub() {
-    HarmonyBrowserState().open("github.com", "https://github.com/", 2)
-    return
+// How many control slots the window puts at the leading end of the toolbar. The
+// address bar is sized from the room left over, so it is told rather than left to
+// assume: a bar that only fits while the corner is empty is a bar that overruns
+// the first thing put in it.
+//
+// The window draws no title-bar buttons of its own. Windows draws them, above
+// this row and outside the client area the toolbar is laid out in.
+function harmonyChromeLeadingSlots() -> Float {
+    if harmonyInputZoomIsDefault() {
+        return 6.0
+    }
+    return 7.0
 }
 
-function harmonyBrowserOpenFigma() {
-    HarmonyBrowserState().open("figma.com", "https://www.figma.com/", 3)
-    return
+// --- What the page is inset by -----------------------------------------------
+
+// The column the tab list, the panels and the private-browsing banner sit in.
+// Wide enough for a page title at the subheadline size the rows are drawn at.
+function harmonyBrowserSidebarWidth() -> Float {
+    return 300.0
 }
 
-function harmonyBrowserOpenYouTube() {
-    HarmonyBrowserState().open("youtube.com", "https://www.youtube.com/", 4)
-    return
+function harmonyBrowserLeadingInset() -> Float {
+    if harmonyBrowserUsesSidebar() {
+        return harmonyBrowserSidebarWidth()
+    }
+    return 0.0
 }
 
-function harmonyBrowserOpenKira() {
-    HarmonyBrowserState().open("kira-lang.org", "https://kira-lang.org/", 5)
-    return
+// Everything the window paints above the page: the toolbar and the load lane
+// under it, the tab strip when the tabs are across the top rather than down the
+// side, and the find bar for as long as a find session is open.
+function harmonyBrowserTopInset() -> Float {
+    var top = harmonyChromeHeight() + harmonyInputFindBarInset()
+    if harmonyBrowserUsesSidebar() == false {
+        // The strip and the rule under it.
+        top = top + harmonyTabStripHeight() + 1.0
+    }
+    return top
 }
 
-function harmonyBrowserSubmitAddress() {
-    HarmonyBrowserState().submitAddress()
-    return
+// The rectangle the showing tab's own window occupies, in the host window's
+// client pixels.
+struct HarmonyBrowserPageRect {
+    let x: I32
+    let y: I32
+    let width: I32
+    let height: I32
 }
 
-function harmonyBrowserNewTab() {
-    HarmonyBrowserState().newTab()
-    return
+// The page's rectangle: the client area, less what the window keeps above it and
+// beside it.
+//
+// The insets are stated in POINTS, because that is what the interface is laid out
+// in, and the answer is in DEVICE PIXELS, because that is what a child window is
+// placed in. The scale between them is applied at exactly this boundary and
+// nowhere else; applying it to one inset and not another is how a browser at 150%
+// display scaling draws its toolbar across the top of its own page.
+function harmonyBrowserPageRect(frame: borrow mut KiraGraphics.RenderFrame) -> HarmonyBrowserPageRect {
+    let window = KiraGraphics.kiraGraphicsHostWindowHandle(frame)
+    var scale = KiraGraphics.kiraGraphicsHostBackingScale(frame)
+    if scale <= 0.0 {
+        scale = 1.0
+    }
+
+    // The client rectangle is what bounds a child window. The drawable is the
+    // swapchain's size, which is the same number on this platform and a different
+    // question; it stands in only for a host whose window is not a Win32 one and
+    // therefore answers nothing.
+    var clientWidth = chromeClientWidth(window)
+    var clientHeight = chromeClientHeight(window)
+    if clientWidth <= 0 || clientHeight <= 0 {
+        clientWidth = KiraGraphics.kiraGraphicsHostDrawableWidth(frame)
+        clientHeight = KiraGraphics.kiraGraphicsHostDrawableHeight(frame)
+    }
+
+    // Rounded rather than truncated: a half-pixel lost off the top inset is a
+    // one-pixel band of window showing between the toolbar and the page.
+    let leading = I32(harmonyBrowserLeadingInset() * scale + 0.5)
+    let top = I32(harmonyBrowserTopInset() * scale + 0.5)
+    var pageWidth = clientWidth - leading
+    var pageHeight = clientHeight - top
+    // A window too narrow or too short to hold a page holds no page. Handing the
+    // host a negative extent instead would leave the last rectangle in place,
+    // which is the one that no longer fits.
+    if pageWidth < 0 {
+        pageWidth = 0
+    }
+    if pageHeight < 0 {
+        pageHeight = 0
+    }
+    return HarmonyBrowserPageRect {
+        x: leading
+        y: top
+        width: pageWidth
+        height: pageHeight
+    }
 }
 
-function harmonyBrowserBack() {
-    webkitGoBack()
-    return
+// --- What is over the page ----------------------------------------------------
+
+// What the window itself floats over the page. None of it is in the sidebar,
+// because the sidebar is one of two arrangements and a panel that vanished with
+// the tab list would be a panel with no way back.
+function harmonyBrowserPanelsOpen() -> Bool {
+    if downloadsPanelIsOpen() {
+        return true
+    }
+    if harmonyBrowserMenuIsOpen() {
+        return true
+    }
+    return harmonyDataStoreIsOpen()
 }
 
-function harmonyBrowserForward() {
-    webkitGoForward()
-    return
+// Whether ANYTHING is drawn over the page this frame, which is what the dialogs
+// wrapper holds the page's own child window down for. A page's view is composited
+// above everything KiraUI paints, so an overlay nobody declared is an overlay
+// nobody can see.
+function harmonyBrowserOverlayIsUp() -> Bool {
+    if harmonyBrowserOverlayActive() {
+        return true
+    }
+    return harmonyBrowserPanelsOpen()
 }
 
-function harmonyBrowserReload() {
-    webkitReload()
-    return
+// --- Whether anything moved ---------------------------------------------------
+
+// True while what the browser would draw differs from what it last drew.
+//
+// The interactive runner skips the widget build entirely on a frame that saw no
+// input, which is right for an editor and wrong for a browser: a page reports its
+// progress, names itself, finishes a download and asks for the camera on its own
+// schedule. This is the runner's own hook for exactly that, and it answers false
+// on every frame of a browser sitting still on a loaded page.
+//
+// Every system answers for itself, because every system knows what it draws. Each
+// answer RECORDS what it compared, so all five are asked and none is skipped: a
+// short-circuited one would leave its own system a frame behind and then rebuild
+// for it on the next frame, which is the flicker this exists to prevent.
+function harmonyBrowserNeedsRebuild() -> Bool {
+    let chrome = harmonyChromeNeedsRebuild()
+    let overlay = harmonyBrowserOverlayNeedsRebuild()
+    let input = harmonyInputNeedsRebuild()
+    let tabs = harmonyTabsNeedsRebuild()
+    let downloads = harmonyDownloadsNeedsRebuild()
+    if chrome || overlay {
+        return true
+    }
+    if input || tabs {
+        return true
+    }
+    return downloads
+}
+
+// --- What the page area has to say for itself ---------------------------------
+
+// Whether there is a page behind the hole the window leaves for one.
+function harmonyBrowserPageIsShowing() -> Bool {
+    if harmonyBrowserReady() == false {
+        return false
+    }
+    return harmonyTabsActiveId() > 0
+}
+
+// What the empty page area says while there is no page: what went wrong when
+// something did, and what the browser is doing when nothing has.
+function harmonyBrowserStartupText() -> String {
+    let failure = harmonyBrowserDiagnostic()
+    if failure.count > 0 {
+        return failure
+    }
+    if harmonyBrowserReady() {
+        return "Opening the first tab"
+    }
+    return "Starting the web engine"
+}
+
+function harmonyBrowserStartupSymbol() -> Symbol {
+    if harmonyBrowserDiagnostic().count > 0 {
+        return Symbol.WarningCircle
+    }
+    return Symbol.CircleNotch
+}
+
+function harmonyBrowserStartupInk() -> PrimaryColor {
+    if harmonyBrowserDiagnostic().count > 0 {
+        return PrimaryColor.Red
+    }
+    return PrimaryColor.Accent
 }

@@ -1,0 +1,286 @@
+import KiraUI
+
+// What the address bar offers while a person types.
+//
+// The list is one ranking over the history, the bookmarks and the text itself.
+// The first row is always what is in the bar, turned into the URL it would load,
+// because the bar has to offer what the person actually typed before it offers
+// anything it merely found; the rows under it are the module's ranking of the
+// two models against that prefix.
+//
+// What the typed text MEANS is the navigation system's decision, asked here
+// rather than repeated: a row that said "search" and then loaded a site would be
+// a row lying about its own press.
+
+// How many rows the dropdown holds. Eight is what fits under a bar without
+// covering the page it is about to load, and past the eighth a suggestion is
+// worse than what was typed.
+function harmonyAddressSuggestionLimit() -> Int {
+    return 8
+}
+
+function harmonyAddressSuggestionRowHeight() -> Float {
+    return 34.0
+}
+
+// The panel's width, owned here rather than derived from the column it hangs in:
+// the window insets its overlay column by twelve points on each side, and a
+// panel that measured its container would have to be told what that container is
+// before it could draw anything at all.
+function harmonyAddressSuggestionWidth() -> Float {
+    return harmonyBrowserSidebarWidth() - 24.0
+}
+
+construct HarmonyAddressSuggestionStore {
+    @Required let version: Int
+}
+
+HarmonyAddressSuggestionStore HarmonyAddressSuggestions() {
+    @State var rows: [AddressSuggestion] = []
+    @State var cachedText: String = ""
+    @State var cachedRevision: Int = -1
+    @State var seeded: Bool = false
+    let version: Int = 1
+
+    // Called once per build, before anything reads a row. The query runs when
+    // the typed text changes or the models move, and on no other frame: a
+    // substring search over the whole history on every frame of a load would be
+    // the most expensive thing the browser does while sitting still.
+    function sync(typed: String) {
+        let revision = harmonyBookmarksRevision()
+        if seeded && typed == cachedText && revision == cachedRevision {
+            return
+        }
+
+        rows = harmonyAddressSuggestionsFor(typed)
+        cachedText = typed
+        cachedRevision = revision
+        seeded = true
+        return
+    }
+
+    function rowCount() -> Int {
+        return rows.count
+    }
+
+    function rowAt(index: Int) -> AddressSuggestion {
+        if index < 0 || index >= rows.count {
+            return AddressSuggestion {}
+        }
+        return rows[index]
+    }
+}
+
+// --- Reading -------------------------------------------------------------------
+
+// What is in the address bar this frame. The field owns its buffer, so this is
+// the only place the truth about what has been typed lives.
+function harmonyAddressTypedText() -> String {
+    return textFieldText(harmonyChromeAddressFieldKey())
+}
+
+// Whether what is in the bar is an edit nobody has submitted yet.
+//
+// The chrome seeds the field from the page's address and re-seeds it when the
+// page moves; the field still holding exactly what it was last seeded with is
+// precisely the case where nobody is typing into it. That is the same test the
+// chrome makes to decide whether it may re-seed, asked here rather than guessed
+// at, so a dropdown can never be up over a bar nobody is editing.
+function harmonyAddressIsEditing() -> Bool {
+    let typed = harmonyAddressTypedText()
+    if typed.count == 0 {
+        return false
+    }
+    return typed != HarmonyChromeAddress().seededValue()
+}
+
+// The ranked list: what was typed, then the bookmarks and history that answer it.
+function harmonyAddressSuggestionsFor(text: String) -> [AddressSuggestion] {
+    var rows: [AddressSuggestion] = []
+    let typed = text.trim()
+    if typed.count == 0 {
+        return rows
+    }
+
+    let normalized = harmonyNavigationNormalizedURL(typed)
+    if normalized.count > 0 {
+        rows.append(AddressSuggestion {
+            kind: SuggestionKind.Typed
+            url: normalized
+            title: suggestionTypedLabel(typed)
+        })
+    }
+
+    // One row fewer than the cap is asked for, because the typed row is already
+    // holding the first place.
+    let count = Int(hbSuggestionsQuery(typed, I32(harmonyAddressSuggestionLimit() - 1)))
+    var index = 0
+    while index < count {
+        let native = I32(index)
+        let url = hbSuggestionURL(native)
+        // The typed row already loads this address, and a dropdown that offered
+        // the same load twice would be a dropdown whose second row does nothing
+        // new.
+        if url != normalized {
+            rows.append(AddressSuggestion {
+                kind: suggestionKindFromCode(Int(hbSuggestionKind(native)))
+                url: url
+                title: hbSuggestionTitle(native)
+                host: hbSuggestionHost(native)
+                node: Int(hbSuggestionNode(native))
+                visitCount: Int(hbSuggestionVisitCount(native))
+                lastVisit: hbSuggestionLastVisit(native)
+            })
+        }
+        index = index + 1
+    }
+    return rows
+}
+
+// Every accessor below syncs first against what is in the bar right now, so a
+// widget tree that reads the suggestions is a widget tree that has caught up
+// with the keystroke that changed them.
+function harmonyAddressSuggestionCount() -> Int {
+    let store = HarmonyAddressSuggestions()
+    if harmonyAddressIsEditing() == false {
+        store.sync("")
+        return 0
+    }
+    store.sync(harmonyAddressTypedText())
+    return store.rowCount()
+}
+
+function harmonyAddressSuggestionAt(index: Int) -> AddressSuggestion {
+    return HarmonyAddressSuggestions().rowAt(index)
+}
+
+function harmonyAddressSuggestionsAreOpen() -> Bool {
+    return harmonyAddressSuggestionCount() > 0
+}
+
+// --- Acting ---------------------------------------------------------------------
+
+// Loading a row.
+//
+// The field is reset and the chrome is told what the bar now stands for, in that
+// order: resetting leaves the buffer to be seeded from the address the chrome
+// next reports, and saying what it was seeded with is what stops the next frame
+// treating the row's own URL as an edit the user has not submitted.
+function harmonyAddressSuggestionLoad(url: String) {
+    let target = url.trim()
+    if target.count == 0 {
+        return
+    }
+
+    textFieldReset(harmonyChromeAddressFieldKey())
+    HarmonyChromeAddress().markSeeded(target)
+    harmonyNavigationLoad(target)
+    return
+}
+
+function harmonyAddressSuggestionAction(url: String) -> () -> Void {
+    let target = url
+    let press: () -> Void = { in
+        harmonyAddressSuggestionLoad(target)
+        return
+    }
+    return press
+}
+
+function harmonyAddressSuggestionNewTabAction(url: String) -> () -> Void {
+    let target = url
+    let press: () -> Void = { in
+        textFieldReset(harmonyChromeAddressFieldKey())
+        let ignored = HarmonyTabList().open(target)
+        return
+    }
+    return press
+}
+
+// --- The dropdown ----------------------------------------------------------------
+
+Widget AddressSuggestionRowText(name: String, detail: String) {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            Text(name)
+                .typography(.subheadline)
+                .foregroundColor(.Primary)
+
+            Text(detail)
+                .typography(.caption)
+                .foregroundColor(.Secondary)
+        }
+    }
+}
+
+Widget AddressSuggestionRow(kind: SuggestionKind, name: String, detail: String, url: String) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(suggestionSymbol(kind))
+                .imageScale(.Small)
+                .foregroundColor(suggestionInk(kind))
+
+            Expanded(flex = 1) {
+                AddressSuggestionRowText(name = name, detail = detail)
+            }
+
+            ControlSlot() {
+                Icon(.ArrowSquareOut)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyAddressSuggestionNewTabAction(url))
+        }
+        .height(harmonyAddressSuggestionRowHeight())
+        .onClick(harmonyAddressSuggestionAction(url))
+    }
+}
+
+// One row, read out of the cache once rather than once per field: a row that
+// asked again for each of its texts could draw a name from one suggestion beside
+// an address from the next.
+function harmonyAddressSuggestionRowAt(index: Int) -> Any Widget {
+    let suggestion = harmonyAddressSuggestionAt(index)
+    return AddressSuggestionRow(
+        kind = suggestion.kind,
+        name = suggestion.label(),
+        detail = suggestionDetail(suggestion),
+        url = suggestion.url
+    )
+}
+
+Widget AddressSuggestionList() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            For(index in indices(harmonyAddressSuggestionCount())) {
+                harmonyAddressSuggestionRowAt(index)
+            }
+        }
+    }
+}
+
+Widget AddressSuggestionPanelBody() {
+    body {
+        Panel(radius = CornerRadius.Medium) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
+                AddressSuggestionList()
+            }
+        }
+        .backgroundStyle(.Raised)
+        .themeBorder(.Subtle)
+        .width(harmonyAddressSuggestionWidth())
+        .hugHeight()
+    }
+}
+
+// What the window hangs under its toolbar. It draws nothing at all while the bar
+// is not being edited, so the column it sits in keeps its shape.
+Widget AddressSuggestionPanel() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            if harmonyAddressSuggestionsAreOpen() {
+                AddressSuggestionPanelBody()
+            }
+        }
+        .hugHeight()
+    }
+}

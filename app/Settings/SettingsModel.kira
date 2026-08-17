@@ -1,0 +1,226 @@
+import KiraUI
+
+// The preferences as this side of the browser reads and writes them.
+//
+// These are values, not stores: the truth is the record the native module keeps
+// and the file it writes, and a build reads it fresh. Nothing here is a second
+// copy that could disagree with what the profile holds.
+
+// What the browser does with the tabs the last run was closed with.
+enum StartupBehaviour {
+    NewTab
+    RestoreSession
+}
+
+// One search engine: what it is called, and the URL a phrase is put into.
+struct SearchEngine {
+    var index: Int = 0
+    var name: String = ""
+    var query: String = ""
+    var isDefault: Bool = false
+
+    // What a row writes under the name. The template is the whole of what makes
+    // one engine different from another, so it is shown rather than hidden
+    // behind an edit button.
+    function detail() -> String {
+        return self.query
+    }
+}
+
+// --- Startup behaviour -------------------------------------------------------
+
+// The numbers the native bridge speaks, from harmony_settings.h.
+function startupBehaviourCode(behaviour: StartupBehaviour) -> Int {
+    match behaviour {
+        NewTab -> return 0;
+        RestoreSession -> return 1;
+    }
+}
+
+function startupBehaviourFromCode(code: Int) -> StartupBehaviour {
+    if code == 0 {
+        return StartupBehaviour.NewTab
+    }
+    return StartupBehaviour.RestoreSession
+}
+
+function startupBehaviours() -> [StartupBehaviour] {
+    return [StartupBehaviour.NewTab, StartupBehaviour.RestoreSession]
+}
+
+function startupBehaviourTitle(behaviour: StartupBehaviour) -> String {
+    match behaviour {
+        NewTab -> return "Open a new tab";
+        RestoreSession -> return "Reopen the last tabs";
+    }
+}
+
+function startupBehaviourSymbol(behaviour: StartupBehaviour) -> Symbol {
+    match behaviour {
+        NewTab -> return Symbol.Plus;
+        RestoreSession -> return Symbol.ClockCounterClockwise;
+    }
+}
+
+// --- Reading ------------------------------------------------------------------
+
+function harmonySettingsRevision() -> Int {
+    return Int(nativeSettingsRevision())
+}
+
+// Why a setting could not be kept, when one could not. Empty when nothing is
+// wrong.
+function harmonySettingsDiagnostic() -> String {
+    return nativeSettingsError()
+}
+
+// Where the settings are written. Empty when the profile directory could not be
+// reached, which is also when nothing can be saved.
+function harmonySettingsFilePath() -> String {
+    return nativeSettingsPath()
+}
+
+// The address a new tab and the home button go to. This is what
+// `harmonyTabsHomeURL` and `harmonyChromeHomeURL` answer with, so the browser
+// has one home and not three.
+function harmonySettingsHomeURL() -> String {
+    return nativeSettingsHomeURL()
+}
+
+function harmonySettingsSetHomeURL(url: String) {
+    nativeSettingsSetHomeURL(url)
+    return
+}
+
+function harmonySettingsStartup() -> StartupBehaviour {
+    return startupBehaviourFromCode(Int(nativeSettingsStartup()))
+}
+
+function harmonySettingsSetStartup(behaviour: StartupBehaviour) {
+    nativeSettingsSetStartup(I32(startupBehaviourCode(behaviour)))
+    return
+}
+
+// --- Search engines -----------------------------------------------------------
+
+function harmonySettingsEngineCount() -> Int {
+    return Int(nativeSettingsEngineCount())
+}
+
+function harmonySettingsDefaultEngineIndex() -> Int {
+    return Int(nativeSettingsEngineDefault())
+}
+
+function harmonySettingsEngineAt(index: Int) -> SearchEngine {
+    if index < 0 || index >= harmonySettingsEngineCount() {
+        return SearchEngine {}
+    }
+    return SearchEngine {
+        index: index
+        name: nativeSettingsEngineName(I32(index))
+        query: nativeSettingsEngineQuery(I32(index))
+        isDefault: harmonySettingsDefaultEngineIndex() == index
+    }
+}
+
+function harmonySettingsEngines() -> [SearchEngine] {
+    var engines: [SearchEngine] = []
+    let count = harmonySettingsEngineCount()
+    var index = 0
+    while index < count {
+        engines.append(harmonySettingsEngineAt(index))
+        index = index + 1
+    }
+    return engines
+}
+
+function harmonySettingsDefaultEngine() -> SearchEngine {
+    return harmonySettingsEngineAt(harmonySettingsDefaultEngineIndex())
+}
+
+// The URL a typed phrase loads. This is what the address bar's normaliser
+// answers a phrase that names no place with, so the engine a person chose is the
+// engine every search of this browser reaches.
+function harmonySettingsSearchURL(query: String) -> String {
+    return nativeSettingsSearchURL(query)
+}
+
+// The token a query template carries where the phrase goes.
+function harmonySettingsSearchTermsToken() -> String {
+    return "{searchTerms}"
+}
+
+function harmonySettingsQueryIsUsable(query: String) -> Bool {
+    return query.contains(harmonySettingsSearchTermsToken())
+}
+
+// --- Zoom ----------------------------------------------------------------------
+
+// The levels a menu offers in one press. The same ladder the zoom badge and the
+// site menu step along, so a default chosen here is a level the rest of the
+// browser can also show.
+function harmonySettingsZoomPresets() -> [Int] {
+    return [50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200]
+}
+
+function harmonySettingsDefaultZoom() -> Int {
+    return Int(nativeSettingsDefaultZoomPercent())
+}
+
+function harmonySettingsSetDefaultZoom(percent: Int) {
+    nativeSettingsSetDefaultZoomPercent(I32(percent))
+    return
+}
+
+function harmonySettingsZoomLabel() -> String {
+    return String(harmonySettingsDefaultZoom()) + "%"
+}
+
+// --- What a page may do ---------------------------------------------------------
+
+function harmonySettingsJavaScriptEnabled() -> Bool {
+    return nativeSettingsJavaScriptEnabled() != I32(0)
+}
+
+function harmonySettingsImagesEnabled() -> Bool {
+    return nativeSettingsImagesEnabled() != I32(0)
+}
+
+function harmonySettingsPopupsEnabled() -> Bool {
+    return nativeSettingsPopupsEnabled() != I32(0)
+}
+
+function harmonySettingsDoNotTrack() -> Bool {
+    return nativeSettingsDoNotTrack() != I32(0)
+}
+
+function harmonySettingsFlag(value: Bool) -> I32 {
+    if value {
+        return I32(1)
+    }
+    return I32(0)
+}
+
+// --- Downloads ------------------------------------------------------------------
+
+// Where downloads are saved, as the panel shows it. An empty setting means the
+// folder Windows nominates, and the panel says so rather than showing a blank.
+function harmonySettingsDownloadDirectory() -> String {
+    return nativeSettingsDownloadDirectory()
+}
+
+function harmonySettingsDownloadDirectoryLabel() -> String {
+    let chosen = harmonySettingsDownloadDirectory()
+    if chosen.count > 0 {
+        return chosen
+    }
+    return downloadsDirectoryPath()
+}
+
+function harmonySettingsDownloadDirectoryIsDefault() -> Bool {
+    return harmonySettingsDownloadDirectory().count == 0
+}
+
+function harmonySettingsDownloadPickerIsOpen() -> Bool {
+    return nativeSettingsDownloadDirectoryPending() != I32(0)
+}

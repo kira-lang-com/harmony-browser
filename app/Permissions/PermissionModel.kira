@@ -1,0 +1,256 @@
+import KiraUI
+
+// What a page can ask for, and what a person can answer.
+//
+// The kinds are the questions WebKit actually asks: a location, a notification,
+// a camera, a microphone, both devices at once, and a screen. The combined kind
+// is a question, not an answer — a page that wants the camera and the
+// microphone asks once, and what is remembered afterwards is the two device
+// grants, so allowing a video call does not silently allow a page that only
+// wants to listen.
+enum PermissionKind {
+    Geolocation
+    Notifications
+    Camera
+    Microphone
+    CameraAndMicrophone
+    ScreenCapture
+}
+
+// Ask is the absence of an answer, which is why it is the default everywhere: a
+// prompt a person walks away from leaves Ask standing and denies this request.
+enum PermissionDecision {
+    Ask
+    Allow
+    Deny
+}
+
+// One remembered answer, for one origin.
+struct PermissionGrant {
+    var origin: String = ""
+    var kind: PermissionKind = PermissionKind.Geolocation
+    var decision: PermissionDecision = PermissionDecision.Ask
+}
+
+// A grant by value. A grant holds a String, so a list is rebuilt out of copies
+// rather than by moving elements between two arrays.
+function permissionGrantCopy(grant: borrow PermissionGrant) -> PermissionGrant {
+    return PermissionGrant {
+        origin: "" + grant.origin
+        kind: grant.kind
+        decision: grant.decision
+    }
+}
+
+// The numbers the native bridge speaks, from harmony_permissions.h.
+function permissionKindCode(kind: PermissionKind) -> Int {
+    match kind {
+        Geolocation -> return 1;
+        Notifications -> return 2;
+        Camera -> return 3;
+        Microphone -> return 4;
+        CameraAndMicrophone -> return 5;
+        ScreenCapture -> return 6;
+    }
+}
+
+function permissionKindFromCode(code: Int) -> PermissionKind {
+    if code == 2 {
+        return PermissionKind.Notifications
+    }
+    if code == 3 {
+        return PermissionKind.Camera
+    }
+    if code == 4 {
+        return PermissionKind.Microphone
+    }
+    if code == 5 {
+        return PermissionKind.CameraAndMicrophone
+    }
+    if code == 6 {
+        return PermissionKind.ScreenCapture
+    }
+    return PermissionKind.Geolocation
+}
+
+function permissionDecisionCode(decision: PermissionDecision) -> Int {
+    match decision {
+        Ask -> return 0;
+        Allow -> return 1;
+        Deny -> return 2;
+    }
+}
+
+// The kinds that are stored. The combined kind is never one of them: it is read
+// as the camera grant and the microphone grant together.
+function permissionStoredKinds() -> [PermissionKind] {
+    return [
+        PermissionKind.Geolocation,
+        PermissionKind.Notifications,
+        PermissionKind.Camera,
+        PermissionKind.Microphone,
+        PermissionKind.ScreenCapture
+    ]
+}
+
+// The token a kind is written to disk as. Names, never ordinals: a kind added
+// in the middle would otherwise re-read every answer ever saved as its
+// neighbour's.
+function permissionKindToken(kind: PermissionKind) -> String {
+    match kind {
+        Geolocation -> return "geolocation";
+        Notifications -> return "notifications";
+        Camera -> return "camera";
+        Microphone -> return "microphone";
+        CameraAndMicrophone -> return "camera-and-microphone";
+        ScreenCapture -> return "screen-capture";
+    }
+}
+
+function permissionDecisionToken(decision: PermissionDecision) -> String {
+    match decision {
+        Ask -> return "ask";
+        Allow -> return "allow";
+        Deny -> return "deny";
+    }
+}
+
+// A token read back off disk. A token this version does not know is not a
+// decision, so the line it came from is dropped rather than guessed at.
+function permissionKindIsKnown(token: borrow String) -> Bool {
+    for kind in permissionStoredKinds() {
+        if permissionKindToken(kind) == token {
+            return true
+        }
+    }
+    return false
+}
+
+function permissionKindFromToken(token: borrow String) -> PermissionKind {
+    for kind in permissionStoredKinds() {
+        if permissionKindToken(kind) == token {
+            return kind
+        }
+    }
+    return PermissionKind.Geolocation
+}
+
+function permissionDecisionIsKnown(token: borrow String) -> Bool {
+    if token == "allow" {
+        return true
+    }
+    return token == "deny"
+}
+
+function permissionDecisionFromToken(token: borrow String) -> PermissionDecision {
+    if token == "allow" {
+        return PermissionDecision.Allow
+    }
+    return PermissionDecision.Deny
+}
+
+// --- How a kind reads -------------------------------------------------------
+
+function permissionKindTitle(kind: PermissionKind) -> String {
+    match kind {
+        Geolocation -> return "Location";
+        Notifications -> return "Notifications";
+        Camera -> return "Camera";
+        Microphone -> return "Microphone";
+        CameraAndMicrophone -> return "Camera and Microphone";
+        ScreenCapture -> return "Screen Sharing";
+    }
+}
+
+// The sentence the prompt puts after the site's name.
+function permissionKindRequestText(kind: PermissionKind) -> String {
+    match kind {
+        Geolocation -> return "wants to know your location";
+        Notifications -> return "wants to send you notifications";
+        Camera -> return "wants to use your camera";
+        Microphone -> return "wants to use your microphone";
+        CameraAndMicrophone -> return "wants to use your camera and microphone";
+        ScreenCapture -> return "wants to share your screen";
+    }
+}
+
+// What allowing it costs, said plainly, because a person answering a prompt is
+// being asked to trade something and should be told what. One short line: text
+// is laid out on one line here, so a sentence that runs long runs off the card.
+function permissionKindDetailText(kind: PermissionKind) -> String {
+    match kind {
+        Geolocation -> return "It will see where you are while you use it.";
+        Notifications -> return "It can show messages while it is not open.";
+        Camera -> return "It will see through your camera while in use.";
+        Microphone -> return "It will hear your microphone while in use.";
+        CameraAndMicrophone -> return "It will see and hear you while you use it.";
+        ScreenCapture -> return "It will see everything you share with it.";
+    }
+}
+
+function permissionKindSymbol(kind: PermissionKind) -> Symbol {
+    match kind {
+        Geolocation -> return Symbol.MapPin;
+        Notifications -> return Symbol.Bell;
+        Camera -> return Symbol.Camera;
+        Microphone -> return Symbol.Microphone;
+        CameraAndMicrophone -> return Symbol.VideoCamera;
+        ScreenCapture -> return Symbol.Monitor;
+    }
+}
+
+function permissionDecisionLabel(decision: PermissionDecision) -> String {
+    match decision {
+        Ask -> return "Ask";
+        Allow -> return "Allowed";
+        Deny -> return "Blocked";
+    }
+}
+
+function permissionDecisionColor(decision: PermissionDecision) -> PrimaryColor {
+    match decision {
+        Ask -> return PrimaryColor.Secondary;
+        Allow -> return PrimaryColor.Green;
+        Deny -> return PrimaryColor.Red;
+    }
+}
+
+// --- Origins ----------------------------------------------------------------
+
+// An origin as a person reads it: the host, without the scheme and without the
+// default port. The scheme still decides the lock beside it, so nothing is lost
+// by leaving it out of the text.
+function permissionOriginDisplay(origin: borrow String) -> String {
+    let marker = origin.indexOf("://")
+    if marker < 0 {
+        return "" + origin
+    }
+    return origin.substring(marker + 3, origin.count)
+}
+
+function permissionOriginIsSecure(origin: borrow String) -> Bool {
+    if origin.startsWith("https://") {
+        return true
+    }
+    return origin.startsWith("wss://")
+}
+
+// An origin is one line of a file and one word of it, so anything that could
+// break the line apart makes it unstorable. Nothing WebKit produces has a space
+// in it; this is what keeps a hand-edited file from becoming an origin that
+// reads back as two.
+function permissionOriginIsStorable(origin: borrow String) -> Bool {
+    if origin.count == 0 {
+        return false
+    }
+    if origin.contains(" ") {
+        return false
+    }
+    if origin.contains("\t") {
+        return false
+    }
+    if origin.contains("\n") {
+        return false
+    }
+    return origin.contains("://")
+}

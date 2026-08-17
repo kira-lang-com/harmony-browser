@@ -1,0 +1,417 @@
+import KiraUI
+
+// The tab strip: one item per tab, a new-tab button after them, and the menus
+// that carry the commands a strip has no room to show.
+//
+// A tab item is THREE hit regions side by side rather than one with buttons
+// inside it -- the label selects, the cross closes, the chevron opens the tab's
+// menu. Nesting one press region inside another would make which of them a
+// click landed on a matter of how the tree happens to be walked; three siblings
+// cannot disagree.
+
+// --- One tab ----------------------------------------------------------------
+
+// A private tab is marked as one, and everything else is marked by its site.
+// Which tabs are private is the profile's answer rather than the registry's: the
+// store is bound when the page is created, and a page opened by window.open from
+// a private tab inherits it.
+Widget HarmonyTabFavicon(tabId: Int) {
+    body {
+        Icon(harmonyPrivateTabSymbol(tabId))
+            .imageScale(.Small)
+            .foregroundColor(harmonyTabIconInk(tabId))
+    }
+}
+
+// The pinned form: the site's mark alone, at the width a mark needs.
+Widget HarmonyPinnedTabItem(tabId: Int) {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Center) {
+            Panel(radius = CornerRadius.Small) {
+                HStack(spacing = Spacing.None, alignment = VerticalAlignment.Center) {
+                    Spacer()
+
+                    HarmonyTabFavicon(tabId = tabId)
+
+                    Spacer()
+                }
+            }
+            .backgroundStyle(harmonyTabSurface(tabId))
+            .width(harmonyTabPinnedWidth())
+            .height(harmonyTabItemHeight())
+            .onClick(harmonyTabSelectAction(tabId))
+
+            HarmonyTabStateBar(tabId = tabId)
+        }
+        .hugWidth()
+    }
+}
+
+// The band under a tab: the page's progress while it loads, the mark of the tab
+// that is showing once it has, and nothing at all on any other tab. It is the
+// same row in every state, so a tab starting to load never moves the strip.
+Widget HarmonyTabStateBar(tabId: Int) {
+    body {
+        HStack(spacing = Spacing.None, alignment = VerticalAlignment.Center) {
+            Panel(radius = CornerRadius.Capsule) {
+                FixedGap(width = 1.0, height = 2.0)
+            }
+            .backgroundStyle(harmonyTabBarStyle(tabId))
+            .width(harmonyTabBarWidth(tabId))
+            .height(2.0)
+
+            Spacer()
+        }
+        .width(harmonyTabItemWidthFor(tabId))
+        .height(4.0)
+    }
+}
+
+Widget HarmonyTabItem(tabId: Int) {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            Panel(radius = CornerRadius.Small) {
+                HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+                    Expanded(flex = 1) {
+                        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+                            HarmonyTabFavicon(tabId = tabId)
+
+                            Text(harmonyTabLabelFor(tabId))
+                                .typography(.footnote)
+                                .foregroundColor(harmonyTabInk(tabId))
+
+                            Spacer()
+                        }
+                        .onClick(harmonyTabSelectAction(tabId))
+                    }
+
+                    // Sized rather than left at the glyph's own extent: a cross
+                    // the width of a cross is a target the pointer has to be
+                    // aimed at, and closing a tab is not an aiming exercise.
+                    Icon(.CaretDown)
+                        .imageScale(.Small)
+                        .foregroundColor(.Tertiary)
+                        .size(18.0)
+                        .onClick(harmonyTabMenuAction(tabId))
+
+                    Icon(.X)
+                        .imageScale(.Small)
+                        .foregroundColor(.Tertiary)
+                        .size(18.0)
+                        .onClick(harmonyTabCloseAction(tabId))
+                }
+                .inset(horizontal = Spacing.Small)
+            }
+            .backgroundStyle(harmonyTabSurface(tabId))
+            .width(harmonyTabFullWidth())
+            .height(harmonyTabItemHeight())
+
+            HarmonyTabStateBar(tabId = tabId)
+        }
+        .hugWidth()
+    }
+}
+
+// One entry of the strip, in whichever of the two forms the tab is in.
+Widget HarmonyTabStripEntry(tabId: Int) {
+    body {
+        HStack(spacing = Spacing.None, alignment = VerticalAlignment.Center) {
+            if harmonyTabIsPinned(tabId) {
+                HarmonyPinnedTabItem(tabId = tabId)
+            }
+
+            if harmonyTabIsPinned(tabId) == false {
+                HarmonyTabItem(tabId = tabId)
+            }
+        }
+        .hugWidth()
+    }
+}
+
+// --- The strip --------------------------------------------------------------
+
+Widget HarmonyTabNewButton() {
+    body {
+        ControlSlot() {
+            Icon(.Plus)
+                .imageScale(.Small)
+        }
+        .onClick(harmonyTabsNewTab)
+    }
+}
+
+Widget HarmonyTabListMenuButton() {
+    body {
+        ControlSlot(active = HarmonyTabList().listMenuIsOpen()) {
+            Icon(.DotsThreeVertical)
+                .imageScale(.Small)
+        }
+        .onClick(harmonyTabsToggleListMenu)
+    }
+}
+
+Widget HarmonyTabStripRow() {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            For(index in indices(harmonyTabsCount())) {
+                HarmonyTabStripEntry(tabId = harmonyTabsIdAt(index))
+            }
+
+            HarmonyTabNewButton()
+
+            Spacer()
+
+            HarmonyTabListMenuButton()
+        }
+        .height(harmonyTabStripHeight())
+        .inset(horizontal = Spacing.ExtraSmall)
+        .foregroundColor(.Secondary)
+        .backgroundStyle(.Window)
+    }
+}
+
+// The strip as it goes into a window: the row, the rule under it, and whichever
+// menu is open standing in the band below it.
+//
+// A menu is part of the vertical flow rather than a floating panel because the
+// widget library has no popover: what it does have is a single-open key in a
+// state slot, which is exactly what the list holds. Every command in a menu
+// closes it, and so does the control that opened it.
+Widget HarmonyTabStrip() {
+    body {
+        VStack(spacing = Spacing.None) {
+            HarmonyTabStripRow()
+
+            Divider()
+                .themeBorder(.Subtle)
+
+            if harmonyTabsReady() == false {
+                HarmonyTabEngineNotice()
+            }
+
+            if HarmonyTabList().openMenuTabId() != 0 {
+                HarmonyTabMenu(tabId = HarmonyTabList().openMenuTabId())
+            }
+
+            if HarmonyTabList().listMenuIsOpen() {
+                HarmonyTabListMenu()
+            }
+        }
+        .hugHeight()
+    }
+}
+
+// Why there are no tabs, when there are none.
+//
+// A browser whose engine never loaded is otherwise a browser drawing an empty
+// strip over an empty window, and the difference between that and a browser
+// that is merely still starting is exactly what the registry's error says.
+Widget HarmonyTabEngineNotice() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(harmonyTabEngineNoticeSymbol())
+                .imageScale(.Small)
+                .foregroundColor(harmonyTabEngineNoticeInk())
+
+            Text(harmonyTabEngineNoticeText())
+                .typography(.caption)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+        }
+        .height(harmonyTabRowHeight())
+        .inset(horizontal = Spacing.Small)
+        .backgroundStyle(.Surface)
+    }
+}
+
+function harmonyTabEngineNoticeText() -> String {
+    let failure = harmonyTabsError()
+    if failure.count > 0 {
+        return failure
+    }
+    return "Starting the web engine"
+}
+
+function harmonyTabEngineNoticeSymbol() -> Symbol {
+    if harmonyTabsError().count > 0 {
+        return Symbol.WarningCircle
+    }
+    return Symbol.CircleNotch
+}
+
+function harmonyTabEngineNoticeInk() -> PrimaryColor {
+    if harmonyTabsError().count > 0 {
+        return PrimaryColor.Red
+    }
+    return PrimaryColor.Accent
+}
+
+// --- Menus ------------------------------------------------------------------
+
+Widget HarmonyTabMenuItem(title: String, symbol: Symbol, action: () -> Void) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(symbol)
+                .imageScale(.Small)
+                .foregroundColor(.Secondary)
+
+            Text(title)
+                .typography(.footnote)
+
+            Spacer()
+        }
+        .height(harmonyTabRowHeight())
+        .inset(horizontal = Spacing.Small)
+        .onClick(action)
+    }
+}
+
+Widget HarmonyTabMenu(tabId: Int) {
+    body {
+        Panel(radius = CornerRadius.Small) {
+            VStack(spacing = Spacing.None) {
+                HarmonyTabMenuItem(
+                    title = harmonyTabLabelFor(tabId),
+                    symbol = harmonyTabFaviconFor(tabId),
+                    action = harmonyTabSelectAction(tabId)
+                )
+                    .foregroundColor(.Secondary)
+                    .opacity(0.75)
+
+                Divider()
+                    .themeBorder(.Subtle)
+
+                HarmonyTabMenuItem(
+                    title = "Reload",
+                    symbol = Symbol.ArrowClockwise,
+                    action = harmonyTabReloadAction(tabId)
+                )
+
+                HarmonyTabMenuItem(
+                    title = "Duplicate Tab",
+                    symbol = Symbol.Copy,
+                    action = harmonyTabDuplicateAction(tabId)
+                )
+
+                HarmonyTabMenuItem(
+                    title = "New Tab to the Right",
+                    symbol = Symbol.Plus,
+                    action = harmonyTabNewTabAfterAction(tabId)
+                )
+
+                Divider()
+                    .themeBorder(.Subtle)
+
+                HarmonyTabMenuItem(
+                    title = harmonyTabPinTitle(tabId),
+                    symbol = harmonyTabPinSymbol(tabId),
+                    action = harmonyTabTogglePinAction(tabId)
+                )
+
+                HarmonyTabMenuItem(
+                    title = "Move Left",
+                    symbol = Symbol.CaretLeft,
+                    action = harmonyTabMoveLeftAction(tabId)
+                )
+
+                HarmonyTabMenuItem(
+                    title = "Move Right",
+                    symbol = Symbol.CaretRight,
+                    action = harmonyTabMoveRightAction(tabId)
+                )
+
+                Divider()
+                    .themeBorder(.Subtle)
+
+                HarmonyTabMenuItem(
+                    title = "Close Tab",
+                    symbol = Symbol.X,
+                    action = harmonyTabCloseAction(tabId)
+                )
+
+                HarmonyTabMenuItem(
+                    title = "Close Other Tabs",
+                    symbol = Symbol.XCircle,
+                    action = harmonyTabCloseOthersAction(tabId)
+                )
+            }
+        }
+        .backgroundStyle(.Overlay)
+        .themeBorder(.Subtle)
+        .width(240.0)
+        .hugHeight()
+    }
+}
+
+Widget HarmonyTabListMenu() {
+    body {
+        Panel(radius = CornerRadius.Small) {
+            VStack(spacing = Spacing.None) {
+                HarmonyTabMenuItem(
+                    title = "New Tab",
+                    symbol = Symbol.Plus,
+                    action = harmonyTabsNewTab
+                )
+
+                HarmonyTabMenuItem(
+                    title = harmonyReopenClosedTitle(),
+                    symbol = Symbol.ArrowUUpLeft,
+                    action = harmonyTabsReopenClosed
+                )
+
+                Divider()
+                    .themeBorder(.Subtle)
+
+                HarmonyTabMenuItem(
+                    title = "Next Tab",
+                    symbol = Symbol.CaretRight,
+                    action = harmonyTabsSelectNext
+                )
+
+                HarmonyTabMenuItem(
+                    title = "Previous Tab",
+                    symbol = Symbol.CaretLeft,
+                    action = harmonyTabsSelectPrevious
+                )
+
+                Divider()
+                    .themeBorder(.Subtle)
+
+                HarmonyTabMenuItem(
+                    title = "Close Tab",
+                    symbol = Symbol.X,
+                    action = harmonyTabsCloseActive
+                )
+            }
+        }
+        .backgroundStyle(.Overlay)
+        .themeBorder(.Subtle)
+        .width(240.0)
+        .hugHeight()
+    }
+}
+
+// --- Menu labels ------------------------------------------------------------
+
+function harmonyTabPinTitle(tabId: Int) -> String {
+    if harmonyTabIsPinned(tabId) {
+        return "Unpin Tab"
+    }
+    return "Pin Tab"
+}
+
+function harmonyTabPinSymbol(tabId: Int) -> Symbol {
+    if harmonyTabIsPinned(tabId) {
+        return Symbol.PushPinSlash
+    }
+    return Symbol.PushPin
+}
+
+// A command that would do nothing says so rather than looking available.
+function harmonyReopenClosedTitle() -> String {
+    if harmonyTabsClosedCount() <= 0 {
+        return "No Recently Closed Tabs"
+    }
+    return "Reopen Closed Tab"
+}

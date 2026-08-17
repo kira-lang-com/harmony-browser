@@ -1,31 +1,22 @@
 import KiraUI
 import OpacityUI
 
-Widget HarmonyBrowserHome() {
-    body {
-        AppSurface {
-            VStack(spacing = Spacing.None) {
-                BrowserGlobalToolbar()
-
-                Expanded(flex = 1) {
-                    HStack(spacing = Spacing.None, alignment = VerticalAlignment.Stretch) {
-                        HarmonyBrowserSidebar()
-
-                        Expanded(flex = 1) {
-                            BackgroundFill(style = .Window)
-                        }
-                    }
-                    .fillHeight()
-                }
-            }
-            .fillHeight()
-        }
-    }
-}
-
+// The process.
+//
+// Everything the browser is happens in three named places, and this file only
+// names them: the window is `HarmonyBrowserWindow`, the frame is
+// `harmonyBrowserFrame`, and what has to be stopped and in what order is
+// `harmonyBrowserShutdown`.
+//
+// The runner is the browser's own rather than the widget library's. The library's
+// fixes its rebuild predicate at "nothing the interface shows changes without an
+// input event", which is true of an editor and false of a browser: a page reports
+// its progress, settles on an address after a redirect and names itself seconds
+// after the load committed, all on the engine's schedule and none of it on the
+// user's.
 @Main
 function entry() {
-    RunWidgetInteractiveApp(
+    RunHarmonyBrowserApp(
         title: "Harmony Browser",
         width: 1280,
         height: 800,
@@ -33,15 +24,19 @@ function entry() {
             kiraUiTapSeqReset()
             return KiraUIApp(
                 name: "Harmony Browser",
-                content: HarmonyBrowserHome()
+                content: HarmonyBrowserWindow()
                     .theme(Opacity())
             )
         },
         engineFrame: { frame in
             harmonyBrowserFrame(frame)
         },
-        showFpsOverlay: false,
-        rebuildOnResize: true
+        needsRebuild: harmonyBrowserNeedsRebuild
     )
+
+    // The runner has returned, so the window is gone and the frame thread is
+    // free. The engine thread, the two processes every tab holds open and the
+    // pages waiting on an answer are not the window's to take with it.
+    harmonyBrowserShutdown()
     return
 }

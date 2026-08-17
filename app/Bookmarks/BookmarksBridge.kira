@@ -1,0 +1,217 @@
+// The history and bookmarks module's C surface, one declaration per export.
+//
+// Everything here is a read of, or a write to, a model the module holds behind
+// its own lock. Reads answer from that model and never enter WebKit or touch
+// disk; writes change it and leave the file to a worker. So a widget may call
+// any of them during a build without the frame waiting on a page or on a
+// directory walk.
+//
+// Nothing outside this file calls these directly: `HistoryList.kira`,
+// `BookmarksTree.kira` and `AddressSuggestions.kira` are where a caller finds
+// them, with Kira types and the browser's own defaults.
+
+// --- Lifecycle ---------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_attach; abi: c; }
+function hbBookmarksAttach() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_shutdown; abi: c; }
+function hbBookmarksShutdown() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_ready; abi: c; }
+function hbBookmarksReady() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_error; abi: c; }
+function hbBookmarksError() -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_now; abi: c; }
+function hbBookmarksNow() -> Float;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_revision; abi: c; }
+function hbBookmarksRevision() -> I32;
+
+// --- History -----------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_query; abi: c; }
+function hbHistoryQuery(text: CString, match: I32, limit: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_url; abi: c; }
+function hbHistoryURL(index: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_title; abi: c; }
+function hbHistoryTitle(index: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_host; abi: c; }
+function hbHistoryHost(index: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_last_visit; abi: c; }
+function hbHistoryLastVisit(index: I32) -> Float;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_visit_count; abi: c; }
+function hbHistoryVisitCount(index: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_day; abi: c; }
+function hbHistoryDay(index: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_score; abi: c; }
+function hbHistoryScore(index: I32) -> Float;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_count; abi: c; }
+function hbHistoryCount() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_visit_total; abi: c; }
+function hbHistoryVisitTotal() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_today; abi: c; }
+function hbHistoryToday() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_day_year; abi: c; }
+function hbHistoryDayYear(day: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_day_month; abi: c; }
+function hbHistoryDayMonth(day: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_day_of_month; abi: c; }
+function hbHistoryDayOfMonth(day: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_day_weekday; abi: c; }
+function hbHistoryDayWeekday(day: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_minute_of_day; abi: c; }
+function hbHistoryMinuteOfDay(unixSeconds: Float) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_forget_url; abi: c; }
+function hbHistoryForgetURL(url: CString) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_forget_host; abi: c; }
+function hbHistoryForgetHost(host: CString) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_history_forget_since; abi: c; }
+function hbHistoryForgetSince(since: Float) -> Void;
+
+// --- Bookmarks ---------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_child_count; abi: c; }
+function hbBookmarkChildCount(folderId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_child_at; abi: c; }
+function hbBookmarkChildAt(folderId: I32, index: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_parent_of; abi: c; }
+function hbBookmarkParentOf(nodeId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_index_of; abi: c; }
+function hbBookmarkIndexOf(nodeId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_is_folder; abi: c; }
+function hbBookmarkIsFolder(nodeId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_depth; abi: c; }
+function hbBookmarkDepth(nodeId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_leaf_count; abi: c; }
+function hbBookmarkLeafCount(folderId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_title; abi: c; }
+function hbBookmarkTitle(nodeId: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_url; abi: c; }
+function hbBookmarkURL(nodeId: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_host; abi: c; }
+function hbBookmarkHost(nodeId: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_added; abi: c; }
+function hbBookmarkAdded(nodeId: I32) -> Float;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_node_for_url; abi: c; }
+function hbBookmarkNodeForURL(url: CString) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_add; abi: c; }
+function hbBookmarkAdd(parentId: I32, index: I32, url: CString, title: CString) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_add_folder; abi: c; }
+function hbBookmarkAddFolder(parentId: I32, index: I32, title: CString) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_remove; abi: c; }
+function hbBookmarkRemove(nodeId: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_rename; abi: c; }
+function hbBookmarkRename(nodeId: I32, title: CString) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_set_url; abi: c; }
+function hbBookmarkSetURL(nodeId: I32, url: CString) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_move; abi: c; }
+function hbBookmarkMove(nodeId: I32, parentId: I32, index: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_bookmarks_toggle; abi: c; }
+function hbBookmarkToggle(url: CString, title: CString) -> I32;
+
+// --- Suggestions --------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_suggestions_query; abi: c; }
+function hbSuggestionsQuery(text: CString, limit: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_suggestion_kind; abi: c; }
+function hbSuggestionKind(index: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_suggestion_url; abi: c; }
+function hbSuggestionURL(index: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_suggestion_title; abi: c; }
+function hbSuggestionTitle(index: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_suggestion_host; abi: c; }
+function hbSuggestionHost(index: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_suggestion_node; abi: c; }
+function hbSuggestionNode(index: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_suggestion_visit_count; abi: c; }
+function hbSuggestionVisitCount(index: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_suggestion_last_visit; abi: c; }
+function hbSuggestionLastVisit(index: I32) -> Float;
+
+// --- The Kira-side surface ----------------------------------------------------
+//
+// C counts in 32 bits and Kira in 64, and the widget tree indexes, compares and
+// prints in Kira's. The conversion belongs here, once, rather than at every call
+// site.
+
+// The two roots, spelled once. These are the values in `harmony_bookmarks.h`,
+// and the two must agree.
+function harmonyBookmarksBarFolder() -> Int {
+    return 1
+}
+
+function harmonyBookmarksOtherFolder() -> Int {
+    return 2
+}
+
+// How a query is matched. These are the values in `harmony_bookmarks.h`.
+function harmonyHistoryMatchPrefix() -> Int {
+    return 0
+}
+
+function harmonyHistoryMatchSubstring() -> Int {
+    return 1
+}
+
+function harmonyBookmarksRevision() -> Int {
+    return Int(hbBookmarksRevision())
+}
+
+function harmonyBookmarksReady() -> Bool {
+    return hbBookmarksReady() != I32(0)
+}
+
+function harmonyBookmarksError() -> String {
+    return hbBookmarksError()
+}
+
+// Seconds since the Unix epoch, on the clock every stored time is stamped with.
+function harmonyBookmarksNow() -> Float {
+    return hbBookmarksNow()
+}

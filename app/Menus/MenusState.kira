@@ -1,0 +1,43 @@
+import KiraUI
+
+// What the menu system's own bookkeeping amounts to.
+//
+// A context menu is Windows' window and not this browser's, so there is nothing
+// here to draw and no panel to open or close. What IS owned here is the one
+// thing the widget layer has to know: that a menu item was chosen, so the frame
+// that drains it also redraws the tab strip, the address bar or the download
+// list it moved.
+construct HarmonyMenusStore {
+    @Required let version: Int
+}
+
+HarmonyMenusStore HarmonyMenus() {
+    @State var presentedRevision: Int = -1
+    let version: Int = 1
+
+    function presentedRevisionValue() -> Int {
+        return presentedRevision
+    }
+
+    function recordPresented(revision: Int) {
+        presentedRevision = revision
+        return
+    }
+}
+
+// True while a menu item has been chosen that the interface has not drawn the
+// effect of yet.
+//
+// A menu runs its own message loop on the engine's thread, so a frame that saw
+// no input of its own is exactly the frame a menu selection lands in: the
+// interactive runner would skip the widget build on it, and the tab the menu
+// just opened would not appear until the pointer moved again.
+function harmonyMenusNeedsRebuild() -> Bool {
+    let store = HarmonyMenus()
+    let revision = harmonyMenusRevision()
+    if revision == store.presentedRevisionValue() {
+        return false
+    }
+    store.recordPresented(revision)
+    return true
+}

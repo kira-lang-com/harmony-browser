@@ -1,0 +1,411 @@
+import KiraUI
+
+// The tab list: the order, the selection, and every command that changes them.
+//
+// The order and the selection are the registry's, read back through the bridge,
+// because a page can open a tab without asking this side first. What IS owned
+// here is the part of a tab list that has no meaning below the UI: which menu
+// is open, and which tab a reorder drag is carrying.
+construct HarmonyTabListStore {
+    @Required let version: Int
+}
+
+HarmonyTabListStore HarmonyTabList() {
+    @State var menuTabId: Int = 0
+    @State var listMenuOpen: Bool = false
+    // What the strip last drew, as the registry's own revision number. The list
+    // changes on the page's schedule and not the user's -- a title arrives, a
+    // load finishes, a page opens a tab of its own -- and this is what tells a
+    // frame that saw no input that there is something new to draw.
+    @State var presentedRevision: Int = -1
+    let version: Int = 1
+
+    // --- The list -----------------------------------------------------------
+
+    function count() -> Int {
+        return harmonyTabsCount()
+    }
+
+    function activeId() -> Int {
+        return harmonyTabsActiveId()
+    }
+
+    function activeIndex() -> Int {
+        return harmonyTabsActiveIndex()
+    }
+
+    function idAt(index: Int) -> Int {
+        return harmonyTabsIdAt(index)
+    }
+
+    function tabAt(index: Int) -> TabModel {
+        return harmonyTabModelAt(index)
+    }
+
+    function tab(tabId: Int) -> TabModel {
+        return harmonyTabModelFor(tabId)
+    }
+
+    function closedCount() -> Int {
+        return harmonyTabsClosedCount()
+    }
+
+    // --- Opening and closing ------------------------------------------------
+
+    function open(url: String) -> Int {
+        return Int(nativeTabsOpen(url, I32(1)))
+    }
+
+    function openBackground(url: String) -> Int {
+        return Int(nativeTabsOpen(url, I32(0)))
+    }
+
+    function openAt(url: String, index: Int) -> Int {
+        return Int(nativeTabsOpenAt(url, I32(index), I32(1)))
+    }
+
+    function close(tabId: Int) {
+        nativeTabsClose(I32(tabId))
+        return
+    }
+
+    function closeOthers(tabId: Int) {
+        nativeTabsCloseOthers(I32(tabId))
+        return
+    }
+
+    function closeAll() {
+        nativeTabsCloseAll()
+        return
+    }
+
+    function reopenClosed() -> Int {
+        return Int(nativeTabsReopenClosed())
+    }
+
+    // --- Selection ----------------------------------------------------------
+
+    function select(tabId: Int) {
+        nativeTabsSelect(I32(tabId))
+        return
+    }
+
+    function selectIndex(index: Int) {
+        nativeTabsSelectIndex(I32(index))
+        return
+    }
+
+    function selectNext() {
+        nativeTabsSelectNext()
+        return
+    }
+
+    function selectPrevious() {
+        nativeTabsSelectPrevious()
+        return
+    }
+
+    // --- Ordering -----------------------------------------------------------
+
+    function reorder(tabId: Int, toIndex: Int) {
+        nativeTabsMove(I32(tabId), I32(toIndex))
+        return
+    }
+
+    function setPinned(tabId: Int, pinned: Bool) {
+        nativeTabsSetPinned(I32(tabId), harmonyTabsFlag(pinned))
+        return
+    }
+
+    // --- Navigation on a tab ------------------------------------------------
+
+    function load(tabId: Int, url: String) {
+        nativeTabsLoad(I32(tabId), url)
+        return
+    }
+
+    function goBack(tabId: Int) {
+        nativeTabsGoBack(I32(tabId))
+        return
+    }
+
+    function goForward(tabId: Int) {
+        nativeTabsGoForward(I32(tabId))
+        return
+    }
+
+    function reload(tabId: Int) {
+        nativeTabsReload(I32(tabId))
+        return
+    }
+
+    function stop(tabId: Int) {
+        nativeTabsStop(I32(tabId))
+        return
+    }
+
+    // --- Menus --------------------------------------------------------------
+    //
+    // One menu is open at a time, named by the tab it belongs to, in the same
+    // shape the widget library's own popup uses: a key in a state slot, the
+    // panel rendered under its trigger, and a backdrop that dismisses it.
+
+    function openMenuTabId() -> Int {
+        return menuTabId
+    }
+
+    function listMenuIsOpen() -> Bool {
+        return listMenuOpen
+    }
+
+    function toggleMenu(tabId: Int) {
+        listMenuOpen = false
+        if menuTabId == tabId {
+            menuTabId = 0
+            return
+        }
+        menuTabId = tabId
+        return
+    }
+
+    function toggleListMenu() {
+        menuTabId = 0
+        listMenuOpen = listMenuOpen == false
+        return
+    }
+
+    function closeMenus() {
+        menuTabId = 0
+        listMenuOpen = false
+        return
+    }
+
+    // --- Rebuild invalidation -----------------------------------------------
+
+    function presentedRevisionValue() -> Int {
+        return presentedRevision
+    }
+
+    function recordPresented(revision: Int) {
+        presentedRevision = revision
+        return
+    }
+}
+
+// True while the registry has published something the strip has not drawn.
+// This is the interactive runner's own hook: without it a browser shows the tab
+// list it had when the pointer last moved.
+function harmonyTabsNeedsRebuild() -> Bool {
+    let list = HarmonyTabList()
+    let revision = harmonyTabsRevision()
+    if revision == list.presentedRevisionValue() {
+        return false
+    }
+    list.recordPresented(revision)
+    return true
+}
+
+// --- Commands ---------------------------------------------------------------
+
+function harmonyTabsNewTab() {
+    let list = HarmonyTabList()
+    let ignored = list.open(harmonyTabsHomeURL())
+    list.closeMenus()
+    return
+}
+
+function harmonyTabsNewTabAt(index: Int) {
+    let list = HarmonyTabList()
+    let ignored = list.openAt(harmonyTabsHomeURL(), index)
+    list.closeMenus()
+    return
+}
+
+function harmonyTabsSelectNext() {
+    let list = HarmonyTabList()
+    list.selectNext()
+    list.closeMenus()
+    return
+}
+
+function harmonyTabsSelectPrevious() {
+    let list = HarmonyTabList()
+    list.selectPrevious()
+    list.closeMenus()
+    return
+}
+
+function harmonyTabsReopenClosed() {
+    let list = HarmonyTabList()
+    let ignored = list.reopenClosed()
+    list.closeMenus()
+    return
+}
+
+function harmonyTabsCloseActive() {
+    let list = HarmonyTabList()
+    let active = list.activeId()
+    if active <= 0 {
+        return
+    }
+    list.close(active)
+    list.closeMenus()
+    return
+}
+
+function harmonyTabsToggleListMenu() {
+    HarmonyTabList().toggleListMenu()
+    return
+}
+
+function harmonyTabsDismissMenus() {
+    HarmonyTabList().closeMenus()
+    return
+}
+
+function harmonyTabsMoveLeft(tabId: Int) {
+    let at = harmonyTabsIndexOf(tabId)
+    if at <= 0 {
+        return
+    }
+    let list = HarmonyTabList()
+    list.reorder(tabId, at - 1)
+    list.closeMenus()
+    return
+}
+
+function harmonyTabsMoveRight(tabId: Int) {
+    let at = harmonyTabsIndexOf(tabId)
+    if at < 0 || at + 1 >= harmonyTabsCount() {
+        return
+    }
+    let list = HarmonyTabList()
+    list.reorder(tabId, at + 1)
+    list.closeMenus()
+    return
+}
+
+function harmonyTabsTogglePinned(tabId: Int) {
+    let model = harmonyTabModelFor(tabId)
+    let list = HarmonyTabList()
+    list.setPinned(tabId, model.pinned == false)
+    list.closeMenus()
+    return
+}
+
+function harmonyTabsDuplicate(tabId: Int) {
+    let source = harmonyTabModelFor(tabId)
+    if source.id <= 0 {
+        return
+    }
+    let list = HarmonyTabList()
+    let ignored = list.openAt(source.url, source.index + 1)
+    list.closeMenus()
+    return
+}
+
+// --- Actions the widgets bind to -------------------------------------------
+//
+// A control in a list needs an action that knows WHICH row it is on, and a
+// widget modifier takes a plain `() -> Void`. Each of these closes over the tab
+// it was built for, the same shape the widget library's own list controls use.
+
+function harmonyTabSelectAction(tabId: Int) -> () -> Void {
+    let target = tabId
+    let press: () -> Void = { in
+        let list = HarmonyTabList()
+        list.select(target)
+        list.closeMenus()
+        return
+    }
+    return press
+}
+
+function harmonyTabCloseAction(tabId: Int) -> () -> Void {
+    let target = tabId
+    let press: () -> Void = { in
+        let list = HarmonyTabList()
+        list.close(target)
+        list.closeMenus()
+        return
+    }
+    return press
+}
+
+function harmonyTabMenuAction(tabId: Int) -> () -> Void {
+    let target = tabId
+    let press: () -> Void = { in
+        HarmonyTabList().toggleMenu(target)
+        return
+    }
+    return press
+}
+
+function harmonyTabCloseOthersAction(tabId: Int) -> () -> Void {
+    let target = tabId
+    let press: () -> Void = { in
+        let list = HarmonyTabList()
+        list.closeOthers(target)
+        list.closeMenus()
+        return
+    }
+    return press
+}
+
+function harmonyTabTogglePinAction(tabId: Int) -> () -> Void {
+    let target = tabId
+    let press: () -> Void = { in
+        harmonyTabsTogglePinned(target)
+        return
+    }
+    return press
+}
+
+function harmonyTabMoveLeftAction(tabId: Int) -> () -> Void {
+    let target = tabId
+    let press: () -> Void = { in
+        harmonyTabsMoveLeft(target)
+        return
+    }
+    return press
+}
+
+function harmonyTabMoveRightAction(tabId: Int) -> () -> Void {
+    let target = tabId
+    let press: () -> Void = { in
+        harmonyTabsMoveRight(target)
+        return
+    }
+    return press
+}
+
+function harmonyTabReloadAction(tabId: Int) -> () -> Void {
+    let target = tabId
+    let press: () -> Void = { in
+        let list = HarmonyTabList()
+        list.reload(target)
+        list.closeMenus()
+        return
+    }
+    return press
+}
+
+function harmonyTabDuplicateAction(tabId: Int) -> () -> Void {
+    let target = tabId
+    let press: () -> Void = { in
+        harmonyTabsDuplicate(target)
+        return
+    }
+    return press
+}
+
+function harmonyTabNewTabAfterAction(tabId: Int) -> () -> Void {
+    let target = tabId
+    let press: () -> Void = { in
+        let at = harmonyTabsIndexOf(target)
+        harmonyTabsNewTabAt(at + 1)
+        return
+    }
+    return press
+}
+

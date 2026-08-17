@@ -1,0 +1,120 @@
+// The settings module's C surface, one declaration per export.
+//
+// The values live natively because the systems that need them are native: the
+// tab registry asks for the home address, the address bar's normaliser asks for
+// the search URL, the download engine asks where a file goes. A copy kept in
+// Kira would be a second answer, and the two would be able to disagree about
+// which one the profile on disk holds.
+//
+// Nothing outside `app/Settings` calls these: the files beside this one are
+// where the rest of the browser finds them, in Kira types.
+
+// --- Lifetime ---------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_frame; abi: c; }
+function nativeSettingsFrame(hostWindow: RawPtr) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_shutdown; abi: c; }
+function nativeSettingsShutdown() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_revision; abi: c; }
+function nativeSettingsRevision() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_error; abi: c; }
+function nativeSettingsError() -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_path; abi: c; }
+function nativeSettingsPath() -> CString;
+
+// --- Home page --------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_home_url; abi: c; }
+function nativeSettingsHomeURL() -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_set_home_url; abi: c; }
+function nativeSettingsSetHomeURL(url: CString) -> Void;
+
+// --- Startup ----------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_startup; abi: c; }
+function nativeSettingsStartup() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_set_startup; abi: c; }
+function nativeSettingsSetStartup(behaviour: I32) -> Void;
+
+// --- Search engines ---------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_engine_count; abi: c; }
+function nativeSettingsEngineCount() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_engine_name; abi: c; }
+function nativeSettingsEngineName(index: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_engine_query; abi: c; }
+function nativeSettingsEngineQuery(index: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_engine_default; abi: c; }
+function nativeSettingsEngineDefault() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_set_engine_default; abi: c; }
+function nativeSettingsSetEngineDefault(index: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_add_engine; abi: c; }
+function nativeSettingsAddEngine(name: CString, query: CString) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_update_engine; abi: c; }
+function nativeSettingsUpdateEngine(index: I32, name: CString, query: CString) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_remove_engine; abi: c; }
+function nativeSettingsRemoveEngine(index: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_search_url; abi: c; }
+function nativeSettingsSearchURL(query: CString) -> CString;
+
+// --- Zoom -------------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_default_zoom_percent; abi: c; }
+function nativeSettingsDefaultZoomPercent() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_set_default_zoom_percent; abi: c; }
+function nativeSettingsSetDefaultZoomPercent(percent: I32) -> Void;
+
+// --- What a page may do -----------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_javascript_enabled; abi: c; }
+function nativeSettingsJavaScriptEnabled() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_set_javascript_enabled; abi: c; }
+function nativeSettingsSetJavaScriptEnabled(enabled: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_images_enabled; abi: c; }
+function nativeSettingsImagesEnabled() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_set_images_enabled; abi: c; }
+function nativeSettingsSetImagesEnabled(enabled: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_popups_enabled; abi: c; }
+function nativeSettingsPopupsEnabled() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_set_popups_enabled; abi: c; }
+function nativeSettingsSetPopupsEnabled(enabled: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_do_not_track; abi: c; }
+function nativeSettingsDoNotTrack() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_set_do_not_track; abi: c; }
+function nativeSettingsSetDoNotTrack(enabled: I32) -> Void;
+
+// --- Downloads --------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_download_directory; abi: c; }
+function nativeSettingsDownloadDirectory() -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_set_download_directory; abi: c; }
+function nativeSettingsSetDownloadDirectory(path: CString) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_choose_download_directory; abi: c; }
+function nativeSettingsChooseDownloadDirectory() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_settings_download_directory_pending; abi: c; }
+function nativeSettingsDownloadDirectoryPending() -> I32;

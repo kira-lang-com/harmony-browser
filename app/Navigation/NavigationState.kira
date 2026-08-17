@@ -1,0 +1,228 @@
+// Reading and driving the navigation model.
+//
+// Every read answers from the snapshot the WebKit thread publishes, so a widget
+// may ask any of these while it builds. Every action is queued and applied on
+// the WebKit thread, so a click returns immediately and its effect arrives in a
+// later frame, as the page's own does.
+//
+// A tab of 0 means the tab the browser is showing, which is what chrome that
+// only ever drives the front tab should pass.
+
+function harmonyNavigationActiveTab() -> Int {
+    return Int(hbNavActiveTab())
+}
+
+function harmonyNavigationResolvedTab(tab: Int) -> Int {
+    if tab > 0 {
+        return tab
+    }
+    return harmonyNavigationActiveTab()
+}
+
+function harmonyNavigationTabCount() -> Int {
+    return Int(hbNavTabCount())
+}
+
+function harmonyNavigationTabIdAt(index: Int) -> Int {
+    return Int(hbNavTabIdAt(index))
+}
+
+// The tab holding a host UI slot, or 0 when that slot has never been opened.
+function harmonyNavigationTabForSlot(slot: Int) -> Int {
+    return Int(hbNavTabForSlot(slot))
+}
+
+// One tab's model. A tab that is not open answers with a blank page rather than
+// with nothing, so a caller reads the same shape either way.
+function harmonyNavigationPage(tab: Int = 0) -> NavigationPage {
+    let id = harmonyNavigationResolvedTab(tab)
+    if id <= 0 {
+        return NavigationPage {}
+    }
+
+    return NavigationPage {
+        tab: id
+        slot: Int(hbNavTabSlot(id))
+        url: hbNavURL(id)
+        committedURL: hbNavCommittedURL(id)
+        provisionalURL: hbNavProvisionalURL(id)
+        title: hbNavTitle(id)
+        progress: hbNavProgress(id)
+        isLoading: hbNavIsLoading(id) != 0
+        canGoBack: hbNavCanGoBack(id) != 0
+        canGoForward: hbNavCanGoForward(id) != 0
+        errorCode: Int(hbNavErrorCode(id))
+        errorText: hbNavErrorText(id)
+    }
+}
+
+// A slot the user has never opened has no tab, and answers with a blank page
+// rather than falling through to whichever tab is in front.
+function harmonyNavigationPageForSlot(slot: Int) -> NavigationPage {
+    let id = harmonyNavigationTabForSlot(slot)
+    if id <= 0 {
+        return NavigationPage {}
+    }
+    return harmonyNavigationPage(id)
+}
+
+// Every open tab, in the order the tabs were opened.
+function harmonyNavigationOpenPages() -> [NavigationPage] {
+    var pages: [NavigationPage] = []
+    let count = harmonyNavigationTabCount()
+    var index = 0
+    while index < count {
+        let id = harmonyNavigationTabIdAt(index)
+        if id > 0 {
+            pages.append(harmonyNavigationPage(id))
+        }
+        index = index + 1
+    }
+    return pages
+}
+
+// One entry, read straight from the published list. Every list below builds its
+// entries through this rather than copying them out of another list, so a
+// history menu costs one read per row it shows and no more.
+function harmonyNavigationHistoryEntry(tab: Int, index: Int, current: Int) -> NavigationHistoryEntry {
+    return NavigationHistoryEntry {
+        index: index
+        url: hbNavHistoryURL(tab, index)
+        title: hbNavHistoryTitle(tab, index)
+        isCurrent: index == current
+    }
+}
+
+// A tab's back/forward list, oldest first, with the entry the tab is on marked.
+function harmonyNavigationHistory(tab: Int = 0) -> [NavigationHistoryEntry] {
+    var entries: [NavigationHistoryEntry] = []
+    let id = harmonyNavigationResolvedTab(tab)
+    if id <= 0 {
+        return entries
+    }
+
+    let count = Int(hbNavHistoryCount(id))
+    let current = Int(hbNavHistoryCurrent(id))
+    var index = 0
+    while index < count {
+        entries.append(harmonyNavigationHistoryEntry(id, index, current))
+        index = index + 1
+    }
+    return entries
+}
+
+// The entries behind the current one, nearest first: what a press-and-hold on
+// the back button lists.
+function harmonyNavigationBackHistory(tab: Int = 0) -> [NavigationHistoryEntry] {
+    var behind: [NavigationHistoryEntry] = []
+    let id = harmonyNavigationResolvedTab(tab)
+    if id <= 0 {
+        return behind
+    }
+
+    let current = Int(hbNavHistoryCurrent(id))
+    var index = current - 1
+    while index >= 0 {
+        behind.append(harmonyNavigationHistoryEntry(id, index, current))
+        index = index - 1
+    }
+    return behind
+}
+
+// The entries ahead of the current one, nearest first.
+function harmonyNavigationForwardHistory(tab: Int = 0) -> [NavigationHistoryEntry] {
+    var ahead: [NavigationHistoryEntry] = []
+    let id = harmonyNavigationResolvedTab(tab)
+    if id <= 0 {
+        return ahead
+    }
+
+    let current = Int(hbNavHistoryCurrent(id))
+    if current < 0 {
+        return ahead
+    }
+
+    let count = Int(hbNavHistoryCount(id))
+    var index = current + 1
+    while index < count {
+        ahead.append(harmonyNavigationHistoryEntry(id, index, current))
+        index = index + 1
+    }
+    return ahead
+}
+
+// --- Actions ------------------------------------------------------------------
+
+// Loads what a person typed. The text is turned into a URL first, so a bare
+// host reaches its site and a phrase reaches a search.
+function harmonyNavigationNavigate(input: String, tab: Int = 0) {
+    let url = harmonyNavigationNormalizedURL(input)
+    if url.count == 0 {
+        return
+    }
+    hbNavNavigate(tab, url)
+    return
+}
+
+// Loads a URL that is already absolute, without asking what the text meant.
+// This is what a link, a bookmark or a home page uses.
+function harmonyNavigationLoad(url: String, tab: Int = 0) {
+    let target = url.trim()
+    if target.count == 0 {
+        return
+    }
+    hbNavNavigate(tab, target)
+    return
+}
+
+function harmonyNavigationReload(tab: Int = 0) {
+    hbNavReload(tab)
+    return
+}
+
+// Reloads from the origin server, ignoring everything cached for the page.
+function harmonyNavigationReloadIgnoringCache(tab: Int = 0) {
+    hbNavReloadIgnoringCache(tab)
+    return
+}
+
+function harmonyNavigationStop(tab: Int = 0) {
+    hbNavStop(tab)
+    return
+}
+
+function harmonyNavigationGoBack(tab: Int = 0) {
+    hbNavGoBack(tab)
+    return
+}
+
+function harmonyNavigationGoForward(tab: Int = 0) {
+    hbNavGoForward(tab)
+    return
+}
+
+// Goes to an entry of `harmonyNavigationHistory` by its index in that list.
+function harmonyNavigationGoToHistoryEntry(index: Int, tab: Int = 0) {
+    if index < 0 {
+        return
+    }
+    hbNavGoToHistoryEntry(tab, index)
+    return
+}
+
+// Reloads while a load is in flight and stops otherwise: the one button a
+// browser's toolbar carries for both.
+function harmonyNavigationToggleLoad(tab: Int = 0) {
+    let page = harmonyNavigationPage(tab)
+    if page.isLoading {
+        harmonyNavigationStop(tab)
+        return
+    }
+    harmonyNavigationReload(tab)
+    return
+}
+
+// Why the model is tracking nothing, when it is. Empty when it is tracking.
+function harmonyNavigationDiagnostic() -> String {
+    return hbNavDiagnostic()
+}

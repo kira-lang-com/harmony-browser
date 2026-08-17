@@ -1,0 +1,109 @@
+import KiraUI
+
+// The history and bookmarks system's per-frame hook, its way out, and the two
+// questions the window asks it.
+
+construct HarmonyBookmarksPresentedStore {
+    @Required let version: Int
+}
+
+HarmonyBookmarksPresentedStore HarmonyBookmarksPresented() {
+    @State var presentedRevision: Int = -1
+    let version: Int = 1
+
+    function presentedRevisionValue() -> Int {
+        return presentedRevision
+    }
+
+    function recordPresented(revision: Int) {
+        presentedRevision = revision
+        return
+    }
+}
+
+// Runs once per frame, before the widget tree is built.
+//
+// The attach is idempotent and is made here rather than at first use, because
+// the registry has to know about this model before it creates its first page: a
+// tab already open when the model attached is heard from -- the registry
+// consults its observers when it reports -- but a page created before the engine
+// itself came up would have started its first load with nobody listening.
+//
+// It costs one atomic compare on every frame after the first, which is what
+// buys a browser that cannot be brought up in an order where its history is
+// missing.
+function harmonyBookmarksFrame() {
+    hbBookmarksAttach()
+    return
+}
+
+// Runs at the end of the process, before the tab registry is stopped. The last
+// write happens on this thread: a write queued onto a run loop that is about to
+// stop is a write that never happens.
+function harmonyBookmarksShutdown() {
+    hbBookmarksShutdown()
+    return
+}
+
+// True while what the history and bookmarks surfaces would draw differs from
+// what they last drew.
+//
+// A visit is recorded on the engine's schedule and not the user's: a background
+// tab commits, a title arrives seconds after the load did, and a page the user
+// is not looking at moves the suggestion ranking under the address bar. The
+// interactive runner skips the widget build entirely on any frame that saw no
+// input, so a browser wired without this shows the history panel it had when the
+// pointer last moved.
+function harmonyBookmarksNeedsRebuild() -> Bool {
+    let store = HarmonyBookmarksPresented()
+    let revision = harmonyBookmarksRevision()
+    if revision == store.presentedRevisionValue() {
+        return false
+    }
+    store.recordPresented(revision)
+    return true
+}
+
+// Whether this system is drawing anything over the page this frame. The window
+// asks, because a page's view is a child window composited above everything
+// KiraUI paints and an overlay is only visible while that window is down.
+function harmonyBookmarksPanelsOpen() -> Bool {
+    if harmonyBookmarksPanelIsOpen() {
+        return true
+    }
+    if harmonyHistoryPanelIsOpen() {
+        return true
+    }
+    return harmonyAddressSuggestionsAreOpen()
+}
+
+// The three surfaces the window hangs under its toolbar, in the order they are
+// stacked. Each draws nothing at all while it is closed, so the column they
+// share is the height of whichever of them is up.
+Widget HarmonyBookmarksPanels() {
+    body {
+        VStack(spacing = Spacing.Small, alignment = HorizontalAlignment.Leading) {
+            AddressSuggestionPanel()
+
+            BookmarksPanel()
+
+            HistoryPanel()
+        }
+        .hugHeight()
+    }
+}
+
+// The controls the window keeps on its toolbar for this system: the star that
+// keeps the page in front, the manager, and the history.
+Widget HarmonyBookmarksControls() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            BookmarkThisPageControl()
+
+            BookmarksPanelButton()
+
+            HistoryPanelButton()
+        }
+        .hugWidth()
+    }
+}

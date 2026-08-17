@@ -1,0 +1,115 @@
+import KiraUI
+
+// What the address bar can tell the reader about a URL before the page loads.
+//
+// A scheme is the only part of an address the browser knows the meaning of
+// without asking anything: it says whether what is on screen arrived over a
+// channel nobody could read or rewrite, off this machine's own disk, or out of
+// the browser itself. That is the whole of the security indicator, and it is
+// derived here rather than in the widget so the widget states a role and not a
+// parse.
+
+// How the transport a URL names is to be presented.
+enum ChromeSecurity {
+    // Carried over TLS.
+    Secure
+    // Carried in the clear, and rewritable by anything between here and the
+    // server.
+    Insecure
+    // This machine's own files.
+    Local
+    // The browser's own pages, a data: document, or nothing at all.
+    Internal
+}
+
+// ASCII lower case. A scheme is ASCII by definition, so nothing here wants a
+// Unicode case table.
+function chromeLowerCode(code: Int) -> Int {
+    if code >= 65 && code <= 90 {
+        return code + 32
+    }
+    return code
+}
+
+function chromeIsSchemeTailCode(code: Int) -> Bool {
+    if code >= 97 && code <= 122 {
+        return true
+    }
+    if code >= 48 && code <= 57 {
+        return true
+    }
+    return code == 43 || code == 45 || code == 46
+}
+
+// The scheme of `url`, lower-cased and without its colon, or "" when the text
+// carries none.
+//
+// A scheme is a letter followed by letters, digits, `+`, `-` and `.` up to the
+// first colon, so a bare host, a search phrase and a Windows path all answer ""
+// rather than answering with whatever sits before their first colon.
+function chromeURLScheme(url: borrow String) -> String {
+    let codes = kiraUiStringToCodepoints(url)
+    if codes.count == 0 {
+        return ""
+    }
+    let head = chromeLowerCode(codes[0])
+    if head < 97 || head > 122 {
+        return ""
+    }
+    var lowered: [Int] = []
+    lowered.append(head)
+    var index = 1
+    while index < codes.count {
+        let code = chromeLowerCode(codes[index])
+        if code == 58 {
+            return kiraUiStringFromCodepoints(lowered, 0, lowered.count)
+        }
+        if chromeIsSchemeTailCode(code) == false {
+            return ""
+        }
+        lowered.append(code)
+        index = index + 1
+    }
+    return ""
+}
+
+function chromeURLSecurity(url: borrow String) -> ChromeSecurity {
+    let scheme = chromeURLScheme(url)
+    if scheme == "https" || scheme == "wss" {
+        return ChromeSecurity.Secure
+    }
+    if scheme == "http" || scheme == "ws" {
+        return ChromeSecurity.Insecure
+    }
+    if scheme == "file" {
+        return ChromeSecurity.Local
+    }
+    return ChromeSecurity.Internal
+}
+
+function chromeSecuritySymbol(level: borrow ChromeSecurity) -> Symbol {
+    match level {
+        Secure -> return Symbol.LockSimple;
+        Insecure -> return Symbol.LockSimpleOpen;
+        Local -> return Symbol.FolderSimple;
+        Internal -> return Symbol.Info;
+    }
+}
+
+// A closed lock is the resting state and takes the resting ink. Browsers spent a
+// decade painting it green and taught a generation that green meant safe rather
+// than encrypted; what is worth colouring is the address that is NOT protected.
+function chromeSecurityInk(level: borrow ChromeSecurity) -> PrimaryColor {
+    match level {
+        Secure -> return PrimaryColor.Secondary;
+        Insecure -> return PrimaryColor.Warning;
+        Local -> return PrimaryColor.Secondary;
+        Internal -> return PrimaryColor.Tertiary;
+    }
+}
+
+// The level the bar is showing for the address the engine last reported.
+function harmonyChromeSecurityLevel() -> ChromeSecurity {
+    let url = harmonyChromeCurrentURL()
+    return chromeURLSecurity(url)
+}

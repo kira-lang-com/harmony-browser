@@ -1,0 +1,102 @@
+import KiraUI
+
+// Find in page.
+//
+// The searching, the scrolling and the highlighting are WebKit's. What is here
+// is the bar: whether it is up, what is typed in it, how many matches that text
+// has and which of them the page is showing.
+//
+// The query lives in the field's own buffer rather than in a copy beside it,
+// because there is only ever one answer to "what is being searched for" and a
+// second one would be the one that went stale.
+
+function harmonyInputFindIsOpen() -> Bool {
+    return nativeInputFindIsOpen() != I32(0)
+}
+
+function harmonyInputFindQuery() -> String {
+    return textFieldText(harmonyInputFindFieldKey())
+}
+
+function harmonyInputFindMatchCount() -> Int {
+    return Int(nativeInputFindMatchCount())
+}
+
+function harmonyInputFindMatchIndex() -> Int {
+    return Int(nativeInputFindMatchIndex())
+}
+
+function harmonyInputFindHasSearched() -> Bool {
+    return nativeInputFindSearched() != I32(0)
+}
+
+// What the bar says beside the field. A field nobody has typed in yet says
+// nothing at all: "0 results" for an empty query is an answer to a question
+// that was not asked.
+function harmonyInputFindStatus() -> String {
+    if harmonyInputFindQuery().count == 0 {
+        return ""
+    }
+    if harmonyInputFindHasSearched() == false {
+        return ""
+    }
+    let count = harmonyInputFindMatchCount()
+    if count <= 0 {
+        return "No results"
+    }
+    let index = harmonyInputFindMatchIndex()
+    if index <= 0 {
+        return String(count) + " matches"
+    }
+    return String(index) + "/" + String(count)
+}
+
+function harmonyInputFindHasResults() -> Bool {
+    return harmonyInputFindMatchCount() > 0
+}
+
+// --- Driving it -------------------------------------------------------------
+
+// Ctrl+F, and the toolbar's own find button. Opening the bar over a bar that is
+// already open puts the keyboard back in the field and offers what is in it for
+// replacement, which is what a second Ctrl+F is for.
+function harmonyInputFindOpenBar() {
+    nativeInputFindOpen()
+    harmonyInputFocusFindField()
+    return
+}
+
+function harmonyInputFindCloseBar() {
+    nativeInputFindClose()
+    textFieldReset(harmonyInputFindFieldKey())
+    harmonyInputFocusPage()
+    return
+}
+
+// Runs the query the field is holding. Called on every edit, so the page moves
+// under the typing rather than after it.
+function harmonyInputFindApplyQuery() {
+    nativeInputFindSearch(harmonyInputFindQuery(), I32(0))
+    return
+}
+
+// The match after the one showing, and the one before it. Asking for the same
+// text again is what walks the matches, so both are the same call with a
+// direction.
+function harmonyInputFindNext() {
+    let query = harmonyInputFindQuery()
+    if query.count == 0 {
+        return
+    }
+    nativeInputFindSearch(query, I32(0))
+    return
+}
+
+function harmonyInputFindPrevious() {
+    let query = harmonyInputFindQuery()
+    if query.count == 0 {
+        return
+    }
+    nativeInputFindSearch(query, I32(1))
+    return
+}

@@ -1,0 +1,470 @@
+import KiraUI
+
+// The bookmarks manager: the whole tree, in the column the window still owns.
+//
+// It belongs in the overlay column and nowhere else: the page is a native child
+// window inside this one, so it is composited above everything KiraUI draws, and
+// a panel over the page would be a panel nobody can see.
+//
+// One row carries its controls at a time. A column three hundred points wide has
+// room for a name or for six buttons, so pressing a row opens the strip that
+// renames it, moves it and deletes it, and pressing it again closes the strip.
+
+function bookmarksPanelWidth() -> Float {
+    return harmonyBrowserSidebarWidth() - 24.0
+}
+
+function bookmarksPanelRowHeight() -> Float {
+    return 26.0
+}
+
+// How far a row is pushed in per folder it is inside. Enough to read as nesting,
+// small enough that four levels still leave room for a name.
+function bookmarksPanelIndentStep() -> Float {
+    return 12.0
+}
+
+function bookmarksPanelIndent(depth: Int) -> Float {
+    if depth <= 0 {
+        return 0.0
+    }
+    return Float(depth) * bookmarksPanelIndentStep()
+}
+
+// The width the caret column keeps whether or not the row has a caret, so the
+// names of a folder and the bookmarks inside it line up under one another.
+function bookmarksPanelCaretWidth() -> Float {
+    return 18.0
+}
+
+// --- What a row says ------------------------------------------------------------
+
+function bookmarksRowSymbol(id: Int, isFolder: Bool, host: String) -> Symbol {
+    if isFolder == false {
+        return harmonyTabSiteSymbol(host)
+    }
+    if harmonyBookmarksIsExpanded(id) {
+        return Symbol.FolderOpen
+    }
+    return Symbol.Folder
+}
+
+function bookmarksCaretSymbol(id: Int) -> Symbol {
+    if harmonyBookmarksIsExpanded(id) {
+        return Symbol.CaretDown
+    }
+    return Symbol.CaretRight
+}
+
+function bookmarksRowInk(id: Int) -> PrimaryColor {
+    if harmonyBookmarksIsSelected(id) {
+        return PrimaryColor.Primary
+    }
+    return PrimaryColor.Secondary
+}
+
+// A folder's count, and a bookmark's site. The line is what tells two rows with
+// the same name apart.
+function bookmarksRowDetail(item: borrow BookmarkItem) -> String {
+    if item.isFolder == false {
+        if item.host.count > 0 {
+            return item.host
+        }
+        return harmonyNavigationDisplayAddress(item.url)
+    }
+    if item.leaves == 1 {
+        return "1 bookmark"
+    }
+    return String(item.leaves) + " bookmarks"
+}
+
+function bookmarksControlInk(enabled: Bool) -> PrimaryColor {
+    if enabled {
+        return PrimaryColor.Secondary
+    }
+    return PrimaryColor.Quaternary
+}
+
+// --- One row ---------------------------------------------------------------------
+
+Widget BookmarksRowCaret(id: Int, isFolder: Bool) {
+    body {
+        HStack(spacing = Spacing.None, alignment = VerticalAlignment.Center) {
+            if isFolder {
+                ControlSlot() {
+                    Icon(bookmarksCaretSymbol(id))
+                        .imageScale(.Small)
+                        .foregroundColor(.Tertiary)
+                }
+                .onClick(harmonyBookmarksExpandAction(id))
+            }
+
+            if isFolder == false {
+                FixedGap(width = bookmarksPanelCaretWidth(), height = 1.0)
+            }
+        }
+        .hugWidth()
+    }
+}
+
+// The name, or the field it is being renamed through. The field replaces the
+// name in place: a rename that opened somewhere else would be a rename whose
+// result the user cannot see beside the rows it has to be told apart from.
+Widget BookmarksRowName(id: Int, title: String, label: String, detail: String) {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            if harmonyBookmarksIsRenaming(id) {
+                TextField(
+                    key = harmonyBookmarksRenameFieldKey(),
+                    initial = title,
+                    placeholder = "Name",
+                    width = bookmarksPanelWidth() - 96.0,
+                    height = 20.0,
+                    onSubmit = harmonyBookmarksSubmitRename
+                )
+                    .fill(Color { a: 0.0 })
+                    .foregroundColor(.Primary)
+                    .typography(.control)
+            }
+
+            if harmonyBookmarksIsRenaming(id) == false {
+                Text(label)
+                    .typography(.subheadline)
+                    .foregroundColor(bookmarksRowInk(id))
+
+                Text(detail)
+                    .typography(.caption)
+                    .foregroundColor(.Quaternary)
+            }
+        }
+    }
+}
+
+Widget BookmarksRow(
+    id: Int,
+    isFolder: Bool,
+    depth: Int,
+    host: String,
+    url: String,
+    title: String,
+    label: String,
+    detail: String,
+) {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            FixedGap(width = bookmarksPanelIndent(depth), height = 1.0)
+
+            BookmarksRowCaret(id = id, isFolder = isFolder)
+
+            Icon(bookmarksRowSymbol(id, isFolder, host))
+                .imageScale(.Small)
+                .foregroundColor(bookmarksRowInk(id))
+
+            Expanded(flex = 1) {
+                BookmarksRowName(id = id, title = title, label = label, detail = detail)
+            }
+
+            if isFolder == false {
+                ControlSlot() {
+                    Icon(.ArrowSquareOut)
+                        .imageScale(.Small)
+                        .foregroundColor(.Tertiary)
+                }
+                .onClick(harmonyBookmarksOpenInNewTabAction(url))
+            }
+        }
+        .height(bookmarksPanelRowHeight() + 12.0)
+        .onClick(harmonyBookmarksSelectRowAction(id))
+    }
+}
+
+// --- The controls a selected row carries -------------------------------------------
+
+Widget BookmarksRowButton(symbol: Symbol, enabled: Bool, action: () -> Void) {
+    body {
+        ControlSlot() {
+            Icon(symbol)
+                .imageScale(.Small)
+                .foregroundColor(bookmarksControlInk(enabled))
+        }
+        .onClick(action)
+        .disabled(enabled == false)
+    }
+}
+
+// Order is what makes this a tree rather than a set, so it is edited rather than
+// inferred: up and down among a row's siblings, out into the folder its folder
+// is in, and in to the folder immediately above it.
+Widget BookmarksRowControls(id: Int, depth: Int) {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            FixedGap(width = bookmarksPanelIndent(depth) + bookmarksPanelCaretWidth(), height = 1.0)
+
+            BookmarksRowButton(
+                symbol = Symbol.ArrowUp,
+                enabled = harmonyBookmarksCanMoveUp(id),
+                action = harmonyBookmarksMoveUpAction(id)
+            )
+
+            BookmarksRowButton(
+                symbol = Symbol.ArrowDown,
+                enabled = harmonyBookmarksCanMoveDown(id),
+                action = harmonyBookmarksMoveDownAction(id)
+            )
+
+            BookmarksRowButton(
+                symbol = Symbol.ArrowLeft,
+                enabled = harmonyBookmarksCanMoveOut(id),
+                action = harmonyBookmarksMoveOutAction(id)
+            )
+
+            BookmarksRowButton(
+                symbol = Symbol.ArrowRight,
+                enabled = harmonyBookmarksCanMoveIn(id),
+                action = harmonyBookmarksMoveInAction(id)
+            )
+
+            BookmarksRowButton(
+                symbol = Symbol.PencilSimple,
+                enabled = true,
+                action = harmonyBookmarksRenameAction(id)
+            )
+
+            Spacer()
+
+            BookmarksRowButton(
+                symbol = Symbol.TrashSimple,
+                enabled = true,
+                action = harmonyBookmarksRemoveAction(id)
+            )
+        }
+        .height(bookmarksPanelRowHeight())
+    }
+}
+
+// A root cannot be renamed away, moved or deleted, so it carries no strip. What
+// it offers instead is the one thing it can do, which is take a new folder.
+Widget BookmarksRootControls() {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            FixedGap(width = bookmarksPanelCaretWidth(), height = 1.0)
+
+            Text("Filing new bookmarks here")
+                .typography(.caption)
+                .foregroundColor(.Tertiary)
+
+            Spacer()
+
+            BookmarksRowButton(
+                symbol = Symbol.FolderPlus,
+                enabled = true,
+                action = harmonyBookmarksAddFolder
+            )
+        }
+        .height(bookmarksPanelRowHeight())
+    }
+}
+
+Widget BookmarksPanelRow(
+    id: Int,
+    isFolder: Bool,
+    isRoot: Bool,
+    depth: Int,
+    host: String,
+    url: String,
+    title: String,
+    label: String,
+    detail: String,
+) {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            BookmarksRow(
+                id = id,
+                isFolder = isFolder,
+                depth = depth,
+                host = host,
+                url = url,
+                title = title,
+                label = label,
+                detail = detail
+            )
+
+            if harmonyBookmarksIsSelected(id) && isRoot == false {
+                BookmarksRowControls(id = id, depth = depth)
+            }
+
+            if harmonyBookmarksIsSelected(id) && isRoot {
+                BookmarksRootControls()
+            }
+        }
+    }
+}
+
+// One row, read out of the cache once rather than once per field: a row that
+// asked the module again for each of its fields could draw a folder's name
+// beside the count of the folder after it.
+function bookmarksPanelRowAt(index: Int) -> Any Widget {
+    let item = harmonyBookmarksRowAt(index)
+    return BookmarksPanelRow(
+        id = item.id,
+        isFolder = item.isFolder,
+        isRoot = harmonyBookmarksIsRoot(item.id),
+        depth = item.depth,
+        host = item.host,
+        url = item.url,
+        title = item.title,
+        label = item.label(),
+        detail = bookmarksRowDetail(item)
+    )
+}
+
+Widget BookmarksPanelRows() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            For(index in indices(harmonyBookmarksRowCount())) {
+                bookmarksPanelRowAt(index)
+            }
+        }
+    }
+}
+
+// --- The panel -----------------------------------------------------------------------
+
+Widget BookmarksPanelHeader() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text("Bookmarks")
+                .typography(.footnote)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+
+            ControlSlot() {
+                Icon(.FolderPlus)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyBookmarksAddFolder)
+
+            ControlSlot(active = harmonyBookmarksBarIsShowing()) {
+                Icon(.Bookmarks)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyBookmarksBarToggle)
+
+            ControlSlot() {
+                Icon(.X)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyBookmarksClosePanel)
+        }
+        .height(28.0)
+        .foregroundColor(.Tertiary)
+    }
+}
+
+// Filing the page in front from the manager rather than from the star, which is
+// the one thing the star cannot do: the star always files onto the bar.
+Widget BookmarksPanelAddPage() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(.Plus)
+                .imageScale(.Small)
+                .foregroundColor(.Accent)
+
+            VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+                Text("Add this page")
+                    .typography(.subheadline)
+                    .foregroundColor(.Primary)
+
+                Text("into " + harmonyBookmarksTargetLabel())
+                    .typography(.caption)
+                    .foregroundColor(.Secondary)
+            }
+
+            Spacer()
+        }
+        .height(34.0)
+        .onClick(harmonyBookmarksAddActivePageToTarget)
+    }
+}
+
+Widget BookmarksPanelEmpty() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            Text("Nothing kept yet")
+                .typography(.caption)
+                .foregroundColor(.Tertiary)
+
+            Text("The star on the toolbar keeps a page.")
+                .typography(.caption)
+                .foregroundColor(.Quaternary)
+        }
+        .height(36.0)
+    }
+}
+
+function bookmarksPanelIsEmpty() -> Bool {
+    if harmonyBookmarkChildCount(harmonyBookmarksBarFolder()) > 0 {
+        return false
+    }
+    return harmonyBookmarkChildCount(harmonyBookmarksOtherFolder()) == 0
+}
+
+Widget BookmarksPanelBody() {
+    body {
+        Panel(radius = CornerRadius.Medium) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
+                VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+                    BookmarksPanelHeader()
+
+                    Divider()
+                        .themeBorder(.Subtle)
+
+                    if harmonyBookmarksCanBookmarkActivePage() {
+                        BookmarksPanelAddPage()
+                    }
+
+                    if bookmarksPanelIsEmpty() {
+                        BookmarksPanelEmpty()
+                    }
+
+                    BookmarksPanelRows()
+
+                    if harmonyBookmarksError().count > 0 {
+                        Text(harmonyBookmarksError())
+                            .typography(.caption)
+                            .foregroundColor(.Red)
+                    }
+                }
+            }
+        }
+        .backgroundStyle(.Raised)
+        .themeBorder(.Subtle)
+        .width(bookmarksPanelWidth())
+        .hugHeight()
+    }
+}
+
+// What the window hangs under its toolbar. It draws nothing at all while the
+// panel is closed, so the column it sits in keeps its shape.
+Widget BookmarksPanel() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            if harmonyBookmarksPanelIsOpen() {
+                BookmarksPanelBody()
+            }
+        }
+        .hugHeight()
+    }
+}
+
+// The control that opens it, for the toolbar beside the star.
+Widget BookmarksPanelButton() {
+    body {
+        ControlSlot(active = harmonyBookmarksPanelIsOpen()) {
+            Icon(.Bookmarks)
+                .imageScale(.Small)
+        }
+        .onClick(harmonyBookmarksTogglePanel)
+    }
+}

@@ -1,0 +1,219 @@
+import KiraUI
+
+// Everything the browser draws OVER the page, in one layer.
+//
+// A page's view is a native child window composited above everything KiraUI
+// paints, so anything drawn over the page is only visible while that window is
+// down. One place decides that, and this is the layer it holds down for: the
+// shell places it last, over the whole window, and tells the dialogs wrapper
+// whether it has anything on it.
+
+// A press outside the card answers it the way closing it would. An alert has one
+// button, so pressing outside can only mean what the button means; everything
+// else reads it as the refusal, which is the answer that changes nothing.
+Widget HarmonyDialogScrim() {
+    body {
+        ZStack(alignment = StackAlignment.Center) {
+            BackgroundFill(style = .Overlay)
+                .opacity(0.55)
+
+            DismissArea(
+                key = harmonyDialogScrimKey(),
+                onPress = harmonyDialogScrimPressed
+            )
+        }
+    }
+}
+
+// The sheet and the ground it dims, in the order they are drawn.
+Widget HarmonyDialogSheetLayer() {
+    body {
+        ZStack(alignment = StackAlignment.Center) {
+            HarmonyDialogScrim()
+
+            HarmonyDialogSheet()
+        }
+    }
+}
+
+// What a page's question looks like: a sheet over a dimmed page for the ones a
+// page asks, and the interstitial in place of the page for the one about the
+// page's own connection.
+Widget HarmonyDialogLayer() {
+    body {
+        ZStack(alignment = StackAlignment.Center) {
+            if harmonyDialogIsSheet() {
+                HarmonyDialogSheetLayer()
+            }
+
+            if harmonyDialogIsCertificate() {
+                HarmonyDialogInterstitial()
+            }
+        }
+    }
+}
+
+// The permission prompt is anchored under the toolbar's leading edge, where the
+// address it is asking on behalf of is. How far under is the prompt's own answer:
+// it is the thing being placed, and it knows where its own pointer has to land.
+// `Inset` takes spacing tokens rather than points, so the offsets are spacers,
+// which is the same two numbers with nothing between them and the edge.
+Widget HarmonyPermissionPromptLayer() {
+    body {
+        ZStack(alignment = StackAlignment.TopLeading) {
+            VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+                BackgroundFill(style = .Clear)
+                    .height(permissionPromptTopInset())
+
+                HStack(spacing = Spacing.None, alignment = VerticalAlignment.Top) {
+                    BackgroundFill(style = .Clear)
+                        .width(permissionPromptLeadingInset())
+
+                    PermissionPrompt()
+                }
+                .hugHeight()
+            }
+            .hugHeight()
+        }
+    }
+}
+
+Widget HarmonyPermissionPanelLayer() {
+    body {
+        ZStack(alignment = StackAlignment.TopTrailing) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.Small) {
+                PermissionPanel()
+            }
+        }
+    }
+}
+
+// What the browser could not do, said once and waved away with a press. It sits
+// at the bottom of the window rather than over the page's own content: nothing
+// here is about the document, and none of it is worth taking the page away for.
+Widget HarmonyBrowserNotice() {
+    body {
+        Card(material = Material.Frosted) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
+                HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+                    Icon(.Warning)
+                        .imageScale(.Small)
+                        .foregroundColor(.Warning)
+
+                    Text(harmonyBrowserNoticeText())
+                        .typography(.caption)
+                        .foregroundColor(.Primary)
+
+                    ControlSlot() {
+                        Icon(.X)
+                            .imageScale(.Small)
+                    }
+                    .onClick(harmonyBrowserNoticeDismiss)
+                }
+            }
+        }
+        .backgroundStyle(.Raised)
+        .themeBorder(.Subtle)
+        .hugWidth()
+        .hugHeight()
+    }
+}
+
+Widget HarmonyBrowserNoticeLayer() {
+    body {
+        ZStack(alignment = StackAlignment.Bottom) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.Medium) {
+                HarmonyBrowserNotice()
+            }
+        }
+    }
+}
+
+// Whether anything here is on screen this frame. The shell hands this to
+// `harmonyDialogsFrame`, which is what takes the page's own window down for as
+// long as it is true.
+function harmonyBrowserOverlayActive() -> Bool {
+    if harmonyDialogIsPresenting() {
+        return true
+    }
+    if harmonyPermissionPromptActive() {
+        return true
+    }
+    if harmonyPermissionPanelOpen() {
+        return true
+    }
+    return harmonyBrowserNoticeVisible()
+}
+
+// What this layer last drew.
+//
+// The runner rebuilds the widget tree only when something says the interface has
+// changed, and nothing here changes because of an input event: a page asks for
+// the camera, or asks a question, on its own schedule. Without this the sheet
+// would appear on the next frame a person happened to move the pointer on.
+construct HarmonyOverlayPresentedStore {
+    @Required let version: Int
+}
+
+HarmonyOverlayPresentedStore HarmonyOverlayPresented() {
+    @State var dialogRequest: Int = -1
+    @State var permissionRequest: Int = -1
+    @State var panelState: Int = -1
+    @State var noticeState: Int = -1
+    let version: Int = 1
+
+    function changed(dialog: Int, permission: Int, panel: Int, notice: Int) -> Bool {
+        if dialog == dialogRequest &&
+            permission == permissionRequest &&
+            panel == panelState &&
+            notice == noticeState {
+            return false
+        }
+        dialogRequest = dialog
+        permissionRequest = permission
+        panelState = panel
+        noticeState = notice
+        return true
+    }
+}
+
+function harmonyBrowserOverlayFlag(value: Bool) -> Int {
+    if value {
+        return 1
+    }
+    return 0
+}
+
+// Whether this layer is drawing something it was not drawing last frame. The
+// shell ORs this into the runner's own rebuild predicate.
+function harmonyBrowserOverlayNeedsRebuild() -> Bool {
+    return HarmonyOverlayPresented().changed(
+        HarmonyDialogState().currentRequest(),
+        harmonyPermissionSession().requestId,
+        harmonyBrowserOverlayFlag(harmonyPermissionPanelOpen()),
+        harmonyBrowserOverlayFlag(harmonyBrowserNoticeVisible())
+    )
+}
+
+// What the shell puts over its window, after the chrome and the page area.
+Widget HarmonyBrowserOverlay() {
+    body {
+        ZStack(alignment = StackAlignment.Center) {
+            if harmonyBrowserNoticeVisible() {
+                HarmonyBrowserNoticeLayer()
+            }
+
+            if harmonyPermissionPanelOpen() {
+                HarmonyPermissionPanelLayer()
+            }
+
+            if harmonyPermissionPromptActive() {
+                HarmonyPermissionPromptLayer()
+            }
+
+            if harmonyDialogIsPresenting() {
+                HarmonyDialogLayer()
+            }
+        }
+    }
+}

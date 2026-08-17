@@ -1,0 +1,90 @@
+// The navigation model's C surface, one declaration per export.
+//
+// Everything here is a read of, or a write to, state the WebKit thread owns.
+// Reads answer from a snapshot and never enter WebKit; writes are queued and
+// run on the WebKit thread. So a widget may call any of them during a build
+// without the frame waiting on a page.
+//
+// Nothing outside this file calls these directly: `NavigationState.kira` is
+// where a caller finds them, with Kira types and the active tab as a default.
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_active_tab; abi: c; }
+function hbNavActiveTab() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_tab_for_slot; abi: c; }
+function hbNavTabForSlot(slot: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_tab_count; abi: c; }
+function hbNavTabCount() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_tab_id_at; abi: c; }
+function hbNavTabIdAt(index: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_tab_slot; abi: c; }
+function hbNavTabSlot(tab: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_url; abi: c; }
+function hbNavURL(tab: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_committed_url; abi: c; }
+function hbNavCommittedURL(tab: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_provisional_url; abi: c; }
+function hbNavProvisionalURL(tab: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_title; abi: c; }
+function hbNavTitle(tab: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_progress; abi: c; }
+function hbNavProgress(tab: I32) -> Float;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_is_loading; abi: c; }
+function hbNavIsLoading(tab: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_can_go_back; abi: c; }
+function hbNavCanGoBack(tab: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_can_go_forward; abi: c; }
+function hbNavCanGoForward(tab: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_error_code; abi: c; }
+function hbNavErrorCode(tab: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_error_text; abi: c; }
+function hbNavErrorText(tab: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_history_count; abi: c; }
+function hbNavHistoryCount(tab: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_history_current; abi: c; }
+function hbNavHistoryCurrent(tab: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_history_url; abi: c; }
+function hbNavHistoryURL(tab: I32, index: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_history_title; abi: c; }
+function hbNavHistoryTitle(tab: I32, index: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_navigate; abi: c; }
+function hbNavNavigate(tab: I32, url: CString) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_reload; abi: c; }
+function hbNavReload(tab: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_reload_ignoring_cache; abi: c; }
+function hbNavReloadIgnoringCache(tab: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_stop; abi: c; }
+function hbNavStop(tab: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_go_back; abi: c; }
+function hbNavGoBack(tab: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_go_forward; abi: c; }
+function hbNavGoForward(tab: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_go_to_history_entry; abi: c; }
+function hbNavGoToHistoryEntry(tab: I32, index: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_nav_diagnostic; abi: c; }
+function hbNavDiagnostic() -> CString;

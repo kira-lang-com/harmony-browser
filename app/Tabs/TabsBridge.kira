@@ -1,0 +1,208 @@
+// The tab registry lives in native code because tabs are not only opened from
+// here: a page that follows a target=_blank link or calls window.open creates
+// one from inside WebKit, and a list kept only in Kira could not see that
+// happen. So the registry is the truth, and this file is the two-way seam --
+// the commands that change it, and the copy of it this side reads back.
+//
+// Every command below returns immediately. Reading the list back after issuing
+// one shows the state before it: the widget tree rebuilds every frame, so the
+// change shows on the next one.
+
+// --- Engine lifetime --------------------------------------------------------
+//
+// Starting the engine belongs to the browser's host, which has five other systems
+// to register with this one first. What is declared here is what the widgets ask
+// afterwards: whether it came up, and why it did not.
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_ready; abi: c; }
+function nativeTabsReady() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_shutdown; abi: c; }
+function nativeTabsShutdown() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_error; abi: c; }
+function nativeTabsError() -> CString;
+
+// --- Opening and closing ----------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_open; abi: c; }
+function nativeTabsOpen(url: CString, foreground: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_open_at; abi: c; }
+function nativeTabsOpenAt(url: CString, index: I32, foreground: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_close; abi: c; }
+function nativeTabsClose(tabId: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_close_others; abi: c; }
+function nativeTabsCloseOthers(tabId: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_close_all; abi: c; }
+function nativeTabsCloseAll() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_reopen_closed; abi: c; }
+function nativeTabsReopenClosed() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_closed_count; abi: c; }
+function nativeTabsClosedCount() -> I32;
+
+// --- Selection --------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_select; abi: c; }
+function nativeTabsSelect(tabId: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_select_index; abi: c; }
+function nativeTabsSelectIndex(index: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_select_next; abi: c; }
+function nativeTabsSelectNext() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_select_previous; abi: c; }
+function nativeTabsSelectPrevious() -> Void;
+
+// --- Ordering ---------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_move; abi: c; }
+function nativeTabsMove(tabId: I32, toIndex: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_set_pinned; abi: c; }
+function nativeTabsSetPinned(tabId: I32, pinned: I32) -> Void;
+
+// --- Navigation -------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_load; abi: c; }
+function nativeTabsLoad(tabId: I32, url: CString) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_go_back; abi: c; }
+function nativeTabsGoBack(tabId: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_go_forward; abi: c; }
+function nativeTabsGoForward(tabId: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_reload; abi: c; }
+function nativeTabsReload(tabId: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_stop; abi: c; }
+function nativeTabsStop(tabId: I32) -> Void;
+
+// --- The published list -----------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_count; abi: c; }
+function nativeTabsCount() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_revision; abi: c; }
+function nativeTabsRevision() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_id_at; abi: c; }
+function nativeTabsIdAt(index: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_index_of; abi: c; }
+function nativeTabsIndexOf(tabId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_active_id; abi: c; }
+function nativeTabsActiveId() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_active_index; abi: c; }
+function nativeTabsActiveIndex() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_title; abi: c; }
+function nativeTabsTitle(tabId: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_url; abi: c; }
+function nativeTabsURL(tabId: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_host; abi: c; }
+function nativeTabsHost(tabId: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_is_loading; abi: c; }
+function nativeTabsIsLoading(tabId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_is_pinned; abi: c; }
+function nativeTabsIsPinned(tabId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_can_go_back; abi: c; }
+function nativeTabsCanGoBack(tabId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_can_go_forward; abi: c; }
+function nativeTabsCanGoForward(tabId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_tabs_progress; abi: c; }
+function nativeTabsProgress(tabId: I32) -> Float;
+
+// --- The Kira-side surface --------------------------------------------------
+//
+// C counts in 32 bits and Kira in 64, and the widget tree indexes, compares and
+// prints in Kira's. The conversion belongs here, once, rather than at every
+// call site.
+
+function harmonyTabsFlag(value: Bool) -> I32 {
+    if value {
+        return I32(1)
+    }
+    return I32(0)
+}
+
+function harmonyTabsCount() -> Int {
+    return Int(nativeTabsCount())
+}
+
+function harmonyTabsRevision() -> Int {
+    return Int(nativeTabsRevision())
+}
+
+function harmonyTabsIdAt(index: Int) -> Int {
+    return Int(nativeTabsIdAt(I32(index)))
+}
+
+function harmonyTabsIndexOf(tabId: Int) -> Int {
+    return Int(nativeTabsIndexOf(I32(tabId)))
+}
+
+function harmonyTabsActiveId() -> Int {
+    return Int(nativeTabsActiveId())
+}
+
+function harmonyTabsActiveIndex() -> Int {
+    return Int(nativeTabsActiveIndex())
+}
+
+function harmonyTabsClosedCount() -> Int {
+    return Int(nativeTabsClosedCount())
+}
+
+function harmonyTabsReady() -> Bool {
+    return nativeTabsReady() != I32(0)
+}
+
+function harmonyTabsError() -> String {
+    return nativeTabsError()
+}
+
+// --- Driving the engine from a frame ----------------------------------------
+//
+// Starting the engine and placing the view are NOT here.
+//
+// The registry is one of six systems the browser has to bring up in an order none
+// of them can see -- every other system's hooks have to be registered before this
+// one creates its first page -- and the rectangle its view occupies depends on
+// what the window put above and beside the page, which this file cannot know
+// either. So all of it happens in one place, in the browser's host: see
+// `hb_browser_frame` in `NativeLibs/harmony_webkit.h`, and `harmonyBrowserFrame`
+// in `app/WebKitBridge.kira` for the order around it.
+//
+// What is left here is the list and the commands, which is what the widgets read.
+
+// Runs at the end of the process. The WebKit thread and the two processes each
+// tab holds open are not the host's to reap, so the host has to say when it is
+// done with them.
+function harmonyTabsShutdown() {
+    nativeTabsShutdown()
+    return
+}
+
+// The address a tab opened with no URL of its own loads. The host hands it to the
+// registry on every frame call, so the registry never holds a home the browser
+// has forgotten it set.
+function harmonyTabsHomeURL() -> String {
+    return "https://www.google.com/"
+}

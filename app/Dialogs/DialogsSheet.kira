@@ -1,0 +1,220 @@
+import KiraUI
+
+// The card a page's question is drawn on.
+//
+// Everything a page supplies — the message, the default a prompt offers — is
+// drawn as text and never as anything a page could style, and the heading, the
+// buttons and the site's name are the browser's own words. That is the whole
+// defence a dialog has: a page can say anything inside the card and nothing
+// about the card itself.
+
+function harmonyDialogSheetWidth() -> Float {
+    return 428.0
+}
+
+function harmonyDialogFieldWidth() -> Float {
+    return harmonyDialogTextWidth()
+}
+
+function harmonyDialogFieldHeight() -> Float {
+    return 24.0
+}
+
+// --- The page's own text -----------------------------------------------------
+
+Widget HarmonyDialogTextLine(line: String) {
+    body {
+        Text(line)
+            .font(size = harmonyDialogTextSize())
+            .foregroundColor(.Primary)
+    }
+}
+
+// One row per measured line: a run of text draws on one line, so the wrapping is
+// done here and the column is handed the result.
+Widget HarmonyDialogTextBlock(lines: [String]) {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            For(line in lines) {
+                HarmonyDialogTextLine(line = line)
+            }
+        }
+    }
+}
+
+// --- The heading -------------------------------------------------------------
+
+Widget HarmonyDialogHeading(kind: HarmonyDialogKind, flags: Int, origin: String) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(harmonyDialogSymbol(kind))
+                .imageScale(.Medium)
+                .foregroundColor(.Secondary)
+
+            VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+                Text(harmonyDialogTitle(kind, flags))
+                    .typography(.headline)
+                    .foregroundColor(.Primary)
+
+                Text(harmonyDialogSubtitle(kind, origin, flags))
+                    .typography(.caption)
+                    .foregroundColor(.Secondary)
+            }
+
+            Spacer()
+        }
+    }
+}
+
+// --- The fields --------------------------------------------------------------
+
+Widget HarmonyDialogPromptField(initial: String) {
+    body {
+        Panel(radius = CornerRadius.Small) {
+            TextField(
+                key = harmonyDialogPromptFieldKey(),
+                initial = initial,
+                placeholder = "",
+                width = harmonyDialogFieldWidth(),
+                height = harmonyDialogFieldHeight(),
+                onSubmit = harmonyDialogAccept
+            )
+        }
+        .backgroundStyle(.Control)
+        .width(harmonyDialogFieldWidth() + 8.0)
+        .hugHeight()
+    }
+}
+
+Widget HarmonyDialogCredentialField(key: Int, placeholder: String) {
+    body {
+        Panel(radius = CornerRadius.Small) {
+            TextField(
+                key = key,
+                initial = "",
+                placeholder = placeholder,
+                width = harmonyDialogFieldWidth(),
+                height = harmonyDialogFieldHeight(),
+                onSubmit = harmonyDialogAccept
+            )
+        }
+        .backgroundStyle(.Control)
+        .width(harmonyDialogFieldWidth() + 8.0)
+        .hugHeight()
+    }
+}
+
+// A choice a person makes about NEXT time, which is why it is a switch and not a
+// button: it changes nothing until the answer beside it is given.
+Widget HarmonyDialogRememberRow(label: String, isOn: Bool) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Toggle(isOn = isOn)
+
+            Text(label)
+                .typography(.caption)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+        }
+        .height(24.0)
+        .onClick(harmonyDialogToggleRemember)
+    }
+}
+
+Widget HarmonyDialogCredentialFields(remember: Bool) {
+    body {
+        VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
+            HarmonyDialogCredentialField(
+                key = harmonyDialogUserFieldKey(),
+                placeholder = "User name"
+            )
+
+            HarmonyDialogCredentialField(
+                key = harmonyDialogPasswordFieldKey(),
+                placeholder = "Password"
+            )
+
+            HarmonyDialogRememberRow(label = "Remember this sign-in", isOn = remember)
+        }
+    }
+}
+
+// --- The buttons -------------------------------------------------------------
+
+Widget HarmonyDialogButtons(kind: HarmonyDialogKind) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Spacer()
+
+            if harmonyDialogHasDismiss(kind) {
+                Button(
+                    label = harmonyDialogDismissLabel(kind),
+                    onPress = harmonyDialogDismiss
+                )
+            }
+
+            Button(
+                label = harmonyDialogAcceptLabel(kind),
+                onPress = harmonyDialogAccept
+            )
+                .foregroundColor(.Inverse)
+                .backgroundStyle(.Accent)
+        }
+        .height(28.0)
+    }
+}
+
+// --- The card ----------------------------------------------------------------
+
+Widget HarmonyDialogSheetBody(
+    kind: HarmonyDialogKind,
+    flags: Int,
+    origin: String,
+    message: String,
+    defaultValue: String,
+    remember: Bool,
+) {
+    body {
+        VStack(spacing = Spacing.Small, alignment = HorizontalAlignment.Leading) {
+            HarmonyDialogHeading(kind = kind, flags = flags, origin = origin)
+
+            if message.count > 0 {
+                HarmonyDialogTextBlock(lines = harmonyDialogWrapped(message))
+            }
+
+            if kind == HarmonyDialogKind.Prompt {
+                HarmonyDialogPromptField(initial = defaultValue)
+            }
+
+            if kind == HarmonyDialogKind.Authenticate {
+                HarmonyDialogCredentialFields(remember = remember)
+            }
+
+            HarmonyDialogButtons(kind = kind)
+        }
+    }
+}
+
+// The sheet itself. It reads the question once and hands the pieces down, so
+// every widget under it draws the same frame's question.
+Widget HarmonyDialogSheet() {
+    body {
+        Card(material = Material.Frosted) {
+            Inset(horizontal = Spacing.Medium, vertical = Spacing.Medium) {
+                HarmonyDialogSheetBody(
+                    kind = HarmonyDialogState().kind(),
+                    flags = HarmonyDialogState().flags(),
+                    origin = HarmonyDialogState().origin(),
+                    message = HarmonyDialogState().message(),
+                    defaultValue = HarmonyDialogState().defaultValue(),
+                    remember = HarmonyDialogState().remember()
+                )
+            }
+        }
+        .backgroundStyle(.Raised)
+        .themeBorder(.Standard)
+        .width(harmonyDialogSheetWidth())
+        .hugHeight()
+    }
+}

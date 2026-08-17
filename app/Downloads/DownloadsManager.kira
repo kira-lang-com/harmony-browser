@@ -1,0 +1,215 @@
+import KiraUI
+
+// The downloads the shell shows, and everything a control on one of them does.
+//
+// The engine is the record and a build reads it fresh, so there is no cached
+// list here that could disagree with the file on disk. What IS owned here is the
+// part of a downloads panel that has no meaning below the UI: whether it is
+// open, how many downloads were running the last time anyone looked, and what
+// the panel last drew.
+construct DownloadManagerStore {
+    @Required let version: Int
+}
+
+DownloadManagerStore DownloadManager() {
+    @State var panelOpen: Bool = false
+    @State var activeSeen: Int = -1
+    @State var presentedRevision: Int = -1
+    let version: Int = 1
+
+    function isOpen() -> Bool {
+        return panelOpen
+    }
+
+    function setOpen(value: Bool) {
+        panelOpen = value
+        return
+    }
+
+    // A download the page started is the one thing that opens the panel by
+    // itself: it is the only way the user finds out it began.
+    //
+    // The count is compared against the last one SEEN rather than against zero,
+    // so a panel the user closed while a long download runs stays closed.
+    function noteActive(active: Int) {
+        if activeSeen >= 0 && active > activeSeen {
+            panelOpen = true
+        }
+        activeSeen = active
+        return
+    }
+
+    function presentedRevisionValue() -> Int {
+        return presentedRevision
+    }
+
+    function recordPresented(revision: Int) {
+        presentedRevision = revision
+        return
+    }
+}
+
+// --- Reading -----------------------------------------------------------------
+
+function downloadsRowCount() -> Int {
+    return downloadsVisibleCount()
+}
+
+function downloadsRowAt(index: Int) -> Download {
+    return downloadRead(downloadsIdAt(index))
+}
+
+function downloadsTotalCount() -> Int {
+    return Int(downloadsNativeCount())
+}
+
+function downloadsActiveCount() -> Int {
+    return Int(downloadsNativeActiveCount())
+}
+
+// How many the panel is not showing, so the footer can say so rather than
+// leaving the rest of them invisible.
+function downloadsHiddenCount() -> Int {
+    let hidden = downloadsTotalCount() - downloadsRowCount()
+    if hidden < 0 {
+        return 0
+    }
+    return hidden
+}
+
+function downloadsReceivedBytes(id: Int) -> Int {
+    if id <= 0 {
+        return 0
+    }
+    return downloadsNativeReceivedBytes(I32(id))
+}
+
+// Whether the panel is on screen. Reading it is also what notices a download
+// the page started, because the count is what opens the panel and this is the
+// one call every frame that draws downloads makes.
+function downloadsPanelIsOpen() -> Bool {
+    let manager = DownloadManager()
+    manager.noteActive(downloadsActiveCount())
+    return manager.isOpen()
+}
+
+// True while what the downloads interface would draw differs from what it last
+// drew.
+//
+// Downloads change on the network's schedule and not the user's: bytes arrive,
+// a name is decided, a transfer finishes minutes after it began. The
+// interactive runner skips the widget build entirely on any frame that saw no
+// input, so a browser wired without this shows the download list it had when
+// the pointer last moved.
+function harmonyDownloadsNeedsRebuild() -> Bool {
+    let manager = DownloadManager()
+    let revision = downloadsRevision()
+    if revision == manager.presentedRevisionValue() {
+        return false
+    }
+    manager.recordPresented(revision)
+    return true
+}
+
+// --- Acting ------------------------------------------------------------------
+
+function downloadsTogglePanel() {
+    let manager = DownloadManager()
+    manager.setOpen(manager.isOpen() == false)
+    return
+}
+
+function downloadsClosePanel() {
+    DownloadManager().setOpen(false)
+    return
+}
+
+function downloadsClearFinished() {
+    downloadsNativeClearFinished()
+    return
+}
+
+function downloadsOpenFolder() {
+    downloadsNativeRevealDirectory()
+    return
+}
+
+// Which tab a download is asked for in. A download is a load like any other:
+// it is the page's own tab that makes the request, and the engine turns that
+// request into a file rather than a document.
+function downloadsResolvedTab(tab: Int) -> Int {
+    if tab > 0 {
+        return tab
+    }
+    return harmonyTabsActiveId()
+}
+
+// Save a link rather than follow it. The engine marks the address, and the load
+// that follows turns into a download the moment it is asked what to do with it.
+// This is also how a stopped download is asked for again.
+function downloadsSaveLinkAs(url: String, tab: Int = 0) {
+    let target = url.trim()
+    if target.count == 0 {
+        return
+    }
+    let inTab = downloadsResolvedTab(tab)
+    if inTab <= 0 {
+        return
+    }
+
+    downloadsNativeForceNext(target)
+    HarmonyTabList().load(inTab, target)
+    return
+}
+
+// --- Per-row actions ---------------------------------------------------------
+//
+// A row's control has to carry the download it belongs to, and a press handler
+// takes no arguments, so each one is a closure built around its id.
+
+function downloadCancelAction(id: Int) -> () -> Void {
+    let target = id
+    let press: () -> Void = { in
+        downloadsNativeCancel(I32(target))
+        return
+    }
+    return press
+}
+
+function downloadRemoveAction(id: Int) -> () -> Void {
+    let target = id
+    let press: () -> Void = { in
+        downloadsNativeRemove(I32(target))
+        return
+    }
+    return press
+}
+
+function downloadRevealAction(id: Int) -> () -> Void {
+    let target = id
+    let press: () -> Void = { in
+        downloadsNativeReveal(I32(target))
+        return
+    }
+    return press
+}
+
+function downloadOpenAction(id: Int) -> () -> Void {
+    let target = id
+    let press: () -> Void = { in
+        downloadsNativeOpen(I32(target))
+        return
+    }
+    return press
+}
+
+// A download that failed or was cancelled is asked for again from the address
+// it came from, in the tab that is showing.
+function downloadRetryAction(url: String) -> () -> Void {
+    let source = url
+    let press: () -> Void = { in
+        downloadsSaveLinkAs(source)
+        return
+    }
+    return press
+}

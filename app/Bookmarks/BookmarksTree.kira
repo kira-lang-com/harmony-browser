@@ -1,0 +1,607 @@
+import KiraUI
+
+// Reading and editing the bookmark tree.
+//
+// The module is the record and a build reads it fresh. What is owned here is the
+// part of a bookmarks manager with no meaning below the UI: whether the panel is
+// open, which folders are expanded, which folder a new bookmark would go into,
+// and which row is being renamed.
+//
+// The rows a panel draws are cached against the module's revision and the
+// expansion, because a tree row costs seven reads of a locked model and a
+// hundred-bookmark tree redrawn every frame would take that cost sixty times a
+// second for a tree nobody touched.
+
+// The field a row is renamed through. One field for the whole panel, because one
+// row is renamed at a time and a field per row would be a buffer per row for the
+// life of the window.
+function harmonyBookmarksRenameFieldKey() -> Int {
+    return 41511
+}
+
+construct HarmonyBookmarksStore {
+    @Required let version: Int
+}
+
+HarmonyBookmarksStore HarmonyBookmarks() {
+    @State var panelOpen: Bool = false
+    @State var expanded: [Int] = []
+    @State var target: Int = 1
+    @State var selected: Int = 0
+    @State var renaming: Int = 0
+    @State var rows: [BookmarkItem] = []
+    @State var cachedRevision: Int = -1
+    @State var cachedShape: Int = -1
+    @State var shape: Int = 0
+    let version: Int = 1
+
+    // Called once per build, before anything reads a row.
+    function sync() {
+        if panelOpen == false {
+            return
+        }
+
+        let revision = harmonyBookmarksRevision()
+        if revision == cachedRevision && shape == cachedShape {
+            return
+        }
+
+        // The expansion is handed to the walk rather than read back out of this
+        // store from inside it: a build that reached the store again while the
+        // store was building would be a store reading its own half-written list.
+        var built: [BookmarkItem] = []
+        for row in harmonyBookmarksSubtreeRows(harmonyBookmarksBarFolder(), expanded) {
+            built.append(row)
+        }
+        for row in harmonyBookmarksSubtreeRows(harmonyBookmarksOtherFolder(), expanded) {
+            built.append(row)
+        }
+        rows = move built
+        cachedRevision = revision
+        cachedShape = shape
+        return
+    }
+
+    function isOpen() -> Bool {
+        return panelOpen
+    }
+
+    function setOpen(value: Bool) {
+        panelOpen = value
+        if value {
+            cachedShape = -1
+        }
+        return
+    }
+
+    function invalidate() {
+        cachedShape = -1
+        return
+    }
+
+    // --- Expansion ----------------------------------------------------------
+
+    function isExpanded(id: Int) -> Bool {
+        for entry in expanded {
+            if entry == id {
+                return true
+            }
+        }
+        return false
+    }
+
+    function toggleExpanded(id: Int) {
+        var next: [Int] = []
+        var found = false
+        for entry in expanded {
+            if entry == id {
+                found = true
+                continue
+            }
+            next.append(entry)
+        }
+        if found == false {
+            next.append(id)
+        }
+        expanded = move next
+        shape = shape + 1
+        return
+    }
+
+    function expand(id: Int) {
+        if isExpanded(id) {
+            return
+        }
+        expanded.append(id)
+        shape = shape + 1
+        return
+    }
+
+    // --- The folder a new bookmark goes into --------------------------------
+
+    function targetFolder() -> Int {
+        if hbBookmarkIsFolder(I32(target)) != I32(0) {
+            return target
+        }
+        return harmonyBookmarksBarFolder()
+    }
+
+    function setTargetFolder(id: Int) {
+        if hbBookmarkIsFolder(I32(id)) == I32(0) {
+            return
+        }
+        target = id
+        return
+    }
+
+    // --- The row being worked on --------------------------------------------
+    //
+    // One row carries its controls at a time. A column three hundred points wide
+    // has room for a name or for six buttons, and a tree that showed both on
+    // every row would be a tree of buttons.
+
+    function selectedNode() -> Int {
+        return selected
+    }
+
+    function select(id: Int) {
+        if selected == id {
+            selected = 0
+            return
+        }
+        selected = id
+        if hbBookmarkIsFolder(I32(id)) != I32(0) {
+            target = id
+        }
+        return
+    }
+
+    // --- Renaming -----------------------------------------------------------
+
+    function renamingNode() -> Int {
+        return renaming
+    }
+
+    function beginRename(id: Int) {
+        renaming = id
+        textFieldReset(harmonyBookmarksRenameFieldKey())
+        return
+    }
+
+    function endRename() {
+        renaming = 0
+        textFieldReset(harmonyBookmarksRenameFieldKey())
+        return
+    }
+
+    // --- The rows -----------------------------------------------------------
+
+    function rowCount() -> Int {
+        return rows.count
+    }
+
+    function rowAt(index: Int) -> BookmarkItem {
+        if index < 0 || index >= rows.count {
+            return BookmarkItem {}
+        }
+        return rows[index]
+    }
+}
+
+// --- Reading ------------------------------------------------------------------
+
+// One node, read out of the module once rather than once per field.
+function harmonyBookmarkItem(id: Int) -> BookmarkItem {
+    if id <= 0 {
+        return BookmarkItem {}
+    }
+
+    let native = I32(id)
+    return BookmarkItem {
+        id: id
+        parent: Int(hbBookmarkParentOf(native))
+        isFolder: hbBookmarkIsFolder(native) != I32(0)
+        title: hbBookmarkTitle(native)
+        url: hbBookmarkURL(native)
+        host: hbBookmarkHost(native)
+        depth: Int(hbBookmarkDepth(native))
+        leaves: Int(hbBookmarkLeafCount(native))
+    }
+}
+
+function harmonyBookmarkChildCount(folder: Int) -> Int {
+    return Int(hbBookmarkChildCount(I32(folder)))
+}
+
+function harmonyBookmarkChildIdAt(folder: Int, index: Int) -> Int {
+    return Int(hbBookmarkChildAt(I32(folder), I32(index)))
+}
+
+// A folder's children, in the order the user put them in.
+function harmonyBookmarkChildren(folder: Int) -> [BookmarkItem] {
+    var items: [BookmarkItem] = []
+    let count = harmonyBookmarkChildCount(folder)
+    var index = 0
+    while index < count {
+        let id = harmonyBookmarkChildIdAt(folder, index)
+        if id > 0 {
+            items.append(harmonyBookmarkItem(id))
+        }
+        index = index + 1
+    }
+    return items
+}
+
+function harmonyBookmarksListHolds(list: borrow [Int], id: Int) -> Bool {
+    for entry in list {
+        if entry == id {
+            return true
+        }
+    }
+    return false
+}
+
+// The tree as a panel draws it: a folder, then its children when it is expanded,
+// then whatever follows it. The recursion is what makes a nested folder a nested
+// folder rather than a second list.
+function harmonyBookmarksSubtreeRows(id: Int, expanded: borrow [Int]) -> [BookmarkItem] {
+    var rows: [BookmarkItem] = []
+    let item = harmonyBookmarkItem(id)
+    if item.exists() == false {
+        return rows
+    }
+
+    rows.append(item)
+    if item.isFolder == false {
+        return rows
+    }
+    if harmonyBookmarksListHolds(expanded, id) == false {
+        return rows
+    }
+
+    let count = harmonyBookmarkChildCount(id)
+    var index = 0
+    while index < count {
+        let child = harmonyBookmarkChildIdAt(id, index)
+        if child > 0 {
+            for row in harmonyBookmarksSubtreeRows(child, expanded) {
+                rows.append(row)
+            }
+        }
+        index = index + 1
+    }
+    return rows
+}
+
+// Every accessor below syncs first, so the panel needs no per-frame hook of its
+// own.
+function harmonyBookmarksPanelIsOpen() -> Bool {
+    HarmonyBookmarks().sync()
+    return HarmonyBookmarks().isOpen()
+}
+
+function harmonyBookmarksRowCount() -> Int {
+    HarmonyBookmarks().sync()
+    return HarmonyBookmarks().rowCount()
+}
+
+function harmonyBookmarksRowAt(index: Int) -> BookmarkItem {
+    return HarmonyBookmarks().rowAt(index)
+}
+
+function harmonyBookmarksIsExpanded(id: Int) -> Bool {
+    return HarmonyBookmarks().isExpanded(id)
+}
+
+function harmonyBookmarksIsRenaming(id: Int) -> Bool {
+    return id > 0 && HarmonyBookmarks().renamingNode() == id
+}
+
+function harmonyBookmarksTargetFolder() -> Int {
+    return HarmonyBookmarks().targetFolder()
+}
+
+function harmonyBookmarksIsSelected(id: Int) -> Bool {
+    return id > 0 && HarmonyBookmarks().selectedNode() == id
+}
+
+function harmonyBookmarksSelectRowAction(id: Int) -> () -> Void {
+    let target = id
+    let press: () -> Void = { in
+        HarmonyBookmarks().select(target)
+        return
+    }
+    return press
+}
+
+function harmonyBookmarksTargetLabel() -> String {
+    return harmonyBookmarkItem(harmonyBookmarksTargetFolder()).label()
+}
+
+// --- The page in front ---------------------------------------------------------
+
+// The node bookmarking the page the browser is showing, or 0. This is what the
+// toolbar's star reads, and it reads the module rather than a flag of its own:
+// a star lit from a copy is a star that stays lit over a bookmark deleted from
+// the manager beside it.
+function harmonyBookmarksNodeForActivePage() -> Int {
+    let page = harmonyNavigationPage()
+    if page.url.count == 0 {
+        return 0
+    }
+    return Int(hbBookmarkNodeForURL(page.url))
+}
+
+function harmonyBookmarksActivePageIsBookmarked() -> Bool {
+    return harmonyBookmarksNodeForActivePage() > 0
+}
+
+// Whether the star can do anything at all. A tab showing nothing has no page to
+// keep, and a blank one is not a page anybody means to bookmark.
+function harmonyBookmarksCanBookmarkActivePage() -> Bool {
+    let page = harmonyNavigationPage()
+    if page.isBlank() {
+        return false
+    }
+    return page.url.count > 0
+}
+
+// --- Acting ---------------------------------------------------------------------
+
+function harmonyBookmarksTogglePanel() {
+    let store = HarmonyBookmarks()
+    store.setOpen(store.isOpen() == false)
+    return
+}
+
+function harmonyBookmarksClosePanel() {
+    HarmonyBookmarks().setOpen(false)
+    return
+}
+
+// The toolbar's star. A page that is not bookmarked is filed on the bar under
+// the name the document gave itself; a page that is has every node for it
+// removed, because the same page can be filed twice and a star that unfiled one
+// of them would go dark over a bookmark that is still there.
+function harmonyBookmarksToggleActivePage() {
+    let page = harmonyNavigationPage()
+    if harmonyBookmarksCanBookmarkActivePage() == false {
+        return
+    }
+
+    let ignored = hbBookmarkToggle(page.url, page.displayTitle())
+    HarmonyBookmarks().invalidate()
+    return
+}
+
+// Files the page in front into the folder the manager is pointed at, which is
+// the one thing the star cannot do: the star always files onto the bar.
+function harmonyBookmarksAddActivePageToTarget() {
+    let page = harmonyNavigationPage()
+    if harmonyBookmarksCanBookmarkActivePage() == false {
+        return
+    }
+
+    let store = HarmonyBookmarks()
+    let folder = store.targetFolder()
+    let id = Int(hbBookmarkAdd(I32(folder), I32(-1), page.url, page.displayTitle()))
+    if id <= 0 {
+        return
+    }
+
+    store.expand(folder)
+    store.invalidate()
+    return
+}
+
+function harmonyBookmarksAddFolder() {
+    let store = HarmonyBookmarks()
+    let parent = store.targetFolder()
+    let id = Int(hbBookmarkAddFolder(I32(parent), I32(-1), "New Folder"))
+    if id <= 0 {
+        return
+    }
+
+    store.expand(parent)
+    store.beginRename(id)
+    store.invalidate()
+    return
+}
+
+// A row's control has to carry the node it belongs to, and a press handler takes
+// no arguments, so each one is a closure built around that id.
+function harmonyBookmarksOpenAction(url: String) -> () -> Void {
+    let target = url
+    let press: () -> Void = { in
+        harmonyNavigationLoad(target)
+        return
+    }
+    return press
+}
+
+function harmonyBookmarksOpenInNewTabAction(url: String) -> () -> Void {
+    let target = url
+    let press: () -> Void = { in
+        let ignored = HarmonyTabList().open(target)
+        return
+    }
+    return press
+}
+
+function harmonyBookmarksExpandAction(id: Int) -> () -> Void {
+    let target = id
+    let press: () -> Void = { in
+        HarmonyBookmarks().toggleExpanded(target)
+        return
+    }
+    return press
+}
+
+function harmonyBookmarksSelectAction(id: Int) -> () -> Void {
+    let target = id
+    let press: () -> Void = { in
+        HarmonyBookmarks().setTargetFolder(target)
+        return
+    }
+    return press
+}
+
+function harmonyBookmarksRemoveAction(id: Int) -> () -> Void {
+    let target = id
+    let press: () -> Void = { in
+        hbBookmarkRemove(I32(target))
+        HarmonyBookmarks().invalidate()
+        return
+    }
+    return press
+}
+
+function harmonyBookmarksRenameAction(id: Int) -> () -> Void {
+    let target = id
+    let press: () -> Void = { in
+        HarmonyBookmarks().beginRename(target)
+        return
+    }
+    return press
+}
+
+// Enter in the rename field. What the field holds becomes the row's name, and
+// the field goes: a name is committed once and the row is a row again.
+function harmonyBookmarksSubmitRename() {
+    let store = HarmonyBookmarks()
+    let id = store.renamingNode()
+    if id <= 0 {
+        return
+    }
+
+    let typed = textFieldText(harmonyBookmarksRenameFieldKey()).trim()
+    if typed.count > 0 {
+        hbBookmarkRename(I32(id), typed)
+    }
+    store.endRename()
+    store.invalidate()
+    return
+}
+
+function harmonyBookmarksCancelRename() {
+    HarmonyBookmarks().endRename()
+    return
+}
+
+// --- Moving -----------------------------------------------------------------------
+//
+// Order is what makes this a tree rather than a set, so it is edited rather than
+// inferred: a row moves up or down among its siblings, out into its
+// grandparent's list, or into the folder immediately above it.
+
+function harmonyBookmarksMoveBy(id: Int, delta: Int) {
+    let parent = Int(hbBookmarkParentOf(I32(id)))
+    let at = Int(hbBookmarkIndexOf(I32(id)))
+    if parent <= 0 || at < 0 {
+        return
+    }
+
+    let to = at + delta
+    if to < 0 || to >= harmonyBookmarkChildCount(parent) {
+        return
+    }
+    hbBookmarkMove(I32(id), I32(parent), I32(to))
+    HarmonyBookmarks().invalidate()
+    return
+}
+
+function harmonyBookmarksMoveUpAction(id: Int) -> () -> Void {
+    let target = id
+    let press: () -> Void = { in
+        harmonyBookmarksMoveBy(target, -1)
+        return
+    }
+    return press
+}
+
+function harmonyBookmarksMoveDownAction(id: Int) -> () -> Void {
+    let target = id
+    let press: () -> Void = { in
+        harmonyBookmarksMoveBy(target, 1)
+        return
+    }
+    return press
+}
+
+// Out of its folder, into the one that folder is in, immediately after it. A row
+// already at a root has nowhere further out to go.
+function harmonyBookmarksMoveOutAction(id: Int) -> () -> Void {
+    let target = id
+    let press: () -> Void = { in
+        let parent = Int(hbBookmarkParentOf(I32(target)))
+        let grandparent = Int(hbBookmarkParentOf(I32(parent)))
+        if grandparent <= 0 {
+            return
+        }
+        let after = Int(hbBookmarkIndexOf(I32(parent))) + 1
+        hbBookmarkMove(I32(target), I32(grandparent), I32(after))
+        HarmonyBookmarks().invalidate()
+        return
+    }
+    return press
+}
+
+// Into the folder immediately above it, at the end. This is the one move a list
+// of rows can offer without a drop target: the folder the row would fall into is
+// the one it is sitting under.
+function harmonyBookmarksMoveInAction(id: Int) -> () -> Void {
+    let target = id
+    let press: () -> Void = { in
+        let parent = Int(hbBookmarkParentOf(I32(target)))
+        let at = Int(hbBookmarkIndexOf(I32(target)))
+        if parent <= 0 || at <= 0 {
+            return
+        }
+        let above = harmonyBookmarkChildIdAt(parent, at - 1)
+        if above <= 0 || hbBookmarkIsFolder(I32(above)) == I32(0) {
+            return
+        }
+        hbBookmarkMove(I32(target), I32(above), I32(-1))
+        let store = HarmonyBookmarks()
+        store.expand(above)
+        store.invalidate()
+        return
+    }
+    return press
+}
+
+// Whether each of the four moves would do anything, so a control that cannot act
+// recedes rather than leaving the row.
+function harmonyBookmarksCanMoveUp(id: Int) -> Bool {
+    return Int(hbBookmarkIndexOf(I32(id))) > 0
+}
+
+function harmonyBookmarksCanMoveDown(id: Int) -> Bool {
+    let parent = Int(hbBookmarkParentOf(I32(id)))
+    let at = Int(hbBookmarkIndexOf(I32(id)))
+    if parent <= 0 || at < 0 {
+        return false
+    }
+    return at + 1 < harmonyBookmarkChildCount(parent)
+}
+
+function harmonyBookmarksCanMoveOut(id: Int) -> Bool {
+    let parent = Int(hbBookmarkParentOf(I32(id)))
+    return parent > 0 && Int(hbBookmarkParentOf(I32(parent))) > 0
+}
+
+function harmonyBookmarksCanMoveIn(id: Int) -> Bool {
+    let parent = Int(hbBookmarkParentOf(I32(id)))
+    let at = Int(hbBookmarkIndexOf(I32(id)))
+    if parent <= 0 || at <= 0 {
+        return false
+    }
+    let above = harmonyBookmarkChildIdAt(parent, at - 1)
+    return above > 0 && hbBookmarkIsFolder(I32(above)) != I32(0)
+}
+
+// A root is a place on screen rather than a row: it cannot be renamed away,
+// moved or deleted, and its controls say so by not being there.
+function harmonyBookmarksIsRoot(id: Int) -> Bool {
+    return id == harmonyBookmarksBarFolder() || id == harmonyBookmarksOtherFolder()
+}

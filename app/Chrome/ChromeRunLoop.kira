@@ -1,0 +1,46 @@
+import KiraGraphics
+import KiraUI
+import KiraUIFoundation
+
+// The browser's run loop.
+//
+// `RunWidgetInteractiveApp` fixes the runner's rebuild predicate at "nothing the
+// interface shows changes without an input event". That is true of an editor and
+// false of a browser: a page reports its progress, settles on a URL after a
+// redirect and names itself seconds after the load committed, all on the
+// engine's schedule and none of it on the user's. The runner skips the widget
+// build entirely on a frame that saw no input, so a browser wired through the
+// widget-library entry point shows the toolbar it had when the pointer last
+// moved — a load bar frozen at whatever fraction it reached, a title bar naming
+// the previous page.
+//
+// The runner already takes that predicate as an argument. This is the same
+// twelve lines the widget library runs, handing it the browser's.
+//
+// The predicate is the caller's rather than this file's. The chrome is one of the
+// things whose inputs move on the engine's schedule and not the user's, and it is
+// not the only one: a page asks for the camera, a download counts bytes, a tab
+// settles on a title. Naming `harmonyChromeNeedsRebuild` here would have made
+// the toolbar the only surface that could ever be right.
+function RunHarmonyBrowserApp(
+    title: String,
+    width: Int,
+    height: Int,
+    rootBuilder: borrow () -> KiraUIApp,
+    engineFrame: borrow (borrow mut KiraGraphics.RenderFrame) -> Void,
+    needsRebuild: borrow () -> Bool,
+) {
+    RunFoundationInteractiveApp(move title, width, height, { context in
+        let build: borrow () -> KiraUIApp = rootBuilder
+        let app = build()
+        let root = app.content
+        return root.lower(context, ModifierContext {})
+    },
+        engineFrame: engineFrame,
+        needsRebuild: needsRebuild,
+        showFpsOverlay: false,
+        showGraphicsHud: false,
+        rebuildOnResize: true
+    )
+    return
+}

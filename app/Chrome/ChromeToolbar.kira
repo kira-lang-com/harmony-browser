@@ -1,0 +1,176 @@
+import KiraUI
+import KiraUIFoundation
+
+// The bar above the page: where it has been, where it is going, what it is, and
+// how far along it is.
+
+// The ink a chrome glyph takes. A control whose action is unavailable says so by
+// receding rather than by disappearing: back and forward keep their places on
+// the row from the first frame, so the row never reflows under the pointer.
+function chromeControlInk(enabled: Bool) -> PrimaryColor {
+    if enabled {
+        return PrimaryColor.Secondary
+    }
+    return PrimaryColor.Quaternary
+}
+
+// A glyph on the bar that does something, and stops doing it when there is
+// nothing to do.
+Widget ChromeControlButton(symbol: Symbol, enabled: Bool, action: () -> Void) {
+    body {
+        ControlSlot() {
+            Icon(symbol)
+                .imageScale(.Small)
+                .foregroundColor(chromeControlInk(enabled))
+        }
+        .onClick(action)
+        .disabled(enabled == false)
+    }
+}
+
+Widget ChromeBackButton() {
+    body {
+        ChromeControlButton(
+            symbol = Symbol.ArrowLeft,
+            enabled = harmonyChromeCanGoBack(),
+            action = harmonyChromeGoBack
+        )
+    }
+}
+
+Widget ChromeForwardButton() {
+    body {
+        ChromeControlButton(
+            symbol = Symbol.ArrowRight,
+            enabled = harmonyChromeCanGoForward(),
+            action = harmonyChromeGoForward
+        )
+    }
+}
+
+// The reload button IS the stop button. A page that is loading can be abandoned
+// and a page that has finished can be fetched again, and there is never a moment
+// when both are worth offering — so one slot carries whichever of the two is
+// live, and the row does not change width when a load starts.
+Widget ChromeReloadStopButton() {
+    body {
+        ChromeControlButton(
+            symbol = harmonyChromeReloadStopSymbol(),
+            enabled = true,
+            action = harmonyChromeReloadOrStop
+        )
+    }
+}
+
+Widget ChromeHomeButton() {
+    body {
+        ChromeControlButton(
+            symbol = Symbol.House,
+            enabled = true,
+            action = harmonyChromeGoHome
+        )
+    }
+}
+
+// How much of the load bar is filled.
+//
+// Zero when nothing is loading, which draws no bar at all. A load that has only
+// just started still shows a sliver: a determinate bar reading exactly zero and
+// a determinate bar that is not there look identical, and only one of them is
+// true.
+function harmonyChromeProgressFraction() -> Float {
+    if harmonyChromeIsLoading() == false {
+        return 0.0
+    }
+    var value = harmonyChromeLoadProgress()
+    if value < 0.04 {
+        value = 0.04
+    }
+    if value > 1.0 {
+        value = 1.0
+    }
+    return value
+}
+
+// The load indicator: a determinate fill across the window under the toolbar.
+//
+// The lane keeps its height while nothing is loading and paints the toolbar's
+// own surface, so the page below it does not move when a load starts. The fill
+// is a fraction of the WINDOW rather than of a box the layout sized, because
+// that is what the number means: how much of the page has arrived.
+Widget ChromeLoadProgress() {
+    function lower(
+        context: borrow KiraUIFoundation.FoundationUiContext,
+        modifiers: borrow ModifierContext,
+    ) -> KiraUIFoundation.FoundationView {
+        let fraction = harmonyChromeProgressFraction()
+        let lane = HStack(spacing = Spacing.None, alignment = VerticalAlignment.Stretch) {
+            if fraction > 0.0 {
+                BackgroundFill(style = .Accent)
+                    .width(context.viewport.width * fraction)
+            }
+
+            Spacer()
+        }
+        .height(harmonyChromeProgressHeight())
+        .background(BackgroundFill(style = .Surface))
+        return lane.lower(context, modifiers)
+    }
+}
+
+// The toolbar itself.
+//
+// Its content block is the LEADING run: the window's own controls, a sidebar
+// toggle — whatever the shell puts in the corner. Those belong to the window and
+// not to the browser, and a toolbar that declared them would be a toolbar no
+// other window could use; the browser's own controls are everything after them.
+Widget ChromeToolbar() {
+    @Content let leading: [Any Widget]
+
+    body {
+        Panel(radius = CornerRadius.None) {
+            HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+                For(item in leading) {
+                    item
+                }
+
+                ChromeBackButton()
+
+                ChromeForwardButton()
+
+                ChromeReloadStopButton()
+
+                ChromeHomeButton()
+
+                Spacer()
+
+                ChromeAddressBar()
+
+                Spacer()
+            }
+            .fillHeight()
+            .inset(horizontal = Spacing.Small)
+        }
+        .backgroundStyle(.Surface)
+        .height(harmonyChromeToolbarHeight())
+    }
+}
+
+// Everything the browser paints above the page, at exactly the height the page's
+// own window is inset by. This is what a shell puts at the top of its window.
+Widget HarmonyBrowserChrome() {
+    @Content let leading: [Any Widget]
+
+    body {
+        VStack(spacing = Spacing.None) {
+            ChromeToolbar() {
+                For(item in leading) {
+                    item
+                }
+            }
+
+            ChromeLoadProgress()
+        }
+        .height(harmonyChromeHeight())
+    }
+}

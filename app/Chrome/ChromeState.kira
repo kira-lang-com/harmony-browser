@@ -1,0 +1,209 @@
+import KiraUI
+
+// The state the chrome owns: what the address field was last seeded with, and
+// what the toolbar last drew.
+//
+// Everything the toolbar DISPLAYS belongs to the navigation state and is read
+// through ChromeNavigation. What is here is the chrome's own bookkeeping, which
+// exists because two of the pieces it is built from have memories of their own:
+// an editable field owns its buffer, and the interactive runner keeps a frame it
+// has already presented.
+
+construct HarmonyChromeAddressStore {
+    @Required let version: Int
+}
+
+HarmonyChromeAddressStore HarmonyChromeAddress() {
+    // The URL the field's buffer was last filled from. It is what tells an edit
+    // the user has made apart from a change the engine has reported: the field
+    // still reading this means nobody has typed since it was seeded.
+    @State var seeded: String = ""
+    let version: Int = 1
+
+    function seededValue() -> String {
+        return seeded
+    }
+
+    function markSeeded(url: String) {
+        seeded = move url
+        return
+    }
+}
+
+construct HarmonyChromePresentedStore {
+    @Required let version: Int
+}
+
+HarmonyChromePresentedStore HarmonyChromePresented() {
+    @State var url: String = ""
+    @State var title: String = ""
+    @State var progressStep: Int = -1
+    @State var flags: Int = -1
+    let version: Int = 1
+
+    function urlValue() -> String {
+        return url
+    }
+
+    function titleValue() -> String {
+        return title
+    }
+
+    function progressStepValue() -> Int {
+        return progressStep
+    }
+
+    function flagsValue() -> Int {
+        return flags
+    }
+
+    function record(nextURL: String, nextTitle: String, nextStep: Int, nextFlags: Int) {
+        url = move nextURL
+        title = move nextTitle
+        progressStep = nextStep
+        flags = nextFlags
+        return
+    }
+}
+
+// --- The address field's buffer ----------------------------------------------
+
+function harmonyChromeAddressFieldKey() -> Int {
+    return 41010
+}
+
+// What the address field is seeded with this frame.
+//
+// TextField owns its buffer per key and fills it from `initial` exactly once, so
+// a page that navigates on its own — a redirect, a link, a row in the sidebar —
+// would otherwise leave the bar reading whatever it held when the field was
+// first mounted. Re-seeding means resetting that buffer, and resetting it under
+// an edit the user has not submitted would delete what they typed. So the buffer
+// is reset only while it still holds exactly what it was last seeded with, which
+// is precisely the case where nobody is typing into it.
+function harmonyChromeAddressText() -> String {
+    let store = HarmonyChromeAddress()
+    let live = harmonyChromeCurrentURL()
+    let seeded = store.seededValue()
+    if live == seeded {
+        return seeded
+    }
+    if textFieldText(harmonyChromeAddressFieldKey()) != seeded {
+        return seeded
+    }
+    textFieldReset(harmonyChromeAddressFieldKey())
+    store.markSeeded(move live)
+    return harmonyChromeCurrentURL()
+}
+
+// Enter in the address bar. What the field holds is a request, so the engine is
+// asked for it and the field stops counting as an unsubmitted edit: whatever URL
+// the load settles on — the normalised one, the redirected one — may replace it.
+function harmonyChromeSubmitAddress() {
+    let typed = textFieldText(harmonyChromeAddressFieldKey())
+    HarmonyChromeAddress().markSeeded(textFieldText(harmonyChromeAddressFieldKey()))
+    harmonyChromeLoadURL(move typed)
+    return
+}
+
+// --- Toolbar actions ---------------------------------------------------------
+
+// Where the home button goes.
+function harmonyChromeHomeURL() -> String {
+    return "https://www.google.com/"
+}
+
+function harmonyChromeGoHome() {
+    harmonyChromeLoadURL(harmonyChromeHomeURL())
+    return
+}
+
+// One button, two jobs: a page that is loading can be abandoned and a page that
+// has finished can be fetched again, and there is never a moment when both are
+// worth offering.
+//
+// Which of the two it is belongs to the navigation model, not to the bar. The bar
+// asks the same question to choose its glyph, and a bar that decided for itself
+// could show one and do the other.
+function harmonyChromeReloadOrStop() {
+    harmonyNavigationToggleLoad()
+    return
+}
+
+function harmonyChromeReloadStopSymbol() -> Symbol {
+    if harmonyChromeIsLoading() {
+        return Symbol.X
+    }
+    return Symbol.ArrowClockwise
+}
+
+// --- The window's title ------------------------------------------------------
+
+// Windows names the document first and the application after it. A page that has
+// not named itself yet is the application on its own, rather than the
+// application after an empty document and a stray separator.
+function harmonyChromeWindowTitle() -> String {
+    let title = harmonyChromeCurrentTitle()
+    if title.count == 0 {
+        return "Harmony Browser"
+    }
+    return title + " - Harmony Browser"
+}
+
+// --- Rebuild invalidation ----------------------------------------------------
+
+// The bar's fill quantised to steps it can actually move by. A progress report
+// finer than a step does not move a pixel, and rebuilding the whole widget tree
+// to draw the identical frame is what an idle browser must not do.
+function harmonyChromeProgressStep() -> Int {
+    if harmonyChromeIsLoading() == false {
+        return -1
+    }
+    var value = harmonyChromeLoadProgress()
+    if value < 0.0 {
+        value = 0.0
+    }
+    if value > 1.0 {
+        value = 1.0
+    }
+    return Int(value * 400.0)
+}
+
+function harmonyChromeStateFlags() -> Int {
+    var flags = 0
+    if harmonyChromeIsLoading() {
+        flags = flags + 1
+    }
+    if harmonyChromeCanGoBack() {
+        flags = flags + 2
+    }
+    if harmonyChromeCanGoForward() {
+        flags = flags + 4
+    }
+    return flags
+}
+
+// True while what the chrome would draw differs from what it last drew.
+//
+// The chrome's inputs change on the page's schedule and not the user's: progress
+// ticks, a redirect rewrites the address, a title arrives seconds after the load
+// committed. The interactive runner skips the widget build entirely on any frame
+// that saw no input, so a browser wired without this shows the toolbar it had
+// when the pointer last moved. This is the runner's own hook for exactly that —
+// see `RunHarmonyBrowserApp` — and it answers false whenever nothing the chrome
+// draws has moved, which is every frame of a browser sitting on a loaded page.
+function harmonyChromeNeedsRebuild() -> Bool {
+    let store = HarmonyChromePresented()
+    let url = harmonyChromeCurrentURL()
+    let title = harmonyChromeCurrentTitle()
+    let step = harmonyChromeProgressStep()
+    let flags = harmonyChromeStateFlags()
+    if step == store.progressStepValue() &&
+        flags == store.flagsValue() &&
+        url == store.urlValue() &&
+        title == store.titleValue() {
+        return false
+    }
+    store.record(move url, move title, step, flags)
+    return true
+}

@@ -1,0 +1,320 @@
+import Foundation
+import KiraUI
+
+// The remembered answers, and the file they live in.
+//
+// The table is the browser's, not a page's: it survives the tab that asked, the
+// window that showed the prompt, and the run of the program. It is written back
+// the moment it changes, because the alternative is a permission that a person
+// granted and a crash silently took away.
+//
+// The native bridge keeps its own copy so a request can be answered on the
+// WebKit thread without waiting for a frame. This is the one that owns it: the
+// bridge's copy is written from here and never the other way round.
+struct HarmonyPermissionRegistry {
+    var loaded: Bool = false
+    var grants: [PermissionGrant] = []
+    // A profile directory that cannot be written to is worth saying out loud:
+    // the answers still hold for this run, and none of them will survive it.
+    var unsaved: Bool = false
+}
+
+function harmonyPermissionRegistrySlotKey() -> String {
+    return "harmony.permissions.registry"
+}
+
+function harmonyPermissionRegistry() -> HarmonyPermissionRegistry {
+    if kiraUiStateSlotHas(harmonyPermissionRegistrySlotKey()) == false {
+        kiraUiStateSlotPut(
+            harmonyPermissionRegistrySlotKey(),
+            nativeUserData(nativeState(HarmonyPermissionRegistry {}))
+        )
+    }
+    return nativeRecover<HarmonyPermissionRegistry>(
+        kiraUiStateSlotGet(harmonyPermissionRegistrySlotKey())
+    )
+}
+
+function harmonyPermissionSetGrants(grants: [PermissionGrant]) {
+    var registry = harmonyPermissionRegistry()
+    registry.grants = move grants
+    return
+}
+
+function harmonyPermissionMarkLoaded() {
+    var registry = harmonyPermissionRegistry()
+    registry.loaded = true
+    return
+}
+
+function harmonyPermissionGrants() -> [PermissionGrant] {
+    harmonyPermissionEnsureLoaded()
+    return harmonyPermissionRegistry().grants
+}
+
+// --- Reading ----------------------------------------------------------------
+
+// The answer stored for exactly this kind, with no combining. Ask when there is
+// none, which is what makes a fresh profile prompt for everything.
+function harmonyPermissionStoredDecision(origin: borrow String, kind: PermissionKind) -> PermissionDecision {
+    for grant in harmonyPermissionGrants() {
+        if grant.origin == origin {
+            if grant.kind == kind {
+                return grant.decision
+            }
+        }
+    }
+    return PermissionDecision.Ask
+}
+
+// The answer a request of this kind would get. A request for both devices is
+// answered by both grants: either refusal refuses, and only two allowances
+// allow, so a page cannot get the microphone by asking for it alongside a
+// camera it already has.
+function harmonyPermissionEffectiveDecision(origin: borrow String, kind: PermissionKind) -> PermissionDecision {
+    if kind != PermissionKind.CameraAndMicrophone {
+        return harmonyPermissionStoredDecision(origin, kind)
+    }
+    let camera = harmonyPermissionStoredDecision(origin, PermissionKind.Camera)
+    let microphone = harmonyPermissionStoredDecision(origin, PermissionKind.Microphone)
+    if camera == PermissionDecision.Deny {
+        return PermissionDecision.Deny
+    }
+    if microphone == PermissionDecision.Deny {
+        return PermissionDecision.Deny
+    }
+    if camera == PermissionDecision.Allow {
+        if microphone == PermissionDecision.Allow {
+            return PermissionDecision.Allow
+        }
+    }
+    return PermissionDecision.Ask
+}
+
+// Every origin that has an answer of any kind, in the order it was first
+// answered, so the settings list does not reshuffle itself as it is used.
+function harmonyPermissionOrigins() -> [String] {
+    var origins: [String] = []
+    for grant in harmonyPermissionGrants() {
+        var seen = false
+        for origin in origins {
+            if origin == grant.origin {
+                seen = true
+            }
+        }
+        if seen == false {
+            origins.append("" + grant.origin)
+        }
+    }
+    return origins
+}
+
+function harmonyPermissionOriginGrants(origin: borrow String) -> [PermissionGrant] {
+    var selected: [PermissionGrant] = []
+    for grant in harmonyPermissionGrants() {
+        if grant.origin == origin {
+            selected.append(permissionGrantCopy(grant))
+        }
+    }
+    return selected
+}
+
+function harmonyPermissionGrantCount() -> Int {
+    return harmonyPermissionGrants().count
+}
+
+// --- Writing ----------------------------------------------------------------
+
+// Remembers one answer. A combined request is remembered as the two device
+// answers it was really made of; Ask forgets instead of storing an absence.
+function harmonyPermissionRemember(origin: borrow String, kind: PermissionKind, decision: PermissionDecision) {
+    if permissionOriginIsStorable(origin) == false {
+        return
+    }
+    if kind == PermissionKind.CameraAndMicrophone {
+        harmonyPermissionRemember(origin, PermissionKind.Camera, decision)
+        harmonyPermissionRemember(origin, PermissionKind.Microphone, decision)
+        return
+    }
+
+    harmonyPermissionEnsureLoaded()
+    var next: [PermissionGrant] = []
+    var replaced = false
+    for grant in harmonyPermissionGrants() {
+        var keep = true
+        if grant.origin == origin {
+            if grant.kind == kind {
+                keep = false
+                if decision != PermissionDecision.Ask {
+                    next.append(PermissionGrant {
+                        origin: "" + origin
+                        kind: kind
+                        decision: decision
+                    })
+                    replaced = true
+                }
+            }
+        }
+        if keep {
+            next.append(permissionGrantCopy(grant))
+        }
+    }
+    if replaced == false {
+        if decision != PermissionDecision.Ask {
+            next.append(PermissionGrant {
+                origin: "" + origin
+                kind: kind
+                decision: decision
+            })
+        }
+    }
+
+    harmonyPermissionSetGrants(move next)
+    harmonyPermissionSave()
+    harmonyPermissionPublishPolicy()
+    return
+}
+
+// Takes one answer back. The site is asked about again next time, which is what
+// a person revoking a permission expects rather than a silent block.
+function harmonyPermissionRevoke(origin: borrow String, kind: PermissionKind) {
+    harmonyPermissionRemember(origin, kind, PermissionDecision.Ask)
+    return
+}
+
+function harmonyPermissionForgetOrigin(origin: borrow String) {
+    harmonyPermissionEnsureLoaded()
+    var next: [PermissionGrant] = []
+    for grant in harmonyPermissionGrants() {
+        if grant.origin != origin {
+            next.append(permissionGrantCopy(grant))
+        }
+    }
+    harmonyPermissionSetGrants(move next)
+    harmonyPermissionSave()
+    harmonyPermissionPublishPolicy()
+    return
+}
+
+function harmonyPermissionForgetEverything() {
+    harmonyPermissionEnsureLoaded()
+    var empty: [PermissionGrant] = []
+    harmonyPermissionSetGrants(move empty)
+    harmonyPermissionSave()
+    harmonyPermissionPublishPolicy()
+    return
+}
+
+// --- The file ---------------------------------------------------------------
+
+function harmonyPermissionFileVersion() -> Int {
+    return 1
+}
+
+function harmonyPermissionProfileDirectory() -> String {
+    let local = environmentValue("LOCALAPPDATA")
+    if local.count > 0 {
+        return local + "\\HarmonyBrowser"
+    }
+    let home = environmentValue("USERPROFILE")
+    if home.count > 0 {
+        return home + "\\.harmony-browser"
+    }
+    return "generated"
+}
+
+function harmonyPermissionStorePath() -> String {
+    return harmonyPermissionProfileDirectory() + "\\permissions.txt"
+}
+
+// The file is one record per line, four words each: what it is, which kind,
+// which answer, which origin. Words rather than a record format because this
+// file is a person's own settings, so it has to survive being read, edited and
+// saved by hand — and a line that does not survive that is skipped rather than
+// taken as a reason to stop the browser.
+function harmonyPermissionSerialize(grants: borrow [PermissionGrant]) -> String {
+    var text = "harmony-permissions " + String(harmonyPermissionFileVersion()) + "\n"
+    for grant in grants {
+        if permissionOriginIsStorable(grant.origin) {
+            text = text
+                + "grant "
+                + permissionKindToken(grant.kind)
+                + " "
+                + permissionDecisionToken(grant.decision)
+                + " "
+                + grant.origin
+                + "\n"
+        }
+    }
+    return text
+}
+
+function harmonyPermissionParse(text: borrow String) -> [PermissionGrant] {
+    var grants: [PermissionGrant] = []
+    for line in text.split("\n") {
+        let row = line.trim()
+        if row.startsWith("grant ") {
+            let words = row.split(" ")
+            if words.count == 4 {
+                let kindToken = words[1]
+                let decisionToken = words[2]
+                let origin = words[3]
+                if permissionKindIsKnown(kindToken) {
+                    if permissionDecisionIsKnown(decisionToken) {
+                        if permissionOriginIsStorable(origin) {
+                            grants.append(PermissionGrant {
+                                origin: "" + origin
+                                kind: permissionKindFromToken(kindToken)
+                                decision: permissionDecisionFromToken(decisionToken)
+                            })
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return grants
+}
+
+function harmonyPermissionSave() {
+    let directory = harmonyPermissionProfileDirectory()
+    var ready = isDirectory(directory)
+    if ready == false {
+        ready = makeDirectory(directory)
+    }
+
+    // Nowhere to write means the answers hold for this run and no longer, and
+    // the panel says so rather than reporting a save that never happened.
+    var written = false
+    if ready {
+        let text = harmonyPermissionSerialize(harmonyPermissionRegistry().grants)
+        written = writeFile(harmonyPermissionStorePath(), text)
+    }
+
+    var registry = harmonyPermissionRegistry()
+    registry.unsaved = written == false
+    return
+}
+
+// Whether the last write reached the disk. The settings panel says so, because
+// a person who blocks a site is entitled to know the block will not outlast the
+// window.
+function harmonyPermissionUnsaved() -> Bool {
+    return harmonyPermissionRegistry().unsaved
+}
+
+// Reads the file once per run, before the first question is asked of it. A
+// missing file is a fresh profile, not a failure.
+function harmonyPermissionEnsureLoaded() {
+    if harmonyPermissionRegistry().loaded {
+        return
+    }
+    harmonyPermissionMarkLoaded()
+
+    let contents = readFile(harmonyPermissionStorePath())
+    if contents.ok {
+        harmonyPermissionSetGrants(harmonyPermissionParse(contents.text))
+    }
+    harmonyPermissionPublishPolicy()
+    return
+}

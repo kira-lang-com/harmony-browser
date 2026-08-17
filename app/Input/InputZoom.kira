@@ -1,0 +1,71 @@
+import KiraUI
+
+// Page zoom, as the chrome reads and drives it.
+//
+// The level belongs to the site rather than to the tab: what is set on one page
+// of a site is what every page of that site opens at, in this tab and in any
+// other, and after the browser has been closed and opened again. The native
+// side keeps the levels and applies them; this is the badge and the buttons.
+
+function harmonyInputZoomPercent() -> Int {
+    return Int(nativeInputZoomPercent())
+}
+
+// The site the level on screen is remembered under. Empty for a page that has
+// no site -- about:blank, a data URL -- which can be zoomed but not remembered.
+function harmonyInputZoomOrigin() -> String {
+    return nativeInputZoomOrigin()
+}
+
+function harmonyInputZoomIsDefault() -> Bool {
+    return harmonyInputZoomPercent() == 100
+}
+
+function harmonyInputZoomLabel() -> String {
+    return String(harmonyInputZoomPercent()) + "%"
+}
+
+function harmonyInputZoomIn() {
+    nativeInputZoomIn()
+    return
+}
+
+function harmonyInputZoomOut() {
+    nativeInputZoomOut()
+    return
+}
+
+function harmonyInputZoomReset() {
+    nativeInputZoomReset()
+    return
+}
+
+function harmonyInputZoomSet(percent: Int) {
+    nativeInputZoomSet(I32(percent))
+    return
+}
+
+// The zoom badge: what a browser shows in the address bar once a site is being
+// read at anything but its own size, and nothing at all while it is. Pressing
+// it puts the site back to 100%, which is the only thing a badge like this has
+// ever done.
+Widget HarmonyInputZoomBadge() {
+    body {
+        Panel(radius = CornerRadius.Capsule) {
+            HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+                Icon(.MagnifyingGlass)
+                    .imageScale(.Small)
+                    .foregroundColor(.Secondary)
+
+                Text(harmonyInputZoomLabel())
+                    .typography(.caption)
+                    .foregroundColor(.Primary)
+            }
+            .inset(horizontal = Spacing.Small)
+            .height(20.0)
+        }
+        .backgroundStyle(.Control)
+        .themeBorder(.Subtle)
+        .onClick(harmonyInputZoomReset)
+    }
+}

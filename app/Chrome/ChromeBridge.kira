@@ -1,0 +1,34 @@
+import KiraGraphics
+
+// The two things the chrome owns that the widget tree cannot reach: the window's
+// title bar, and how large the client area the page's window is placed inside
+// really is. Both are the host window's, and the tree draws inside that window
+// rather than owning it.
+@FFI.Extern { library: harmony_browser; symbol: hb_chrome_set_window_title; abi: c; }
+function chromeSetWindowTitle(window: RawPtr, title: CString) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_chrome_client_width; abi: c; }
+function chromeClientWidth(window: RawPtr) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_chrome_client_height; abi: c; }
+function chromeClientHeight(window: RawPtr) -> I32;
+
+// Run before KiraUI renders each frame.
+//
+// The chrome is a widget tree except for one thing, and that thing is the
+// window's rather than the tree's: the title bar, which the tree does not draw.
+// It is settled here, ahead of the frame that will show the page it names, so the
+// bar never lags the document by a frame.
+//
+// Where the page's own window sits is NOT settled here. The chrome measures what
+// it draws and nothing else; only the window knows what else it has put above and
+// beside the page, so that rectangle is the window's arithmetic and is applied
+// once, by the host that owns the view.
+function harmonyChromeFrame(frame: borrow mut KiraGraphics.RenderFrame) {
+    let window = KiraGraphics.kiraGraphicsHostWindowHandle(frame)
+    if pointerIsNull(window) {
+        return
+    }
+    chromeSetWindowTitle(window, harmonyChromeWindowTitle())
+    return
+}

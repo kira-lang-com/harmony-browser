@@ -1,0 +1,331 @@
+import KiraUI
+
+// What the profile holds, as the browser's own chrome names it.
+//
+// The bit values and the range codes are the profile's, spelled once here so no
+// widget ever writes a number the C side has to be read to understand.
+
+enum BrowsingDataType {
+    Cookies
+    Cache
+    LocalStorage
+    IndexedDB
+    ServiceWorkers
+    DOMCache
+    MediaKeys
+    Tracking
+}
+
+enum BrowsingDataRange {
+    LastHour
+    LastDay
+    LastWeek
+    LastFourWeeks
+    AllTime
+}
+
+// The bit the profile gives a type. These are the values in
+// `harmony_data_store.h`, and the two must agree.
+function browsingDataTypeBit(kind: BrowsingDataType) -> Int {
+    match kind {
+        Cookies -> return 1;
+        Cache -> return 2;
+        LocalStorage -> return 4;
+        IndexedDB -> return 8;
+        ServiceWorkers -> return 16;
+        DOMCache -> return 32;
+        MediaKeys -> return 64;
+        Tracking -> return 128;
+    }
+}
+
+function browsingDataRangeCode(range: BrowsingDataRange) -> Int {
+    match range {
+        LastHour -> return 0;
+        LastDay -> return 1;
+        LastWeek -> return 2;
+        LastFourWeeks -> return 3;
+        AllTime -> return 4;
+    }
+}
+
+function browsingDataRangeFromCode(code: Int) -> BrowsingDataRange {
+    if code == 0 {
+        return BrowsingDataRange.LastHour
+    }
+    if code == 1 {
+        return BrowsingDataRange.LastDay
+    }
+    if code == 2 {
+        return BrowsingDataRange.LastWeek
+    }
+    if code == 3 {
+        return BrowsingDataRange.LastFourWeeks
+    }
+    return BrowsingDataRange.AllTime
+}
+
+function browsingDataTypeName(kind: BrowsingDataType) -> String {
+    match kind {
+        Cookies -> return "Cookies and site logins";
+        Cache -> return "Cached files and images";
+        LocalStorage -> return "Local storage";
+        IndexedDB -> return "Databases";
+        ServiceWorkers -> return "Offline site workers";
+        DOMCache -> return "Offline site caches";
+        MediaKeys -> return "Protected media licences";
+        Tracking -> return "Tracking records";
+    }
+}
+
+// The line under a type's name: what clearing it costs the person doing it.
+// Short on purpose -- the panel sits in a sidebar column and nothing here wraps.
+function browsingDataTypeNote(kind: BrowsingDataType) -> String {
+    match kind {
+        Cookies -> return "Signs you out of sites";
+        Cache -> return "Pages fetch again";
+        LocalStorage -> return "Sites forget settings";
+        IndexedDB -> return "Offline documents go";
+        ServiceWorkers -> return "No more offline sites";
+        DOMCache -> return "Offline pages refetch";
+        MediaKeys -> return "Videos ask again";
+        Tracking -> return "Tracker records go";
+    }
+}
+
+function browsingDataTypeSymbol(kind: BrowsingDataType) -> Symbol {
+    match kind {
+        Cookies -> return Symbol.Cookie;
+        Cache -> return Symbol.Images;
+        LocalStorage -> return Symbol.HardDrive;
+        IndexedDB -> return Symbol.Database;
+        ServiceWorkers -> return Symbol.Gear;
+        DOMCache -> return Symbol.Package;
+        MediaKeys -> return Symbol.Key;
+        Tracking -> return Symbol.Detective;
+    }
+}
+
+function browsingDataRangeName(range: BrowsingDataRange) -> String {
+    match range {
+        LastHour -> return "Last hour";
+        LastDay -> return "Last 24 hours";
+        LastWeek -> return "Last 7 days";
+        LastFourWeeks -> return "Last 4 weeks";
+        AllTime -> return "All time";
+    }
+}
+
+// What the button that does it says. "Clear all time" is not English; the label
+// a browser puts on that button is the thing itself.
+function browsingDataClearLabel(range: BrowsingDataRange) -> String {
+    match range {
+        LastHour -> return "Clear the last hour";
+        LastDay -> return "Clear the last 24 hours";
+        LastWeek -> return "Clear the last 7 days";
+        LastFourWeeks -> return "Clear the last 4 weeks";
+        AllTime -> return "Clear everything";
+    }
+}
+
+// The order the picker lists the ranges in, widest last.
+function browsingDataRanges() -> [BrowsingDataRange] {
+    return [
+        BrowsingDataRange.LastHour,
+        BrowsingDataRange.LastDay,
+        BrowsingDataRange.LastWeek,
+        BrowsingDataRange.LastFourWeeks,
+        BrowsingDataRange.AllTime
+    ]
+}
+
+function browsingDataRangeNames() -> [String] {
+    var names: [String] = []
+    for range in browsingDataRanges() {
+        names.append(browsingDataRangeName(range))
+    }
+    return names
+}
+
+// The order the panel lists the types in: what a person is most likely to want
+// gone first, and the two that sign them out of things last.
+function browsingDataTypes() -> [BrowsingDataType] {
+    return [
+        BrowsingDataType.Cache,
+        BrowsingDataType.DOMCache,
+        BrowsingDataType.LocalStorage,
+        BrowsingDataType.IndexedDB,
+        BrowsingDataType.ServiceWorkers,
+        BrowsingDataType.MediaKeys,
+        BrowsingDataType.Tracking,
+        BrowsingDataType.Cookies
+    ]
+}
+
+function browsingDataTypeAt(index: Int) -> BrowsingDataType {
+    let kinds = browsingDataTypes()
+    if index < 0 || index >= kinds.count {
+        return BrowsingDataType.Cache
+    }
+    return kinds[index]
+}
+
+// Whether a range means anything to a type. The cookie jar is one database with
+// no per-cookie age the profile can read, so asking for the last hour of it
+// would be asking for something the browser cannot honestly give.
+function browsingDataTypeHonoursRange(kind: BrowsingDataType) -> Bool {
+    match kind {
+        Cookies -> return false;
+        Cache -> return true;
+        LocalStorage -> return true;
+        IndexedDB -> return true;
+        ServiceWorkers -> return true;
+        DOMCache -> return true;
+        MediaKeys -> return true;
+        Tracking -> return true;
+    }
+}
+
+// --- One site ----------------------------------------------------------------
+
+struct SiteData {
+    var origin: String = ""
+    var host: String = ""
+    var bytes: Float = 0.0
+    var types: Int = 0
+    var lastUsed: Float = 0.0
+
+    function holds(kind: BrowsingDataType) -> Bool {
+        return (self.types & browsingDataTypeBit(kind)) != 0
+    }
+
+    // What the row is called. An origin on a non-default port is named by the
+    // port too, because two ports are two sites to a browser.
+    function label() -> String {
+        if self.host.count > 0 {
+            return self.host
+        }
+        return self.origin
+    }
+}
+
+// --- Reading numbers ---------------------------------------------------------
+
+function browsingDataTenths(value: Int) -> String {
+    let whole = value / 10
+    let fraction = value - whole * 10
+    return String(whole) + "." + String(fraction)
+}
+
+// A byte count as a person reads it. Kilobytes are 1024 here, as they are in
+// every file manager this browser sits beside.
+function browsingDataBytes(bytes: Float) -> String {
+    if bytes <= 0.0 {
+        return "0 B"
+    }
+    let count = Int(bytes)
+    if count < 1024 {
+        return String(count) + " B"
+    }
+    if count < 1048576 {
+        return browsingDataTenths(count * 10 / 1024) + " KB"
+    }
+    if count < 1073741824 {
+        return browsingDataTenths(count * 10 / 1048576) + " MB"
+    }
+    return browsingDataTenths(count * 10 / 1073741824) + " GB"
+}
+
+// A size worth showing at all. A site holding a few hundred bytes of local
+// storage is a site the list should name without pretending to weigh it.
+function browsingDataSizeLabel(bytes: Float) -> String {
+    if bytes < 1024.0 {
+        return "Under 1 KB"
+    }
+    return browsingDataBytes(bytes)
+}
+
+// How many kinds a row names before it starts counting them instead. Nothing
+// KiraUI draws wraps, and a sidebar column has room for three.
+function browsingDataSummaryLimit() -> Int {
+    return 3
+}
+
+// What a site's row says it holds, in the order the panel lists the types.
+function browsingDataTypeSummary(site: borrow SiteData) -> String {
+    var text = ""
+    var named = 0
+    var extra = 0
+    for kind in browsingDataTypes() {
+        if site.holds(kind) == false {
+            continue
+        }
+        if named >= browsingDataSummaryLimit() {
+            extra = extra + 1
+            continue
+        }
+        if named > 0 {
+            text = text + " · "
+        }
+        text = text + browsingDataShortTypeName(kind)
+        named = named + 1
+    }
+
+    if named == 0 {
+        return "No stored data"
+    }
+    if extra > 0 {
+        return text + " +" + String(extra)
+    }
+    return text
+}
+
+// How long ago a site was last written to or visited, read off the profile's own
+// clock so both ends of the subtraction come from one place.
+function browsingDataAge(lastUsed: Float) -> String {
+    if lastUsed <= 0.0 {
+        return "Never used"
+    }
+
+    let seconds = Int(hbDataNow() - lastUsed)
+    if seconds < 3600 {
+        return "In the last hour"
+    }
+    if seconds < 86400 {
+        let hours = seconds / 3600
+        if hours == 1 {
+            return "1 hour ago"
+        }
+        return String(hours) + " hours ago"
+    }
+
+    let days = seconds / 86400
+    if days == 1 {
+        return "Yesterday"
+    }
+    if days < 30 {
+        return String(days) + " days ago"
+    }
+
+    let months = days / 30
+    if months == 1 {
+        return "A month ago"
+    }
+    if months < 12 {
+        return String(months) + " months ago"
+    }
+    return "Over a year ago"
+}
+
+function browsingDataShortTypeName(kind: BrowsingDataType) -> String {
+    match kind {
+        Cookies -> return "Cookies";
+        Cache -> return "Cache";
+        LocalStorage -> return "Storage";
+        IndexedDB -> return "Databases";
+        ServiceWorkers -> return "Workers";
+        DOMCache -> return "Offline";
+        MediaKeys -> return "Licences";
+        Tracking -> return "Tracking";
+    }
+}

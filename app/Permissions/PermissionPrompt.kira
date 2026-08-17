@@ -1,0 +1,128 @@
+import KiraUI
+
+// The card a page's request for something of yours is drawn on.
+//
+// It says who is asking, what for, and what allowing it costs, and it offers
+// exactly two answers. Closing it without answering refuses, and refuses for
+// this once only: a person who walked away has said nothing about next time,
+// which is why the remembering switch is separate from the two answers.
+
+function permissionPromptWidth() -> Float {
+    return 372.0
+}
+
+function permissionPromptTopInset() -> Float {
+    return 8.0
+}
+
+function permissionPromptLeadingInset() -> Float {
+    return 12.0
+}
+
+Widget PermissionPromptHeading(kind: PermissionKind, origin: String) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(permissionKindSymbol(kind))
+                .imageScale(.Medium)
+                .foregroundColor(.Accent)
+
+            VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+                Text(permissionOriginDisplay(origin) + " " + permissionKindRequestText(kind))
+                    .typography(.subheadline)
+                    .foregroundColor(.Primary)
+
+                Text(permissionKindDetailText(kind))
+                    .typography(.caption)
+                    .foregroundColor(.Secondary)
+            }
+
+            Spacer()
+        }
+    }
+}
+
+// A site that is not on a transport nobody can tamper with is worth saying so
+// about: the name in the card is only as trustworthy as the connection carrying
+// it.
+Widget PermissionPromptInsecureNote() {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            Icon(.LockKeyOpen)
+                .imageScale(.Small)
+
+            Text("This site is not using a private connection.")
+                .typography(.caption)
+
+            Spacer()
+        }
+        .height(20.0)
+        .foregroundColor(.Warning)
+    }
+}
+
+Widget PermissionPromptRememberRow(remember: Bool) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Toggle(isOn = remember)
+
+            Text("Remember this answer for this site")
+                .typography(.caption)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+        }
+        .height(24.0)
+        .onClick(harmonyPermissionToggleRemember)
+    }
+}
+
+Widget PermissionPromptButtons() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Spacer()
+
+            Button(label = "Block", onPress = harmonyPermissionDeny)
+
+            Button(label = "Allow", onPress = harmonyPermissionAllow)
+                .foregroundColor(.Inverse)
+                .backgroundStyle(.Accent)
+        }
+        .height(28.0)
+    }
+}
+
+Widget PermissionPromptBody(kind: PermissionKind, origin: String, remember: Bool) {
+    body {
+        VStack(spacing = Spacing.Small, alignment = HorizontalAlignment.Leading) {
+            PermissionPromptHeading(kind = kind, origin = origin)
+
+            if permissionOriginIsSecure(origin) == false {
+                PermissionPromptInsecureNote()
+            }
+
+            PermissionPromptRememberRow(remember = remember)
+
+            PermissionPromptButtons()
+        }
+    }
+}
+
+// The card, anchored where the address bar is: what a page asks for belongs
+// beside where the page came from.
+Widget PermissionPrompt() {
+    body {
+        Card(material = Material.Frosted) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.Small) {
+                PermissionPromptBody(
+                    kind = harmonyPermissionPromptKind(),
+                    origin = harmonyPermissionPromptOrigin(),
+                    remember = harmonyPermissionPromptRemember()
+                )
+            }
+        }
+        .backgroundStyle(.Raised)
+        .themeBorder(.Standard)
+        .width(permissionPromptWidth())
+        .hugHeight()
+    }
+}

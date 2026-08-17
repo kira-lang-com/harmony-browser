@@ -1,0 +1,224 @@
+import KiraUI
+
+// The search engines, listed and edited.
+//
+// A browser's search engine is a list with one of them chosen, not a single
+// address, because a person who changes it once usually changes it back. So the
+// list is the setting: each row can be made the default with one press, edited
+// in place, or removed, and a new one is described in the two fields under it.
+//
+// The query is shown rather than hidden. `{searchTerms}` is the whole of what
+// makes a template work, and an editor that concealed it would be an editor
+// whose refusals could not be understood.
+
+function settingsEngineRowHeight() -> Float {
+    return 34.0
+}
+
+function settingsEngineFieldWidth() -> Float {
+    return settingsPanelWidth() - 190.0
+}
+
+// The chosen engine is marked rather than only ordered first: the list keeps the
+// order it was written in, so the mark is the only thing that says which one a
+// typed phrase reaches.
+function settingsEngineSymbol(isDefault: Bool) -> Symbol {
+    if isDefault {
+        return Symbol.CheckCircle
+    }
+    return Symbol.MagnifyingGlass
+}
+
+function settingsEngineInk(isDefault: Bool) -> PrimaryColor {
+    if isDefault {
+        return PrimaryColor.Accent
+    }
+    return PrimaryColor.Secondary
+}
+
+// --- One engine ----------------------------------------------------------------
+
+Widget SettingsEngineRow(index: Int, name: String, query: String, isDefault: Bool, removable: Bool) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(settingsEngineSymbol(SearchEngine { isDefault: isDefault }))
+                .imageScale(.Small)
+                .foregroundColor(settingsEngineInk(SearchEngine { isDefault: isDefault }))
+
+            Expanded(flex = 1) {
+                VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+                    Text(name)
+                        .typography(.subheadline)
+                        .foregroundColor(.Primary)
+
+                    Text(query)
+                        .typography(.caption)
+                        .foregroundColor(.Tertiary)
+                }
+                .onClick(harmonySettingsChooseEngineAction(index))
+            }
+
+            ControlSlot(active = HarmonySettings().editingIndex() == index) {
+                Icon(.PencilSimple)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonySettingsEditEngineAction(index))
+
+            // The last engine stays: a browser with none cannot answer a typed
+            // phrase at all, and the row says so by having no way to remove it.
+            if removable {
+                ControlSlot() {
+                    Icon(.TrashSimple)
+                        .imageScale(.Small)
+                }
+                .onClick(harmonySettingsRemoveEngineAction(index))
+            }
+        }
+        .height(settingsEngineRowHeight())
+        .foregroundColor(.Secondary)
+    }
+}
+
+// One row, read once rather than once per field: a row that asked the module
+// again for each of its three values could draw a name from one engine beside
+// the query of the next.
+function settingsEngineRowAt(index: Int) -> Any Widget {
+    let engine = harmonySettingsEngineAt(index)
+    return SettingsEngineRow(
+        index = index,
+        name = engine.name,
+        query = engine.query,
+        isDefault = engine.isDefault,
+        removable = harmonySettingsEngineCount() > 1
+    )
+}
+
+Widget SettingsEngineList() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            For(index in indices(harmonySettingsEngineCount())) {
+                settingsEngineRowAt(index)
+            }
+        }
+    }
+}
+
+// --- The editor ------------------------------------------------------------------
+
+Widget SettingsEngineField(key: Int, initial: String, placeholder: String, width: Float) {
+    body {
+        Panel(radius = CornerRadius.Small) {
+            Inset(horizontal = Spacing.ExtraSmall) {
+                TextField(
+                    key = key,
+                    initial = initial,
+                    placeholder = placeholder,
+                    width = width,
+                    height = settingsFieldHeight(),
+                    onSubmit = harmonySettingsCommitEngine
+                )
+                    .fill(Color { a: 0.0 })
+                    .foregroundColor(.Primary)
+                    .typography(.control)
+            }
+        }
+        .backgroundStyle(.Control)
+        .themeBorder(.Subtle)
+        .height(settingsFieldHeight() + 4.0)
+        .hugWidth()
+    }
+}
+
+// What the commit button says: whether the fields describe a new engine or a
+// change to one already in the list.
+function settingsEngineCommitSymbol() -> Symbol {
+    if HarmonySettings().editingIndex() < 0 {
+        return Symbol.Plus
+    }
+    return Symbol.Check
+}
+
+function settingsEngineEditorTitle() -> String {
+    let index = HarmonySettings().editingIndex()
+    if index < 0 {
+        return "Add a search engine"
+    }
+    return "Editing " + harmonySettingsEngineAt(index).name
+}
+
+Widget SettingsEngineEditor() {
+    body {
+        VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
+            HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+                Text(settingsEngineEditorTitle())
+                    .typography(.caption)
+                    .foregroundColor(.Tertiary)
+
+                Spacer()
+
+                if HarmonySettings().editingIndex() >= 0 {
+                    ControlSlot() {
+                        Icon(.X)
+                            .imageScale(.Small)
+                    }
+                    .onClick(harmonySettingsCancelEngineEdit)
+                }
+            }
+            .height(20.0)
+
+            HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+                SettingsEngineField(
+                    key = harmonySettingsEngineNameFieldKey(),
+                    initial = harmonySettingsEngineNameFieldText(),
+                    placeholder = "Name",
+                    width = 96.0
+                )
+
+                SettingsEngineField(
+                    key = harmonySettingsEngineQueryFieldKey(),
+                    initial = harmonySettingsEngineQueryFieldText(),
+                    placeholder = "https://example.com/?q={searchTerms}",
+                    width = settingsEngineFieldWidth()
+                )
+
+                Spacer()
+
+                ControlSlot() {
+                    Icon(settingsEngineCommitSymbol())
+                        .imageScale(.Small)
+                        .foregroundColor(settingsEngineCommitInk())
+                }
+                .onClick(harmonySettingsCommitEngine)
+                .disabled(harmonySettingsEngineDraftIsUsable() == false)
+            }
+            .height(settingsFieldHeight() + 8.0)
+
+            if harmonySettingsEngineDraftIsUsable() == false {
+                Text("A query needs {searchTerms} where the typed words go.")
+                    .typography(.caption)
+                    .foregroundColor(.Quaternary)
+            }
+        }
+    }
+}
+
+function settingsEngineCommitInk() -> PrimaryColor {
+    if harmonySettingsEngineDraftIsUsable() {
+        return PrimaryColor.Accent
+    }
+    return PrimaryColor.Quaternary
+}
+
+// --- The section -------------------------------------------------------------------
+
+Widget SettingsSearchSection() {
+    body {
+        VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
+            SettingsSectionHeader(title = "Search")
+
+            SettingsEngineList()
+
+            SettingsEngineEditor()
+        }
+    }
+}

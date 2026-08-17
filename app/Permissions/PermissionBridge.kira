@@ -1,0 +1,167 @@
+// The seam to the permission bridge, and the frame's worth of work over it.
+//
+// The native side holds the questions WebKit is waiting on and a copy of the
+// remembered answers. This file is the only place that talks to it: the store
+// writes the answers down and publishes them here, and the prompt reads the
+// question from here. Nothing below blocks — a resolution is posted to the
+// WebKit thread and applied there.
+//
+// Joining the bridge to the page registry is the browser's host's, because it has
+// to happen before that registry creates its first page and five other systems
+// have the same requirement.
+
+@FFI.Extern { library: harmony_browser; symbol: hb_permissions_supported; abi: c; }
+function permissionsSupported() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_permissions_pending_count; abi: c; }
+function permissionsPendingCount() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_permissions_pending_id; abi: c; }
+function permissionsPendingId() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_permissions_pending_kind; abi: c; }
+function permissionsPendingKind() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_permissions_pending_origin; abi: c; }
+function permissionsPendingOrigin() -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_permissions_resolve; abi: c; }
+function permissionsResolve(requestId: I32, decision: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_permissions_deny_all; abi: c; }
+function permissionsDenyAll() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_permissions_policy_clear; abi: c; }
+function permissionsPolicyClear() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_permissions_policy_set; abi: c; }
+function permissionsPolicySet(kind: I32, origin: CString, decision: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_permissions_policy_get; abi: c; }
+function permissionsPolicyGet(kind: I32, origin: CString) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_permissions_error; abi: c; }
+function permissionsError() -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_permissions_shutdown; abi: c; }
+function permissionsShutdown() -> Void;
+
+// Hands the whole table down. Small enough to send whole on every change, and
+// sending it whole is what keeps the two copies from drifting apart.
+function harmonyPermissionPublishPolicy() {
+    permissionsPolicyClear()
+    for grant in harmonyPermissionRegistry().grants {
+        permissionsPolicySet(
+            I32(permissionKindCode(grant.kind)),
+            grant.origin,
+            I32(permissionDecisionCode(grant.decision))
+        )
+    }
+    return
+}
+
+// Whether the page host has loaded far enough for a request to reach this. The
+// table is published regardless: it is native memory this bridge owns, and it
+// has to be right before the first page asks anything.
+function harmonyPermissionBridgeReady() -> Bool {
+    return Int(permissionsSupported()) != 0
+}
+
+function harmonyPermissionQueueDepth() -> Int {
+    return Int(permissionsPendingCount())
+}
+
+function harmonyPermissionPendingOrigin() -> String {
+    return permissionsPendingOrigin()
+}
+
+// Why the bridge could not do what a page asked, empty when there is nothing to
+// say. A person who blocked a camera and saw nothing happen is owed this.
+function harmonyPermissionDiagnostic() -> String {
+    return permissionsError()
+}
+
+// Runs once per frame, before the widgets are built.
+//
+// It loads the file on the first frame, then adopts the oldest question nobody
+// has answered. A question already answered stays at the head of the queue
+// until the WebKit thread drains it, so the id that was just answered is
+// stepped over rather than asked again.
+function harmonyPermissionPump() {
+    harmonyPermissionEnsureLoaded()
+    if harmonyPermissionPromptActive() {
+        return
+    }
+
+    let pending = Int(permissionsPendingId())
+    if pending == 0 {
+        return
+    }
+    if pending == harmonyPermissionLastResolvedId() {
+        return
+    }
+
+    let kind = permissionKindFromCode(Int(permissionsPendingKind()))
+    let origin = harmonyPermissionPendingOrigin()
+    if permissionOriginIsStorable(origin) == false {
+        // An origin with no name cannot be shown to a person, let alone
+        // remembered, so it is refused without a prompt.
+        permissionsResolve(I32(pending), I32(permissionDecisionCode(PermissionDecision.Deny)))
+        harmonyPermissionClearPrompt(pending)
+        return
+    }
+
+    harmonyPermissionAdopt(pending, kind, origin)
+    return
+}
+
+// --- Answering --------------------------------------------------------------
+
+function harmonyPermissionAnswer(decision: PermissionDecision, remember: Bool) {
+    let requestId = harmonyPermissionSession().requestId
+    if requestId == 0 {
+        return
+    }
+
+    let origin = harmonyPermissionPromptOrigin()
+    let kind = harmonyPermissionPromptKind()
+    if remember {
+        harmonyPermissionRemember(origin, kind, decision)
+    }
+    permissionsResolve(I32(requestId), I32(permissionDecisionCode(decision)))
+    harmonyPermissionClearPrompt(requestId)
+    return
+}
+
+function harmonyPermissionAllow() {
+    harmonyPermissionAnswer(PermissionDecision.Allow, harmonyPermissionPromptRemember())
+    return
+}
+
+function harmonyPermissionDeny() {
+    harmonyPermissionAnswer(PermissionDecision.Deny, harmonyPermissionPromptRemember())
+    return
+}
+
+// Closing the prompt without answering is a refusal, and never a remembered
+// one: a person who walked away has said nothing about next time.
+function harmonyPermissionDismiss() {
+    harmonyPermissionAnswer(PermissionDecision.Deny, false)
+    return
+}
+
+// Refuses everything still queued. For a window closing with a question on it,
+// where leaving the page waiting is the one thing that must not happen.
+function harmonyPermissionRefuseEverything() {
+    permissionsDenyAll()
+    harmonyPermissionClearPrompt(0)
+    return
+}
+
+// Stops the bridge: refuses what is queued, stops the location source, takes
+// the notification surface down. Call before the page host stops its thread.
+function harmonyPermissionShutdown() {
+    permissionsShutdown()
+    harmonyPermissionClearPrompt(0)
+    return
+}

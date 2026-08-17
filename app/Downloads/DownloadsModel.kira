@@ -1,0 +1,246 @@
+import KiraUI
+
+// What a download is to the browser, and how one reads.
+//
+// These are values, not stores: the record lives in the engine and a build
+// reads it fresh, the same way the navigation model is read. Nothing here is a
+// second copy that could disagree with what is on disk.
+
+enum DownloadState {
+    Starting
+    Running
+    Finished
+    Failed
+    Cancelled
+}
+
+struct Download {
+    var id: Int = 0
+    var state: DownloadState = DownloadState.Starting
+    var fileName: String = ""
+    var url: String = ""
+    var path: String = ""
+    var mimeType: String = ""
+    var error: String = ""
+    var completed: String = ""
+
+    // The size the server declared, or -1 when it declared none.
+    var total: Int = -1
+}
+
+function downloadStateFromCode(code: Int) -> DownloadState {
+    if code == 0 {
+        return DownloadState.Starting
+    }
+    if code == 1 {
+        return DownloadState.Running
+    }
+    if code == 2 {
+        return DownloadState.Finished
+    }
+    if code == 3 {
+        return DownloadState.Failed
+    }
+    return DownloadState.Cancelled
+}
+
+// A download that is still going. The three answers below partition the five
+// states, so a row shows exactly one set of controls.
+function downloadIsActive(state: DownloadState) -> Bool {
+    match state {
+        Starting -> return true;
+        Running -> return true;
+        Finished -> return false;
+        Failed -> return false;
+        Cancelled -> return false;
+    }
+}
+
+function downloadIsFinished(state: DownloadState) -> Bool {
+    match state {
+        Starting -> return false;
+        Running -> return false;
+        Finished -> return true;
+        Failed -> return false;
+        Cancelled -> return false;
+    }
+}
+
+// A download that stopped without finishing, and can therefore be asked for
+// again.
+function downloadIsStopped(state: DownloadState) -> Bool {
+    match state {
+        Starting -> return false;
+        Running -> return false;
+        Finished -> return false;
+        Failed -> return true;
+        Cancelled -> return true;
+    }
+}
+
+function downloadSymbol(state: DownloadState) -> Symbol {
+    match state {
+        Starting -> return Symbol.FileArrowDown;
+        Running -> return Symbol.FileArrowDown;
+        Finished -> return Symbol.CheckCircle;
+        Failed -> return Symbol.WarningCircle;
+        Cancelled -> return Symbol.Prohibit;
+    }
+}
+
+function downloadSymbolColor(state: DownloadState) -> PrimaryColor {
+    match state {
+        Starting -> return PrimaryColor.Secondary;
+        Running -> return PrimaryColor.Accent;
+        Finished -> return PrimaryColor.Green;
+        Failed -> return PrimaryColor.Red;
+        Cancelled -> return PrimaryColor.Tertiary;
+    }
+}
+
+// One download, read straight out of the engine. A record that is not there
+// answers with a blank download rather than with nothing, so a caller reads the
+// same shape either way.
+function downloadRead(id: Int) -> Download {
+    if id <= 0 {
+        return Download {}
+    }
+
+    return Download {
+        id: id
+        state: downloadStateFromCode(Int(downloadsNativeState(I32(id))))
+        fileName: downloadTextOf(id, downloadFieldFileName())
+        url: downloadTextOf(id, downloadFieldUrl())
+        path: downloadTextOf(id, downloadFieldPath())
+        mimeType: downloadTextOf(id, downloadFieldMimeType())
+        error: downloadTextOf(id, downloadFieldError())
+        completed: downloadTextOf(id, downloadFieldCompleted())
+        total: downloadsNativeTotalBytes(I32(id))
+    }
+}
+
+// How many rows the panel holds. The engine remembers far more than that, and a
+// column three hundred points wide with no scroll view is not where the rest of
+// them are read: the folder is.
+function downloadsPanelRowLimit() -> Int {
+    return 10
+}
+
+// How many rows the panel will actually draw.
+function downloadsVisibleCount() -> Int {
+    let total = Int(downloadsNativeCount())
+    let limit = downloadsPanelRowLimit()
+    if total > limit {
+        return limit
+    }
+    return total
+}
+
+// The id on one of those rows, newest first, or 0 when the list has shrunk
+// since the row count was read.
+function downloadsIdAt(index: Int) -> Int {
+    if index < 0 {
+        return 0
+    }
+    return Int(downloadsNativeIdAt(I32(index)))
+}
+
+// The newest downloads, in the order the engine keeps them.
+function downloadsRecent() -> [Download] {
+    var items: [Download] = []
+    let count = downloadsVisibleCount()
+    var index = 0
+    while index < count {
+        let id = downloadsIdAt(index)
+        if id > 0 {
+            items.append(downloadRead(id))
+        }
+        index = index + 1
+    }
+    return items
+}
+
+// --- Reading numbers ---------------------------------------------------------
+
+function downloadsTenths(value: Int) -> String {
+    let whole = value / 10
+    let fraction = value - whole * 10
+    return String(whole) + "." + String(fraction)
+}
+
+// A byte count as a person reads it. Kilobytes are 1024 here, as they are in
+// every file manager this browser sits beside.
+function downloadsFormatBytes(bytes: Int) -> String {
+    if bytes < 0 {
+        return ""
+    }
+    if bytes < 1024 {
+        return String(bytes) + " B"
+    }
+    if bytes < 1048576 {
+        return downloadsTenths(bytes * 10 / 1024) + " KB"
+    }
+    if bytes < 1073741824 {
+        return downloadsTenths(bytes * 10 / 1048576) + " MB"
+    }
+    return downloadsTenths(bytes * 10 / 1073741824) + " GB"
+}
+
+// How far along, or -1.0 when the server never said how big the file is. A bar
+// cannot show a fraction of an unknown whole, and pretending otherwise is what
+// makes a progress bar lie.
+function downloadsProgress(received: Int, total: Int) -> Float {
+    if total <= 0 {
+        return -1.0
+    }
+    if received >= total {
+        return 1.0
+    }
+    return Float(received) / Float(total)
+}
+
+function downloadsPercentText(received: Int, total: Int) -> String {
+    if total <= 0 {
+        return ""
+    }
+    var percent = received * 100 / total
+    if percent > 100 {
+        percent = 100
+    }
+    return String(percent) + "%"
+}
+
+// The line under the file name: what is happening, and how far it has got.
+function downloadDetailText(
+    state: DownloadState,
+    received: Int,
+    total: Int,
+    completed: String,
+    error: String
+) -> String {
+    match state {
+        Starting -> return "Starting";
+        Running -> {
+            if total <= 0 {
+                return downloadsFormatBytes(received)
+            }
+            return downloadsFormatBytes(received)
+                + " of " + downloadsFormatBytes(total)
+                + " · " + downloadsPercentText(received, total)
+        }
+        Finished -> {
+            let size = downloadsFormatBytes(received)
+            if completed.count > 0 {
+                return size + " · " + completed
+            }
+            return size
+        }
+        Failed -> {
+            if error.count > 0 {
+                return error
+            }
+            return "Failed"
+        }
+        Cancelled -> return "Cancelled";
+    }
+}

@@ -1,0 +1,236 @@
+import KiraUI
+
+// The bar under the toolbar: the top of the bookmark tree, one press away.
+//
+// It is in the FLOW above the page rather than floating over it, because it is
+// always there and the page is inset by exactly what is above it. A bar that
+// floated would cover the first line of every page it was open on.
+//
+// It draws nothing at all while it holds nothing. A browser whose first run
+// shows an empty strip has spent a row of the window saying that the user has no
+// bookmarks, which they can already see.
+
+function harmonyBookmarksBarHeight() -> Float {
+    return 28.0
+}
+
+// How many items the bar draws before it stops and says how many it is not
+// drawing. Nothing KiraUI draws elides, so a row of thirty bookmarks would run
+// off the end of the window rather than stopping at it.
+function harmonyBookmarksBarItemLimit() -> Int {
+    return 12
+}
+
+// How much of a bookmark's name the bar shows. A row is read left to right and a
+// long title would take the whole of it.
+function harmonyBookmarksBarLabelLimit() -> Int {
+    return 18
+}
+
+construct HarmonyBookmarksBarStore {
+    @Required let version: Int
+}
+
+HarmonyBookmarksBarStore HarmonyBookmarksBar() {
+    @State var visible: Bool = true
+    let version: Int = 1
+
+    function isVisible() -> Bool {
+        return visible
+    }
+
+    function toggle() {
+        visible = visible == false
+        return
+    }
+}
+
+// --- What the bar holds --------------------------------------------------------
+
+function harmonyBookmarksBarCount() -> Int {
+    return harmonyBookmarkChildCount(harmonyBookmarksBarFolder())
+}
+
+function harmonyBookmarksBarVisibleCount() -> Int {
+    let count = harmonyBookmarksBarCount()
+    if count > harmonyBookmarksBarItemLimit() {
+        return harmonyBookmarksBarItemLimit()
+    }
+    return count
+}
+
+function harmonyBookmarksBarHiddenCount() -> Int {
+    let hidden = harmonyBookmarksBarCount() - harmonyBookmarksBarVisibleCount()
+    if hidden < 0 {
+        return 0
+    }
+    return hidden
+}
+
+function harmonyBookmarksBarIsShowing() -> Bool {
+    if HarmonyBookmarksBar().isVisible() == false {
+        return false
+    }
+    return harmonyBookmarksBarCount() > 0
+}
+
+// How much of the window the bar is taking, in points. The page's own window is
+// inset by it, so the bar never covers what it links to.
+function harmonyBookmarksBarInset() -> Float {
+    if harmonyBookmarksBarIsShowing() == false {
+        return 0.0
+    }
+    return harmonyBookmarksBarHeight() + 1.0
+}
+
+function harmonyBookmarksBarToggle() {
+    HarmonyBookmarksBar().toggle()
+    return
+}
+
+// A name cut to the room a bar item has, with the ellipsis that says it was cut.
+function harmonyBookmarksShortLabel(text: String) -> String {
+    if text.count <= harmonyBookmarksBarLabelLimit() {
+        return text
+    }
+    return text.substring(0, harmonyBookmarksBarLabelLimit() - 1) + "…"
+}
+
+// A folder on the bar opens the manager with that folder expanded. A menu
+// hanging off the bar would be a second overlay layer for one press, and the
+// manager is where a folder is read anyway.
+function harmonyBookmarksBarOpenFolderAction(id: Int) -> () -> Void {
+    let target = id
+    let press: () -> Void = { in
+        let store = HarmonyBookmarks()
+        store.setOpen(true)
+        store.expand(target)
+        store.setTargetFolder(target)
+        return
+    }
+    return press
+}
+
+// --- The items -----------------------------------------------------------------
+
+Widget HarmonyBookmarksBarItem(symbol: Symbol, label: String, action: () -> Void) {
+    body {
+        Panel(radius = CornerRadius.Small) {
+            HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+                Icon(symbol)
+                    .imageScale(.Small)
+                    .foregroundColor(.Secondary)
+
+                Text(label)
+                    .typography(.caption)
+                    .foregroundColor(.Primary)
+            }
+            .inset(horizontal = Spacing.ExtraSmall)
+            .hugWidth()
+        }
+        .backgroundStyle(.Clear)
+        .height(22.0)
+        .hugWidth()
+        .onClick(action)
+    }
+}
+
+// One item, read out of the module once rather than once per field.
+function harmonyBookmarksBarItemAt(index: Int) -> Any Widget {
+    let item = harmonyBookmarkItem(harmonyBookmarkChildIdAt(harmonyBookmarksBarFolder(), index))
+    if item.isFolder {
+        return HarmonyBookmarksBarItem(
+            symbol = Symbol.Folder,
+            label = harmonyBookmarksShortLabel(item.label()),
+            action = harmonyBookmarksBarOpenFolderAction(item.id)
+        )
+    }
+    return HarmonyBookmarksBarItem(
+        symbol = harmonyTabSiteSymbol(item.host),
+        label = harmonyBookmarksShortLabel(item.label()),
+        action = harmonyBookmarksOpenAction(item.url)
+    )
+}
+
+Widget HarmonyBookmarksBarOverflow(hidden: Int) {
+    body {
+        HarmonyBookmarksBarItem(
+            symbol = Symbol.DotsThree,
+            label = String(hidden) + " more",
+            action = harmonyBookmarksTogglePanel
+        )
+    }
+}
+
+Widget HarmonyBookmarksBarBody() {
+    body {
+        Panel(radius = CornerRadius.None) {
+            HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+                For(index in indices(harmonyBookmarksBarVisibleCount())) {
+                    harmonyBookmarksBarItemAt(index)
+                }
+
+                if harmonyBookmarksBarHiddenCount() > 0 {
+                    HarmonyBookmarksBarOverflow(hidden = harmonyBookmarksBarHiddenCount())
+                }
+
+                Spacer()
+            }
+            .fillHeight()
+            .inset(horizontal = Spacing.Small)
+        }
+        .backgroundStyle(.Surface)
+        .height(harmonyBookmarksBarHeight())
+    }
+}
+
+// What a shell puts under its toolbar. It occupies nothing at all while the bar
+// is hidden or empty, so the page keeps every pixel it had.
+Widget HarmonyBookmarksBarSlot() {
+    body {
+        VStack(spacing = Spacing.None) {
+            if harmonyBookmarksBarIsShowing() {
+                HarmonyBookmarksBarBody()
+
+                Divider()
+                    .themeBorder(.Subtle)
+            }
+        }
+        .hugHeight()
+    }
+}
+
+// --- The toolbar's star ---------------------------------------------------------
+
+function harmonyBookmarksStarSymbol() -> Symbol {
+    if harmonyBookmarksActivePageIsBookmarked() {
+        return Symbol.Star
+    }
+    return Symbol.Bookmark
+}
+
+function harmonyBookmarksStarInk() -> PrimaryColor {
+    if harmonyBookmarksCanBookmarkActivePage() == false {
+        return PrimaryColor.Quaternary
+    }
+    if harmonyBookmarksActivePageIsBookmarked() {
+        return PrimaryColor.Yellow
+    }
+    return PrimaryColor.Secondary
+}
+
+// The control that keeps the page in front, and lets it go again.
+//
+// It reads the module rather than a flag of its own: a star lit from a copy is a
+// star that stays lit over a bookmark deleted from the manager beside it.
+Widget BookmarkThisPageControl() {
+    body {
+        ControlSlot(active = harmonyBookmarksActivePageIsBookmarked()) {
+            Icon(harmonyBookmarksStarSymbol())
+                .imageScale(.Small)
+                .foregroundColor(harmonyBookmarksStarInk())
+        }
+        .onClick(harmonyBookmarksToggleActivePage)
+        .disabled(harmonyBookmarksCanBookmarkActivePage() == false)
+    }
+}

@@ -1,0 +1,120 @@
+import KiraUI
+
+// The same tab list down the side of the window instead of across the top.
+//
+// A browser whose chrome is a sidebar shows its tabs as rows, and the row form
+// is the one that has room for a whole page title. It is the same registry and
+// the same commands as the strip: the two are two views of one list, not two
+// lists.
+
+Widget HarmonyTabSidebarRow(tabId: Int) {
+    body {
+        HStack(spacing = Spacing.None, alignment = VerticalAlignment.Center) {
+            Expanded(flex = 1) {
+                ListRow(selected = harmonyTabIsActive(tabId)) {
+                    // A private tab is marked as one. Which tabs those are is the
+                    // profile's answer rather than the registry's: the store is
+                    // bound when the page is created, and a page opened by
+                    // window.open from a private tab inherits it.
+                    Icon(harmonyPrivateTabSymbol(tabId))
+                        .imageScale(.Small)
+                        .foregroundColor(harmonyTabIconInk(tabId))
+
+                    Text(harmonyTabLabelFor(tabId))
+                        .typography(.subheadline)
+                }
+                .onClick(harmonyTabSelectAction(tabId))
+            }
+
+            Icon(.CaretDown)
+                .imageScale(.Small)
+                .foregroundColor(.Tertiary)
+                .size(18.0)
+                .onClick(harmonyTabMenuAction(tabId))
+
+            Icon(.X)
+                .imageScale(.Small)
+                .foregroundColor(.Tertiary)
+                .size(18.0)
+                .onClick(harmonyTabCloseAction(tabId))
+        }
+        .height(harmonyTabRowHeight())
+    }
+}
+
+// The row a tab's menu stands under, so the commands land beside the tab they
+// belong to rather than at the top of the column.
+Widget HarmonyTabSidebarEntry(tabId: Int) {
+    body {
+        VStack(spacing = Spacing.None) {
+            HarmonyTabSidebarRow(tabId = tabId)
+
+            if HarmonyTabList().openMenuTabId() == tabId {
+                HarmonyTabMenu(tabId = tabId)
+            }
+        }
+    }
+}
+
+Widget HarmonyNewTabRow() {
+    body {
+        ListRow() {
+            Icon(.Plus)
+                .imageScale(.Small)
+
+            Text("New Tab")
+                .typography(.subheadline)
+        }
+        .foregroundColor(.Secondary)
+        .onClick(harmonyTabsNewTab)
+    }
+}
+
+// Shown only when there is something to undo, because a row that does nothing
+// is a row the eye has to learn to skip.
+Widget HarmonyReopenClosedRow() {
+    body {
+        ListRow() {
+            Icon(.ArrowUUpLeft)
+                .imageScale(.Small)
+
+            Text("Reopen Closed Tab")
+                .typography(.subheadline)
+        }
+        .foregroundColor(.Secondary)
+        .onClick(harmonyTabsReopenClosed)
+    }
+}
+
+Widget HarmonyTabSidebarList() {
+    body {
+        VStack(spacing = Spacing.None) {
+            For(index in indices(harmonyTabsCount())) {
+                HarmonyTabSidebarEntry(tabId = harmonyTabsIdAt(index))
+            }
+
+            HarmonyNewTabRow()
+
+            if harmonyTabsClosedCount() > 0 {
+                HarmonyReopenClosedRow()
+            }
+        }
+    }
+}
+
+// The window's tab count, for a header that says how many there are.
+Widget HarmonyTabCountLabel() {
+    body {
+        Text(harmonyTabCountText())
+            .typography(.footnote)
+            .foregroundColor(.Tertiary)
+    }
+}
+
+function harmonyTabCountText() -> String {
+    let count = harmonyTabsCount()
+    if count == 1 {
+        return "1 tab"
+    }
+    return String(count) + " tabs"
+}

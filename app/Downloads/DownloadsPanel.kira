@@ -1,0 +1,352 @@
+import KiraUI
+
+// The downloads panel, and the toolbar control that opens it.
+//
+// It belongs in the sidebar column and nowhere else: the page is a native child
+// window inside this one, so it is composited above everything KiraUI draws, and
+// a panel over the page would be a panel nobody can see. The sidebar is the part
+// of the window the browser still owns.
+
+// The panel's own width, owned here rather than derived from the column it is
+// placed in: the shell insets its leading column by twelve points on each side,
+// and a panel that measured its container would have to be told what that
+// container is before it could draw anything at all.
+function downloadsPanelWidth() -> Float {
+    return 276.0
+}
+
+function downloadsProgressWidth() -> Float {
+    return downloadsPanelWidth() - 16.0
+}
+
+function downloadsProgressHeight() -> Float {
+    return 3.0
+}
+
+function downloadsRowHeight() -> Float {
+    return 34.0
+}
+
+// --- Progress ----------------------------------------------------------------
+
+// The bar is built rather than taken from `Progress`, which is a fixed 96 points
+// wide: a row in a column this narrow needs the bar to be as wide as the row.
+Widget DownloadProgressBar(fraction: Float) {
+    body {
+        ZStack(alignment = StackAlignment.Leading) {
+            Rectangle(
+                width = downloadsProgressWidth(),
+                height = downloadsProgressHeight(),
+                radius = downloadsProgressHeight() * 0.5
+            )
+                .backgroundStyle(.Control)
+
+            Rectangle(
+                width = downloadsProgressWidth() * fraction,
+                height = downloadsProgressHeight(),
+                radius = downloadsProgressHeight() * 0.5
+            )
+                .backgroundStyle(.Accent)
+        }
+    }
+}
+
+// A download whose size the server never declared has nothing to fill, so it
+// shows the track alone: the byte count under it is what is moving.
+Widget DownloadProgress(fraction: Float) {
+    body {
+        VStack(spacing = Spacing.None) {
+            if fraction < 0.0 {
+                Rectangle(
+                    width = downloadsProgressWidth(),
+                    height = downloadsProgressHeight(),
+                    radius = downloadsProgressHeight() * 0.5
+                )
+                    .backgroundStyle(.Control)
+            }
+
+            if fraction >= 0.0 {
+                DownloadProgressBar(fraction = fraction)
+            }
+        }
+    }
+}
+
+// --- Row controls ------------------------------------------------------------
+
+Widget DownloadRowButton(symbol: Symbol) {
+    body {
+        ControlSlot() {
+            Icon(symbol)
+                .imageScale(.Small)
+        }
+    }
+}
+
+Widget DownloadActiveControls(id: Int) {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            DownloadRowButton(symbol = Symbol.X)
+                .onClick(downloadCancelAction(id))
+        }
+        .hugWidth()
+    }
+}
+
+Widget DownloadFinishedControls(id: Int) {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            DownloadRowButton(symbol = Symbol.ArrowSquareOut)
+                .onClick(downloadOpenAction(id))
+
+            DownloadRowButton(symbol = Symbol.FolderOpen)
+                .onClick(downloadRevealAction(id))
+
+            DownloadRowButton(symbol = Symbol.TrashSimple)
+                .onClick(downloadRemoveAction(id))
+        }
+        .hugWidth()
+    }
+}
+
+Widget DownloadStoppedControls(id: Int, url: String) {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            DownloadRowButton(symbol = Symbol.ArrowCounterClockwise)
+                .onClick(downloadRetryAction(url))
+
+            DownloadRowButton(symbol = Symbol.TrashSimple)
+                .onClick(downloadRemoveAction(id))
+        }
+        .hugWidth()
+    }
+}
+
+Widget DownloadControls(id: Int, state: DownloadState, url: String) {
+    body {
+        HStack(spacing = Spacing.None, alignment = VerticalAlignment.Center) {
+            if downloadIsActive(state) {
+                DownloadActiveControls(id = id)
+            }
+
+            if downloadIsFinished(state) {
+                DownloadFinishedControls(id = id)
+            }
+
+            if downloadIsStopped(state) {
+                DownloadStoppedControls(id = id, url = url)
+            }
+        }
+        .hugWidth()
+        .foregroundColor(.Secondary)
+    }
+}
+
+// --- Row ---------------------------------------------------------------------
+
+Widget DownloadRowText(name: String, detail: String) {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            Text(name)
+                .typography(.subheadline)
+                .foregroundColor(.Primary)
+
+            Text(detail)
+                .typography(.caption)
+                .foregroundColor(.Secondary)
+        }
+    }
+}
+
+Widget DownloadRow(
+    id: Int,
+    name: String,
+    state: DownloadState,
+    total: Int,
+    completed: String,
+    error: String,
+    url: String,
+) {
+    body {
+        VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
+            HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+                Icon(downloadSymbol(state))
+                    .imageScale(.Medium)
+                    .foregroundColor(downloadSymbolColor(state))
+
+                Expanded(flex = 1) {
+                    DownloadRowText(
+                        name = name,
+                        detail = downloadDetailText(
+                            state,
+                            downloadsReceivedBytes(id),
+                            total,
+                            completed,
+                            error
+                        )
+                    )
+                }
+
+                DownloadControls(id = id, state = state, url = url)
+            }
+            .height(downloadsRowHeight())
+
+            if downloadIsActive(state) {
+                DownloadProgress(
+                    fraction = downloadsProgress(downloadsReceivedBytes(id), total)
+                )
+            }
+        }
+    }
+}
+
+// --- Panel -------------------------------------------------------------------
+
+Widget DownloadsPanelHeader() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text("Downloads")
+                .typography(.footnote)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+
+            ControlSlot() {
+                Icon(.FolderOpen)
+                    .imageScale(.Small)
+            }
+            .onClick(downloadsOpenFolder)
+
+            ControlSlot() {
+                Icon(.TrashSimple)
+                    .imageScale(.Small)
+            }
+            .onClick(downloadsClearFinished)
+
+            ControlSlot() {
+                Icon(.X)
+                    .imageScale(.Small)
+            }
+            .onClick(downloadsClosePanel)
+        }
+        .height(28.0)
+        .foregroundColor(.Tertiary)
+    }
+}
+
+Widget DownloadsEmptyState() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            Text("Nothing downloaded yet")
+                .typography(.caption)
+                .foregroundColor(.Tertiary)
+
+            Text(downloadsDirectoryPath())
+                .typography(.caption)
+                .foregroundColor(.Quaternary)
+        }
+        .height(40.0)
+    }
+}
+
+Widget DownloadsOverflowNote(hidden: Int) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text(String(hidden) + " earlier in the Downloads folder")
+                .typography(.caption)
+                .foregroundColor(.Tertiary)
+
+            Spacer()
+        }
+        .height(22.0)
+        .onClick(downloadsOpenFolder)
+    }
+}
+
+// One row, read once rather than once per field: a row that asked the engine
+// again for each of its six texts could draw a name from one download beside a
+// size from the next.
+function downloadRowAt(index: Int) -> Any Widget {
+    let item = downloadsRowAt(index)
+    return DownloadRow(
+        id = item.id,
+        name = item.fileName,
+        state = item.state,
+        total = item.total,
+        completed = item.completed,
+        error = item.error,
+        url = item.url
+    )
+}
+
+Widget DownloadsList() {
+    body {
+        VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
+            For(index in indices(downloadsRowCount())) {
+                downloadRowAt(index)
+            }
+        }
+    }
+}
+
+// What the sidebar places. It draws nothing at all while the panel is closed,
+// so the column it sits in keeps its shape.
+Widget DownloadsPanel() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            if downloadsPanelIsOpen() {
+                DownloadsPanelBody()
+            }
+        }
+    }
+}
+
+Widget DownloadsPanelBody() {
+    body {
+        Panel(radius = CornerRadius.Medium) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
+                VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
+                    DownloadsPanelHeader()
+
+                    Divider()
+                        .themeBorder(.Subtle)
+
+                    if downloadsRowCount() == 0 {
+                        DownloadsEmptyState()
+                    }
+
+                    DownloadsList()
+
+                    if downloadsHiddenCount() > 0 {
+                        DownloadsOverflowNote(hidden = downloadsHiddenCount())
+                    }
+                }
+            }
+        }
+        .backgroundStyle(.Raised)
+        .themeBorder(.Subtle)
+        .width(downloadsPanelWidth())
+        .hugHeight()
+    }
+}
+
+// The control that opens the panel. It carries the count of what is still
+// running, which is the only thing a browser's download button ever says.
+Widget DownloadsButton() {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            ControlSlot(active = downloadsPanelIsOpen()) {
+                Icon(.DownloadSimple)
+                    .imageScale(.Small)
+            }
+
+            if downloadsActiveCount() > 0 {
+                Text(String(downloadsActiveCount()))
+                    .typography(.caption)
+                    .foregroundColor(.Accent)
+            }
+        }
+        .hugWidth()
+        .onClick(downloadsTogglePanel)
+    }
+}

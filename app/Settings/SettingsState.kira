@@ -1,0 +1,330 @@
+import KiraUI
+
+// The settings panel's own state, and every press it answers.
+//
+// The values are the native module's and a build reads them fresh, so nothing
+// here caches a preference. What IS owned here is the part of a preferences
+// panel with no meaning below the interface: whether it is open, which search
+// engine is being edited, and what the editable fields were last seeded with.
+construct HarmonySettingsStore {
+    @Required let version: Int
+}
+
+HarmonySettingsStore HarmonySettings() {
+    @State var panelOpen: Bool = false
+
+    // Which engine the two fields are editing: an index into the list, or -1
+    // while they are describing a new one.
+    @State var editingEngine: Int = -1
+
+    // What the fields were last filled from. A field owns its buffer, so it is
+    // only refilled when the row it belongs to has actually changed underneath
+    // it -- otherwise an edit in progress would be deleted by its own frame.
+    @State var seededEngine: Int = -2
+    @State var seededHome: String = ""
+
+    @State var presentedRevision: Int = -1
+    let version: Int = 1
+
+    function isOpen() -> Bool {
+        return panelOpen
+    }
+
+    function setOpen(value: Bool) {
+        panelOpen = value
+        return
+    }
+
+    // --- The engine being edited ---------------------------------------------
+
+    function editingIndex() -> Int {
+        return editingEngine
+    }
+
+    function editEngine(index: Int) {
+        editingEngine = index
+        return
+    }
+
+    function seededIndex() -> Int {
+        return seededEngine
+    }
+
+    function markEngineSeeded(index: Int) {
+        seededEngine = index
+        return
+    }
+
+    // --- The home field -------------------------------------------------------
+
+    function seededHomeValue() -> String {
+        return seededHome
+    }
+
+    function markHomeSeeded(url: String) {
+        seededHome = move url
+        return
+    }
+
+    // --- Rebuild invalidation -------------------------------------------------
+
+    function presentedRevisionValue() -> Int {
+        return presentedRevision
+    }
+
+    function recordPresented(revision: Int) {
+        presentedRevision = revision
+        return
+    }
+}
+
+// --- The panel ----------------------------------------------------------------
+
+function harmonySettingsPanelIsOpen() -> Bool {
+    return HarmonySettings().isOpen()
+}
+
+function harmonySettingsPanelClose() {
+    HarmonySettings().setOpen(false)
+    return
+}
+
+// Opening this closes the tab menus and the site menu. Two panels open at once
+// is two panels a press has to be aimed between.
+function harmonySettingsPanelToggle() {
+    let store = HarmonySettings()
+    let next = store.isOpen() == false
+    store.setOpen(next)
+    if next {
+        harmonyTabsDismissMenus()
+        harmonyBrowserMenuClose()
+    }
+    return
+}
+
+// True while a setting has moved that the panel has not drawn yet.
+//
+// A setting can move without an input event this browser saw: a folder picker
+// runs on a thread of its own and answers whenever the person using it is done.
+// The interactive runner skips the widget build on a frame that saw no input, so
+// without this the panel would keep showing the folder that was chosen before.
+function harmonySettingsNeedsRebuild() -> Bool {
+    let store = HarmonySettings()
+    let revision = harmonySettingsRevision()
+    if revision == store.presentedRevisionValue() {
+        return false
+    }
+    store.recordPresented(revision)
+    return true
+}
+
+// --- The editable fields --------------------------------------------------------
+
+function harmonySettingsHomeFieldKey() -> Int {
+    return 41200
+}
+
+function harmonySettingsEngineNameFieldKey() -> Int {
+    return 41201
+}
+
+function harmonySettingsEngineQueryFieldKey() -> Int {
+    return 41202
+}
+
+// What the home field is seeded with this frame.
+//
+// TextField fills its buffer from `initial` exactly once per key, so a home
+// address changed anywhere else -- another window, the file on disk -- would
+// otherwise leave the field reading what it held when it was first mounted.
+// Re-seeding resets that buffer, and resetting it under an edit nobody has
+// submitted would delete what was typed. So it is reset only while it still
+// holds exactly what it was last seeded with.
+function harmonySettingsHomeFieldText() -> String {
+    let store = HarmonySettings()
+    let live = harmonySettingsHomeURL()
+    let seeded = store.seededHomeValue()
+    if live == seeded {
+        return seeded
+    }
+    if textFieldText(harmonySettingsHomeFieldKey()) != seeded {
+        return seeded
+    }
+    textFieldReset(harmonySettingsHomeFieldKey())
+    store.markHomeSeeded(move live)
+    return harmonySettingsHomeURL()
+}
+
+function harmonySettingsSubmitHome() {
+    let typed = textFieldText(harmonySettingsHomeFieldKey())
+    HarmonySettings().markHomeSeeded(textFieldText(harmonySettingsHomeFieldKey()))
+    harmonySettingsSetHomeURL(move typed)
+    return
+}
+
+// The engine the two fields describe. Row -1 is a new engine, and its fields
+// start empty.
+function harmonySettingsEditedEngine() -> SearchEngine {
+    let index = HarmonySettings().editingIndex()
+    if index < 0 {
+        return SearchEngine {}
+    }
+    return harmonySettingsEngineAt(index)
+}
+
+// Refills both fields when the row they belong to has changed. Called once per
+// build, before either field is read, so the two are always filled from the same
+// engine.
+function harmonySettingsSyncEngineFields() {
+    let store = HarmonySettings()
+    let index = store.editingIndex()
+    if index == store.seededIndex() {
+        return
+    }
+    textFieldReset(harmonySettingsEngineNameFieldKey())
+    textFieldReset(harmonySettingsEngineQueryFieldKey())
+    store.markEngineSeeded(index)
+    return
+}
+
+function harmonySettingsEngineNameFieldText() -> String {
+    harmonySettingsSyncEngineFields()
+    return harmonySettingsEditedEngine().name
+}
+
+function harmonySettingsEngineQueryFieldText() -> String {
+    harmonySettingsSyncEngineFields()
+    return harmonySettingsEditedEngine().query
+}
+
+// --- Search engine actions --------------------------------------------------------
+
+// Adds what the fields describe, or rewrites the row they were opened on. The
+// fields are cleared afterwards, so the panel is ready for the next one rather
+// than still showing the last.
+function harmonySettingsCommitEngine() {
+    let name = textFieldText(harmonySettingsEngineNameFieldKey()).trim()
+    let query = textFieldText(harmonySettingsEngineQueryFieldKey()).trim()
+    if name.count == 0 || harmonySettingsQueryIsUsable(query) == false {
+        return
+    }
+
+    let store = HarmonySettings()
+    let index = store.editingIndex()
+    if index < 0 {
+        // The index the engine landed at is not needed: the list is read back
+        // whole on the next build, and the new engine is the last row of it.
+        let ignored = nativeSettingsAddEngine(name, query)
+    } else {
+        nativeSettingsUpdateEngine(I32(index), name, query)
+    }
+
+    store.editEngine(-1)
+    // The fields belong to the row that was being edited, and that row is done.
+    store.markEngineSeeded(-2)
+    return
+}
+
+// Whether the fields hold something that could be committed. A query with no
+// place for the phrase is not a search engine, and the button says so by
+// receding rather than by failing when it is pressed.
+function harmonySettingsEngineDraftIsUsable() -> Bool {
+    if textFieldText(harmonySettingsEngineNameFieldKey()).trim().count == 0 {
+        return false
+    }
+    return harmonySettingsQueryIsUsable(textFieldText(harmonySettingsEngineQueryFieldKey()))
+}
+
+function harmonySettingsChooseEngineAction(index: Int) -> () -> Void {
+    let target = index
+    let press: () -> Void = { in
+        nativeSettingsSetEngineDefault(I32(target))
+        return
+    }
+    return press
+}
+
+function harmonySettingsEditEngineAction(index: Int) -> () -> Void {
+    let target = index
+    let press: () -> Void = { in
+        HarmonySettings().editEngine(target)
+        return
+    }
+    return press
+}
+
+function harmonySettingsRemoveEngineAction(index: Int) -> () -> Void {
+    let target = index
+    let press: () -> Void = { in
+        nativeSettingsRemoveEngine(I32(target))
+        // The row the fields were opened on may no longer be the row at that
+        // index, so the edit is abandoned with it.
+        HarmonySettings().editEngine(-1)
+        HarmonySettings().markEngineSeeded(-2)
+        return
+    }
+    return press
+}
+
+function harmonySettingsCancelEngineEdit() {
+    HarmonySettings().editEngine(-1)
+    HarmonySettings().markEngineSeeded(-2)
+    return
+}
+
+// --- Everything else a press does ---------------------------------------------
+
+function harmonySettingsStartupAction(behaviour: StartupBehaviour) -> () -> Void {
+    let target = behaviour
+    let press: () -> Void = { in
+        harmonySettingsSetStartup(target)
+        return
+    }
+    return press
+}
+
+function harmonySettingsZoomAction(percent: Int) -> () -> Void {
+    let target = percent
+    let press: () -> Void = { in
+        harmonySettingsSetDefaultZoom(target)
+        return
+    }
+    return press
+}
+
+function harmonySettingsToggleJavaScript() {
+    nativeSettingsSetJavaScriptEnabled(harmonySettingsFlag(harmonySettingsJavaScriptEnabled() == false))
+    return
+}
+
+function harmonySettingsToggleImages() {
+    nativeSettingsSetImagesEnabled(harmonySettingsFlag(harmonySettingsImagesEnabled() == false))
+    return
+}
+
+function harmonySettingsTogglePopups() {
+    nativeSettingsSetPopupsEnabled(harmonySettingsFlag(harmonySettingsPopupsEnabled() == false))
+    return
+}
+
+function harmonySettingsToggleDoNotTrack() {
+    nativeSettingsSetDoNotTrack(harmonySettingsFlag(harmonySettingsDoNotTrack() == false))
+    return
+}
+
+function harmonySettingsChooseDownloadFolder() {
+    nativeSettingsChooseDownloadDirectory()
+    return
+}
+
+// Hands the folder back to the one Windows nominates, which is where a browser
+// that has never been told otherwise puts a file.
+function harmonySettingsUseDefaultDownloadFolder() {
+    nativeSettingsSetDownloadDirectory("")
+    return
+}
+
+function harmonySettingsRevealDownloadFolder() {
+    downloadsNativeRevealDirectory()
+    return
+}

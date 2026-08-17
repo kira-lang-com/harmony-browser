@@ -1,0 +1,77 @@
+// The context-menu system's C surface, one declaration per export.
+//
+// The menu itself is native, because the menu itself is Windows': WebKit's
+// Windows port builds a real popup menu out of the items this browser hands
+// back and tracks it over the page's own window. What crosses into Kira is not
+// the menu but the DECISION -- "open this address in a new tab", "save this
+// link" -- so the systems that own those actions carry them out through the same
+// calls the rest of the interface uses.
+//
+// Nothing outside `app/Menus` calls these: `MenusCommands.kira` is where the
+// browser finds them, in Kira types.
+
+@FFI.Extern { library: harmony_browser; symbol: hb_menus_attach; abi: c; }
+function nativeMenusAttach() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_menus_shutdown; abi: c; }
+function nativeMenusShutdown() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_menus_next_command; abi: c; }
+function nativeMenusNextCommand() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_menus_command_text; abi: c; }
+function nativeMenusCommandText() -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_menus_command_tab; abi: c; }
+function nativeMenusCommandTab() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_menus_revision; abi: c; }
+function nativeMenusRevision() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_menus_error; abi: c; }
+function nativeMenusError() -> CString;
+
+// --- The kinds, in the order harmony_menus.h numbers them --------------------
+
+function harmonyMenuCommandNone() -> Int {
+    return 0
+}
+
+function harmonyMenuCommandOpenInNewTab() -> Int {
+    return 1
+}
+
+function harmonyMenuCommandOpenInBackgroundTab() -> Int {
+    return 2
+}
+
+function harmonyMenuCommandSaveAs() -> Int {
+    return 3
+}
+
+function harmonyMenuCommandBack() -> Int {
+    return 4
+}
+
+function harmonyMenuCommandForward() -> Int {
+    return 5
+}
+
+function harmonyMenuCommandReload() -> Int {
+    return 6
+}
+
+function harmonyMenuCommandStop() -> Int {
+    return 7
+}
+
+// --- The Kira-side surface ---------------------------------------------------
+
+function harmonyMenusRevision() -> Int {
+    return Int(nativeMenusRevision())
+}
+
+// Why a menu item did nothing, when one did not. Empty when nothing is wrong.
+function harmonyMenusDiagnostic() -> String {
+    return nativeMenusError()
+}

@@ -1,0 +1,117 @@
+// The data store's C surface, one declaration per export.
+//
+// Everything here is a read of, or a request against, state the WebKit thread
+// and the profile's own disk worker own. Reads answer from a published
+// snapshot and never enter WebKit or touch disk; requests are queued and
+// serviced on those threads. So a widget may call any of them during a build
+// without the frame waiting on a page or on a directory walk.
+//
+// Nothing outside this file calls these directly: `DataStoreState.kira` is
+// where a caller finds them, with Kira types and the panel's own selection as
+// arguments.
+
+// --- Lifecycle ---------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_ready; abi: c; }
+function hbDataReady() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_shutdown; abi: c; }
+function hbDataShutdown() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_profile_path; abi: c; }
+function hbDataProfilePath() -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_error; abi: c; }
+function hbDataError() -> CString;
+
+// --- Private browsing --------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_open_private_tab; abi: c; }
+function hbDataOpenPrivateTab(url: CString) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_tab_is_private; abi: c; }
+function hbDataTabIsPrivate(tabId: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_private_tab_count; abi: c; }
+function hbDataPrivateTabCount() -> I32;
+
+// --- Records -----------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_request_records; abi: c; }
+function hbDataRequestRecords() -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_records_pending; abi: c; }
+function hbDataRecordsPending() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_records_generation; abi: c; }
+function hbDataRecordsGeneration() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_record_count; abi: c; }
+function hbDataRecordCount() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_record_origin; abi: c; }
+function hbDataRecordOrigin(index: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_record_host; abi: c; }
+function hbDataRecordHost(index: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_record_size; abi: c; }
+function hbDataRecordSize(index: I32) -> Float;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_record_types; abi: c; }
+function hbDataRecordTypes(index: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_record_last_used; abi: c; }
+function hbDataRecordLastUsed(index: I32) -> Float;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_records_total_size; abi: c; }
+function hbDataRecordsTotalSize() -> Float;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_type_size; abi: c; }
+function hbDataTypeSize(kind: I32) -> Float;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_now; abi: c; }
+function hbDataNow() -> Float;
+
+// --- Removal -----------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_remove_origin; abi: c; }
+function hbDataRemoveOrigin(origin: CString) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_clear; abi: c; }
+function hbDataClear(types: I32, range: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_clear_pending; abi: c; }
+function hbDataClearPending() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_clear_generation; abi: c; }
+function hbDataClearGeneration() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_cleared_bytes; abi: c; }
+function hbDataClearedBytes() -> Float;
+
+// --- Session -----------------------------------------------------------------
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_restore_count; abi: c; }
+function hbDataSessionCount() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_restore_url; abi: c; }
+function hbDataSessionURL(index: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_restore_title; abi: c; }
+function hbDataSessionTitle(index: I32) -> CString;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_restore_pinned; abi: c; }
+function hbDataSessionPinned(index: I32) -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_restore_active_index; abi: c; }
+function hbDataSessionActiveIndex() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_adopt; abi: c; }
+function hbDataSessionAdopt(index: I32, tabId: I32) -> Void;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_restore_pending; abi: c; }
+function hbDataSessionRestorePending() -> I32;
+
+@FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_restore_finished; abi: c; }
+function hbDataSessionRestoreFinished() -> Void;

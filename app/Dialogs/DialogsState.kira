@@ -1,0 +1,296 @@
+import KiraUI
+
+// The question the host is showing, held on this side so the widget tree can be
+// rebuilt every frame without reading the wrapper's strings again, and so the
+// answer a person gives closes the dialog on the frame they give it.
+construct HarmonyDialogStore {
+    @Required let version: Int
+}
+
+HarmonyDialogStore HarmonyDialogState() {
+    @State var requestId: Int = 0
+    @State var kindValue: Int = 0
+    @State var flagsValue: Int = 0
+    @State var codeValue: Int = 0
+    @State var messageValue: String = ""
+    @State var originValue: String = ""
+    @State var detailValue: String = ""
+    @State var defaultValueText: String = ""
+    @State var rememberValue: Bool = false
+    @State var certificateDetailOpen: Bool = false
+    // The last diagnostic a person waved away. The wrapper's own diagnostic
+    // stays set until something else fails, so what makes a notice stale is
+    // having been read, and this is the record of that.
+    @State var noticeDismissed: String = ""
+    let version: Int = 1
+
+    function currentRequest() -> Int {
+        return requestId
+    }
+
+    function kind() -> HarmonyDialogKind {
+        return harmonyDialogKind(kindValue)
+    }
+
+    function flags() -> Int {
+        return flagsValue
+    }
+
+    function code() -> Int {
+        return codeValue
+    }
+
+    function message() -> String {
+        return messageValue
+    }
+
+    function origin() -> String {
+        return originValue
+    }
+
+    function detail() -> String {
+        return detailValue
+    }
+
+    function defaultValue() -> String {
+        return defaultValueText
+    }
+
+    function remember() -> Bool {
+        return rememberValue
+    }
+
+    function certificateDetailShown() -> Bool {
+        return certificateDetailOpen
+    }
+
+    function dismissedNotice() -> String {
+        return noticeDismissed
+    }
+
+    function dismissNotice(text: String) {
+        noticeDismissed = move text
+        return
+    }
+
+    function toggleRemember() {
+        rememberValue = rememberValue == false
+        return
+    }
+
+    function toggleCertificateDetail() {
+        certificateDetailOpen = certificateDetailOpen == false
+        return
+    }
+
+    // Takes on whatever the wrapper is now parking. The id is the identity: a
+    // new one means new text and fields that have to start empty again, and the
+    // same one means the dialog on screen is still the dialog being asked.
+    function sync(active: Int) {
+        if active == requestId {
+            return
+        }
+        requestId = active
+        rememberValue = false
+        certificateDetailOpen = false
+        textFieldReset(harmonyDialogPromptFieldKey())
+        textFieldReset(harmonyDialogUserFieldKey())
+        textFieldReset(harmonyDialogPasswordFieldKey())
+
+        if active == 0 {
+            kindValue = 0
+            flagsValue = 0
+            codeValue = 0
+            messageValue = ""
+            originValue = ""
+            detailValue = ""
+            defaultValueText = ""
+            return
+        }
+
+        let handle = I32(active)
+        kindValue = Int(dialogsRequestKind(handle))
+        flagsValue = Int(dialogsRequestFlags(handle))
+        codeValue = Int(dialogsRequestCode(handle))
+        messageValue = dialogsRequestMessage(handle)
+        originValue = dialogsRequestOrigin(handle)
+        detailValue = dialogsRequestDetail(handle)
+        defaultValueText = dialogsRequestDefaultValue(handle)
+        return
+    }
+
+    // Closes the dialog here rather than waiting to be told it closed. The
+    // wrapper stops reporting an answered request, so the next frame agrees; not
+    // doing it would leave the dialog on screen for the frame after the press.
+    function close() {
+        requestId = 0
+        kindValue = 0
+        flagsValue = 0
+        codeValue = 0
+        messageValue = ""
+        originValue = ""
+        detailValue = ""
+        defaultValueText = ""
+        rememberValue = false
+        certificateDetailOpen = false
+        return
+    }
+}
+
+// The text fields a dialog owns. They sit in the application band rather than
+// the auto-key range, because their contents are read by key when the dialog is
+// answered.
+function harmonyDialogPromptFieldKey() -> Int {
+    return 42001
+}
+
+function harmonyDialogUserFieldKey() -> Int {
+    return 42002
+}
+
+function harmonyDialogPasswordFieldKey() -> Int {
+    return 42003
+}
+
+function harmonyDialogScrimKey() -> Int {
+    return 42010
+}
+
+function harmonyDialogIsPresenting() -> Bool {
+    return HarmonyDialogState().currentRequest() != 0
+}
+
+// A sheet is every question but the certificate one, which replaces the page
+// rather than floating over it.
+function harmonyDialogIsSheet() -> Bool {
+    let state = HarmonyDialogState()
+    if state.currentRequest() == 0 {
+        return false
+    }
+    var sheet = false
+    match state.kind() {
+        None -> {}
+        Alert -> { sheet = true }
+        Confirm -> { sheet = true }
+        Prompt -> { sheet = true }
+        BeforeUnload -> { sheet = true }
+        Authenticate -> { sheet = true }
+        Certificate -> {}
+    }
+    return sheet
+}
+
+function harmonyDialogIsCertificate() -> Bool {
+    let state = HarmonyDialogState()
+    if state.currentRequest() == 0 {
+        return false
+    }
+    var interstitial = false
+    match state.kind() {
+        None -> {}
+        Alert -> {}
+        Confirm -> {}
+        Prompt -> {}
+        BeforeUnload -> {}
+        Authenticate -> {}
+        Certificate -> { interstitial = true }
+    }
+    return interstitial
+}
+
+// --- Answers -----------------------------------------------------------------
+
+// The accepting answer for whichever question is up: an alert dismissed, a
+// confirmation agreed to, a prompt submitted with what was typed, a page left.
+function harmonyDialogAccept() {
+    let state = HarmonyDialogState()
+    let id = state.currentRequest()
+    if id == 0 {
+        return
+    }
+    match state.kind() {
+        None -> {}
+        Alert -> { dialogsRespondAccept(I32(id)) }
+        Confirm -> { dialogsRespondAccept(I32(id)) }
+        Prompt -> { dialogsRespondText(I32(id), textFieldText(harmonyDialogPromptFieldKey())) }
+        BeforeUnload -> { dialogsRespondAccept(I32(id)) }
+        Authenticate -> {
+            dialogsRespondCredential(
+                I32(id),
+                textFieldText(harmonyDialogUserFieldKey()),
+                textFieldText(harmonyDialogPasswordFieldKey()),
+                state.remember() ? 1 : 0
+            )
+        }
+        Certificate -> { dialogsRespondTrust(I32(id), state.remember() ? 1 : 0) }
+    }
+    state.close()
+    return
+}
+
+// The refusing answer: a confirmation declined, a prompt cancelled, a page kept,
+// a sign-in abandoned, a certificate refused.
+function harmonyDialogDismiss() {
+    let state = HarmonyDialogState()
+    let id = state.currentRequest()
+    if id == 0 {
+        return
+    }
+    dialogsRespondDismiss(I32(id))
+    state.close()
+    return
+}
+
+// An alert has one button, so pressing outside it can only mean the same thing
+// the button means. Every other sheet reads a press outside as the refusal,
+// which is the answer that changes nothing.
+function harmonyDialogScrimPressed() {
+    let state = HarmonyDialogState()
+    match state.kind() {
+        None -> {}
+        Alert -> { harmonyDialogAccept() }
+        Confirm -> { harmonyDialogDismiss() }
+        Prompt -> { harmonyDialogDismiss() }
+        BeforeUnload -> { harmonyDialogDismiss() }
+        Authenticate -> { harmonyDialogDismiss() }
+        Certificate -> {}
+    }
+    return
+}
+
+// --- The notice ---------------------------------------------------------------
+
+// What the browser itself could not do, from either of the two systems that
+// answer a page's questions. The page cannot be told any of this — a picker that
+// would not open is not a file the page can be handed — so it is said here, once,
+// to the person who pressed the button.
+function harmonyBrowserNoticeText() -> String {
+    let dialogs = harmonyDialogsDiagnostic()
+    if dialogs.count > 0 {
+        return dialogs
+    }
+    return harmonyPermissionDiagnostic()
+}
+
+function harmonyBrowserNoticeVisible() -> Bool {
+    let text = harmonyBrowserNoticeText()
+    if text.count == 0 {
+        return false
+    }
+    return text != HarmonyDialogState().dismissedNotice()
+}
+
+function harmonyBrowserNoticeDismiss() {
+    HarmonyDialogState().dismissNotice(harmonyBrowserNoticeText())
+    return
+}
+
+function harmonyDialogToggleRemember() {
+    HarmonyDialogState().toggleRemember()
+    return
+}
+
+function harmonyDialogToggleCertificateDetail() {
+    HarmonyDialogState().toggleCertificateDetail()
+    return
+}

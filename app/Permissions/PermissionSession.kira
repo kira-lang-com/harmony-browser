@@ -1,0 +1,130 @@
+import KiraUI
+
+// The question currently on screen, and the settings panel's own open state.
+//
+// One question at a time: WebKit queues the rest and this adopts the next one
+// as soon as this one is answered, which is what keeps a page that asks for
+// three things from stacking three prompts over the toolbar.
+struct HarmonyPermissionSession {
+    var requestId: Int = 0
+    var kind: PermissionKind = PermissionKind.Geolocation
+    var origin: String = ""
+    // A person answering for a site usually means it, so the answer is kept by
+    // default and the toggle is there to make it a one-off.
+    var remember: Bool = true
+    // The last request this browser answered, so the prompt is not raised again
+    // from a queue the WebKit thread has not finished draining.
+    var lastResolvedId: Int = 0
+    var panelOpen: Bool = false
+    var panelOrigin: String = ""
+}
+
+function harmonyPermissionSessionSlotKey() -> String {
+    return "harmony.permissions.session"
+}
+
+function harmonyPermissionSession() -> HarmonyPermissionSession {
+    if kiraUiStateSlotHas(harmonyPermissionSessionSlotKey()) == false {
+        kiraUiStateSlotPut(
+            harmonyPermissionSessionSlotKey(),
+            nativeUserData(nativeState(HarmonyPermissionSession {}))
+        )
+    }
+    return nativeRecover<HarmonyPermissionSession>(
+        kiraUiStateSlotGet(harmonyPermissionSessionSlotKey())
+    )
+}
+
+// --- What the prompt is asking ----------------------------------------------
+
+function harmonyPermissionPromptActive() -> Bool {
+    return harmonyPermissionSession().requestId != 0
+}
+
+function harmonyPermissionPromptKind() -> PermissionKind {
+    return harmonyPermissionSession().kind
+}
+
+function harmonyPermissionPromptOrigin() -> String {
+    return "" + harmonyPermissionSession().origin
+}
+
+function harmonyPermissionPromptRemember() -> Bool {
+    return harmonyPermissionSession().remember
+}
+
+function harmonyPermissionAdopt(requestId: Int, kind: PermissionKind, origin: borrow String) {
+    var session = harmonyPermissionSession()
+    session.requestId = requestId
+    session.kind = kind
+    session.origin = "" + origin
+    session.remember = true
+    return
+}
+
+function harmonyPermissionClearPrompt(resolvedId: Int) {
+    var session = harmonyPermissionSession()
+    session.requestId = 0
+    session.lastResolvedId = resolvedId
+    session.origin = ""
+    session.remember = true
+    return
+}
+
+function harmonyPermissionLastResolvedId() -> Int {
+    return harmonyPermissionSession().lastResolvedId
+}
+
+function harmonyPermissionToggleRemember() {
+    var session = harmonyPermissionSession()
+    session.remember = session.remember == false
+    return
+}
+
+// --- The settings panel -----------------------------------------------------
+
+function harmonyPermissionPanelOpen() -> Bool {
+    return harmonyPermissionSession().panelOpen
+}
+
+// The origin whose permissions the panel is expanded on, empty when the list is
+// showing every site at once.
+function harmonyPermissionPanelOrigin() -> String {
+    return "" + harmonyPermissionSession().panelOrigin
+}
+
+function harmonyPermissionPanelToggle() {
+    var session = harmonyPermissionSession()
+    let opening = session.panelOpen == false
+    session.panelOpen = opening
+    if opening == false {
+        session.panelOrigin = ""
+    }
+    return
+}
+
+function harmonyPermissionPanelClose() {
+    var session = harmonyPermissionSession()
+    session.panelOpen = false
+    session.panelOrigin = ""
+    return
+}
+
+// Opens the panel already expanded on one site, which is what the lock beside
+// the address is for.
+function harmonyPermissionPanelOpenAt(origin: borrow String) {
+    var session = harmonyPermissionSession()
+    session.panelOpen = true
+    session.panelOrigin = "" + origin
+    return
+}
+
+function harmonyPermissionPanelExpand(origin: borrow String) {
+    var session = harmonyPermissionSession()
+    if session.panelOrigin == origin {
+        session.panelOrigin = ""
+        return
+    }
+    session.panelOrigin = "" + origin
+    return
+}

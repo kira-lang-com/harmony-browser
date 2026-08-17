@@ -1,0 +1,267 @@
+// What a person typed, turned into the URL a page loads.
+//
+// The rule a browser's address bar follows is not "is this a URL" but "did the
+// person mean a place or a question". A scheme means a place. A host with a dot
+// in it means a place. Anything else is a question, and a question goes to a
+// search engine. This is the one place that decision is made: the model stores
+// what it produced, so the address bar can show the same text the page loaded.
+
+// The search a phrase that names no place is answered with. The query is
+// appended percent-encoded.
+function harmonyNavigationSearchPrefix() -> String {
+    return "https://www.google.com/search?q="
+}
+
+function harmonyNavigationIsAlphaByte(byte: Int) -> Bool {
+    if byte >= 65 && byte <= 90 {
+        return true
+    }
+    return byte >= 97 && byte <= 122
+}
+
+function harmonyNavigationIsDigitByte(byte: Int) -> Bool {
+    return byte >= 48 && byte <= 57
+}
+
+// A byte a URL may carry unescaped: RFC 3986's unreserved set.
+function harmonyNavigationIsUnreservedByte(byte: Int) -> Bool {
+    if harmonyNavigationIsAlphaByte(byte) || harmonyNavigationIsDigitByte(byte) {
+        return true
+    }
+    return byte == 45 || byte == 46 || byte == 95 || byte == 126
+}
+
+// A byte a scheme may carry after its first letter: letters, digits, '+', '-'
+// and '.'.
+function harmonyNavigationIsSchemeByte(byte: Int) -> Bool {
+    if harmonyNavigationIsAlphaByte(byte) || harmonyNavigationIsDigitByte(byte) {
+        return true
+    }
+    return byte == 43 || byte == 45 || byte == 46
+}
+
+// A byte a host label may carry: letters, digits, '-' and the label separator.
+// Brackets are here for an IPv6 literal, which is written inside them.
+function harmonyNavigationIsHostByte(byte: Int) -> Bool {
+    if harmonyNavigationIsAlphaByte(byte) || harmonyNavigationIsDigitByte(byte) {
+        return true
+    }
+    if byte == 45 || byte == 46 {
+        return true
+    }
+    return byte == 58 || byte == 91 || byte == 93
+}
+
+function harmonyNavigationHasSpace(text: String) -> Bool {
+    var index = 0
+    while index < text.count {
+        if text.charAt(index) <= 32 {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+// The index of the ':' that closes a scheme, or -1 when the text opens with
+// none.
+function harmonyNavigationSchemeEnd(text: String) -> Int {
+    if text.count == 0 {
+        return -1
+    }
+    if harmonyNavigationIsAlphaByte(text.charAt(0)) == false {
+        return -1
+    }
+
+    var index = 1
+    while index < text.count {
+        let byte = text.charAt(index)
+        if byte == 58 {
+            return index
+        }
+        if harmonyNavigationIsSchemeByte(byte) == false {
+            return -1
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+function harmonyNavigationHasAuthority(text: String, schemeEnd: Int) -> Bool {
+    if schemeEnd + 3 > text.count {
+        return false
+    }
+    return text.substring(schemeEnd, schemeEnd + 3) == "://"
+}
+
+// Whether what follows the colon is a port. A scheme may hold dots, so
+// "example.com:8080" parses as one; the digits behind the colon are what say it
+// is a host and a port instead.
+function harmonyNavigationColonOpensPort(text: String, schemeEnd: Int) -> Bool {
+    if schemeEnd + 1 >= text.count {
+        return false
+    }
+    return harmonyNavigationIsDigitByte(text.charAt(schemeEnd + 1))
+}
+
+// A one-letter scheme on Windows is a drive letter and the text behind it is a
+// path on this machine.
+function harmonyNavigationIsDrivePath(text: String, schemeEnd: Int) -> Bool {
+    if schemeEnd != 1 || text.count < 3 {
+        return false
+    }
+    let separator = text.charAt(2)
+    return separator == 92 || separator == 47
+}
+
+function harmonyNavigationFileURL(path: String) -> String {
+    return "file:///" + path.replace("\\", "/")
+}
+
+// The text up to the first '/', '?' or '#': the part of a bare address that
+// would be the authority once a scheme is put in front of it.
+function harmonyNavigationAuthorityOf(text: String) -> String {
+    var index = 0
+    while index < text.count {
+        let byte = text.charAt(index)
+        if byte == 47 || byte == 63 || byte == 35 {
+            return text.substring(0, index)
+        }
+        index = index + 1
+    }
+    return text
+}
+
+// The authority without its userinfo, which is everything before the last '@'.
+function harmonyNavigationHostOf(authority: String) -> String {
+    var at = -1
+    var index = 0
+    while index < authority.count {
+        if authority.charAt(index) == 64 {
+            at = index
+        }
+        index = index + 1
+    }
+    if at < 0 {
+        return authority
+    }
+    return authority.substring(at + 1, authority.count)
+}
+
+// Whether every byte of a host is one a host may carry, and whether it holds a
+// label on each side of a dot.
+function harmonyNavigationIsResolvableHost(host: String) -> Bool {
+    if host.count == 0 {
+        return false
+    }
+
+    var index = 0
+    while index < host.count {
+        if harmonyNavigationIsHostByte(host.charAt(index)) == false {
+            return false
+        }
+        index = index + 1
+    }
+
+    // A machine on the local network is named without a dot, and is the one
+    // name a browser resolves anyway.
+    if host == "localhost" || host.startsWith("localhost:") {
+        return true
+    }
+
+    let dot = host.indexOf(".")
+    if dot <= 0 {
+        return false
+    }
+    return host.charAt(host.count - 1) != 46
+}
+
+// Whether the text names a place that can be reached by putting a scheme in
+// front of it.
+function harmonyNavigationLooksLikeHost(text: String) -> Bool {
+    if harmonyNavigationHasSpace(text) {
+        return false
+    }
+    return harmonyNavigationIsResolvableHost(harmonyNavigationHostOf(harmonyNavigationAuthorityOf(text)))
+}
+
+function harmonyNavigationHexDigit(value: Int) -> String {
+    return "0123456789ABCDEF".substring(value, value + 1)
+}
+
+// The percent-encoding a query needs. The text is walked a byte at a time, so a
+// character outside ASCII is encoded as the UTF-8 bytes it is made of, which is
+// what a server expects to read back.
+function harmonyNavigationPercentEncoded(text: String) -> String {
+    var encoded = ""
+    var index = 0
+    while index < text.count {
+        let byte = text.charAt(index)
+        if harmonyNavigationIsUnreservedByte(byte) {
+            encoded = encoded + text.substring(index, index + 1)
+        } else {
+            encoded = encoded + "%" + harmonyNavigationHexDigit(byte / 16) + harmonyNavigationHexDigit(byte % 16)
+        }
+        index = index + 1
+    }
+    return encoded
+}
+
+function harmonyNavigationSearchURL(query: String) -> String {
+    return harmonyNavigationSearchPrefix() + harmonyNavigationPercentEncoded(query)
+}
+
+// The URL a typed address loads. Empty text loads nothing, and is answered with
+// nothing rather than with a search for nothing.
+function harmonyNavigationNormalizedURL(input: String) -> String {
+    let text = input.trim()
+    if text.count == 0 {
+        return ""
+    }
+
+    let schemeEnd = harmonyNavigationSchemeEnd(text)
+    if schemeEnd > 0 {
+        if harmonyNavigationIsDrivePath(text, schemeEnd) {
+            return harmonyNavigationFileURL(text)
+        }
+        if harmonyNavigationHasAuthority(text, schemeEnd) {
+            return text
+        }
+        // Without an authority the scheme is opaque — `about:`, `mailto:`,
+        // `data:` — and the text is already the URL, unless the colon was only
+        // ever a port.
+        if harmonyNavigationColonOpensPort(text, schemeEnd) == false {
+            return text
+        }
+    }
+
+    if harmonyNavigationLooksLikeHost(text) {
+        return "https://" + text
+    }
+    return harmonyNavigationSearchURL(text)
+}
+
+// The URL as an address bar shows it: without the scheme every page has, and
+// without the trailing slash a bare host is written with.
+function harmonyNavigationDisplayAddress(url: String) -> String {
+    if url.count == 0 {
+        return ""
+    }
+
+    var text = url.substring(0, url.count)
+    if url.startsWith("https://") {
+        text = url.substring(8, url.count)
+    } else {
+        if url.startsWith("http://") {
+            text = url.substring(7, url.count)
+        }
+    }
+
+    if text.startsWith("www.") {
+        text = text.substring(4, text.count)
+    }
+    if text.count > 1 && text.charAt(text.count - 1) == 47 && text.indexOf("/") == text.count - 1 {
+        text = text.substring(0, text.count - 1)
+    }
+    return text
+}

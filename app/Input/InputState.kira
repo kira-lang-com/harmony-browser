@@ -1,0 +1,137 @@
+import KiraUI
+
+// What the input system is, in Kira's vocabulary: the codes the native side
+// speaks, the two fields the chrome can be typing into, and the little the host
+// has to remember between frames.
+//
+// The codes are stated here rather than inlined at the call sites because they
+// are a wire format: `harmony_input.h` writes the same numbers, and a browser
+// whose Ctrl+T came out as "close the tab" would be a browser nobody could
+// debug from either side alone.
+
+// --- Event kinds ------------------------------------------------------------
+
+function harmonyInputEventNone() -> Int { return 0 }
+function harmonyInputEventFocusAddress() -> Int { return 1 }
+function harmonyInputEventNewTab() -> Int { return 2 }
+function harmonyInputEventCloseTab() -> Int { return 3 }
+function harmonyInputEventReopenTab() -> Int { return 4 }
+function harmonyInputEventNextTab() -> Int { return 5 }
+function harmonyInputEventPreviousTab() -> Int { return 6 }
+function harmonyInputEventSelectTab() -> Int { return 7 }
+function harmonyInputEventReload() -> Int { return 8 }
+function harmonyInputEventReloadIgnoringCache() -> Int { return 9 }
+function harmonyInputEventBack() -> Int { return 10 }
+function harmonyInputEventForward() -> Int { return 11 }
+function harmonyInputEventStop() -> Int { return 12 }
+function harmonyInputEventOpenFind() -> Int { return 13 }
+function harmonyInputEventCloseFind() -> Int { return 14 }
+function harmonyInputEventFindNext() -> Int { return 15 }
+function harmonyInputEventFindPrevious() -> Int { return 16 }
+
+function harmonyInputEventText() -> Int { return 20 }
+function harmonyInputEventBackspace() -> Int { return 21 }
+function harmonyInputEventDelete() -> Int { return 22 }
+function harmonyInputEventCaretLeft() -> Int { return 23 }
+function harmonyInputEventCaretRight() -> Int { return 24 }
+function harmonyInputEventCaretHome() -> Int { return 25 }
+function harmonyInputEventCaretEnd() -> Int { return 26 }
+function harmonyInputEventSelectAll() -> Int { return 27 }
+function harmonyInputEventSubmit() -> Int { return 28 }
+function harmonyInputEventCancel() -> Int { return 29 }
+
+// --- Who holds the keyboard -------------------------------------------------
+
+function harmonyInputFocusChromeCode() -> Int { return 0 }
+function harmonyInputFocusContentCode() -> Int { return 1 }
+
+function harmonyInputTargetNone() -> Int { return 0 }
+function harmonyInputTargetAddress() -> Int { return 1 }
+function harmonyInputTargetFind() -> Int { return 2 }
+
+// --- The fields keys are routed to ------------------------------------------
+
+// The find bar's field. The address bar's key belongs to the chrome, and is
+// asked for rather than repeated, so the two can never drift apart.
+function harmonyInputFindFieldKey() -> Int {
+    return 41310
+}
+
+function harmonyInputAddressFieldKey() -> Int {
+    return harmonyChromeAddressFieldKey()
+}
+
+// The key edit routed to `target` applies to, or 0 for a target with no field.
+function harmonyInputFieldKeyFor(target: Int) -> Int {
+    if target == harmonyInputTargetAddress() {
+        return harmonyInputAddressFieldKey()
+    }
+    if target == harmonyInputTargetFind() {
+        return harmonyInputFindFieldKey()
+    }
+    return 0
+}
+
+// --- What the host remembers between frames ---------------------------------
+
+construct HarmonyInputStore {
+    @Required let version: Int
+}
+
+HarmonyInputStore HarmonyInputState() {
+    // The number of presses the chrome's window had seen when the keyboard
+    // target was last worked out. A press is what moves the target between the
+    // address bar, the find field and neither, and this is what says one has
+    // happened -- including a press that began and ended inside a single frame,
+    // which the widget layer's own latched snapshot cannot be asked about after
+    // the fact.
+    @State var pressSerial: Int = 0
+
+    // The native revision the chrome was last drawn against, so an idle browser
+    // rebuilds when a shortcut, a zoom or a find result changes what it shows,
+    // and not otherwise.
+    @State var presentedRevision: Int = -1
+
+    let version: Int = 1
+
+    function pressSerialValue() -> Int {
+        return pressSerial
+    }
+
+    function markPressSerial(value: Int) {
+        pressSerial = value
+        return
+    }
+
+    function presentedRevisionValue() -> Int {
+        return presentedRevision
+    }
+
+    function markPresentedRevision(value: Int) {
+        presentedRevision = value
+        return
+    }
+}
+
+// True while what the input system contributes to the chrome differs from what
+// the chrome last drew: a find result arrived, the zoom moved, the keyboard
+// changed hands. The browser's runner asks this along with its other rebuild
+// questions -- see `harmonyChromeNeedsRebuild`.
+function harmonyInputNeedsRebuild() -> Bool {
+    let store = HarmonyInputState()
+    let revision = Int(nativeInputRevision())
+    if revision == store.presentedRevisionValue() {
+        return false
+    }
+    store.markPresentedRevision(revision)
+    return true
+}
+
+// Why the shortcuts are not working, when they are not. Empty when they are.
+function harmonyInputDiagnostic() -> String {
+    return nativeInputError()
+}
+
+function harmonyInputReady() -> Bool {
+    return nativeInputReady() != I32(0)
+}

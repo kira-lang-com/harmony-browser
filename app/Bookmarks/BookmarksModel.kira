@@ -1,0 +1,312 @@
+import KiraUI
+
+// What a visit, a bookmark and a suggestion are to the browser, and how each of
+// them reads.
+//
+// These are values, not stores: the record lives in the module and a build reads
+// it fresh, the same way the navigation model is read. Nothing here is a second
+// copy that could disagree with what is on disk.
+
+// One address the browser has been to.
+struct HistoryVisit {
+    var url: String = ""
+    var title: String = ""
+    var host: String = ""
+    var lastVisit: Float = 0.0
+    var visitCount: Int = 0
+    // The local day the last visit fell in, counted from 1970-01-01. A list
+    // groups its rows by this rather than by the hour, because two visits either
+    // side of midnight belong to different days whatever the minutes between
+    // them were.
+    var day: Int = 0
+
+    // What the row is called. A page that never named itself is named by where
+    // it is, which is what the address bar shows for the same page.
+    function label() -> String {
+        if self.title.count > 0 {
+            return self.title
+        }
+        if self.host.count > 0 {
+            return self.host
+        }
+        return harmonyNavigationDisplayAddress(self.url)
+    }
+
+    function isOpen() -> Bool {
+        return self.url.count > 0
+    }
+}
+
+// One node of the bookmark tree: a folder, or a bookmark inside one.
+struct BookmarkItem {
+    var id: Int = 0
+    var parent: Int = 0
+    var isFolder: Bool = false
+    var title: String = ""
+    var url: String = ""
+    var host: String = ""
+    var depth: Int = 0
+    // For a folder, how many bookmarks its subtree holds. For a bookmark, one.
+    var leaves: Int = 0
+
+    function exists() -> Bool {
+        return self.id > 0
+    }
+
+    // What the row is called. A bookmark saved before its page had a title is
+    // named by the site, and a folder nobody named is named for what it is.
+    function label() -> String {
+        if self.title.count > 0 {
+            return self.title
+        }
+        if self.isFolder {
+            return "New Folder"
+        }
+        if self.host.count > 0 {
+            return self.host
+        }
+        return harmonyNavigationDisplayAddress(self.url)
+    }
+}
+
+// Where a row of the address bar's dropdown came from.
+enum SuggestionKind {
+    // What the person typed, turned into the URL it would load. Always the first
+    // row: the bar has to offer what is in it before it offers anything else.
+    Typed
+    Bookmark
+    History
+}
+
+struct AddressSuggestion {
+    var kind: SuggestionKind = SuggestionKind.History
+    var url: String = ""
+    var title: String = ""
+    var host: String = ""
+    var node: Int = 0
+    var visitCount: Int = 0
+    var lastVisit: Float = 0.0
+
+    function label() -> String {
+        if self.title.count > 0 {
+            return self.title
+        }
+        if self.host.count > 0 {
+            return self.host
+        }
+        return harmonyNavigationDisplayAddress(self.url)
+    }
+}
+
+// The line under a suggestion's name: where it goes, and what is known about how
+// often it has been gone to.
+function suggestionDetail(suggestion: borrow AddressSuggestion) -> String {
+    let address = harmonyNavigationDisplayAddress(suggestion.url)
+    match suggestion.kind {
+        Typed -> return address;
+        Bookmark -> return address;
+        History -> {
+            if suggestion.visitCount > 1 {
+                return address + " · " + String(suggestion.visitCount) + " visits"
+            }
+            return address
+        }
+    }
+}
+
+function suggestionKindFromCode(code: Int) -> SuggestionKind {
+    if code == 1 {
+        return SuggestionKind.Bookmark
+    }
+    return SuggestionKind.History
+}
+
+function suggestionSymbol(kind: SuggestionKind) -> Symbol {
+    match kind {
+        Typed -> return Symbol.ArrowRight;
+        Bookmark -> return Symbol.Bookmark;
+        History -> return Symbol.ClockCounterClockwise;
+    }
+}
+
+function suggestionInk(kind: SuggestionKind) -> PrimaryColor {
+    match kind {
+        Typed -> return PrimaryColor.Accent;
+        Bookmark -> return PrimaryColor.Yellow;
+        History -> return PrimaryColor.Secondary;
+    }
+}
+
+// What the first row says it will do with what is in the bar. The decision is
+// the navigation system's, asked rather than repeated: a row that said "search"
+// and then loaded a site would be a row lying about its own press.
+function suggestionTypedLabel(text: String) -> String {
+    let typed = text.trim()
+    if typed.count == 0 {
+        return ""
+    }
+    if harmonyNavigationSchemeEnd(typed) > 0 || harmonyNavigationLooksLikeHost(typed) {
+        return "Go to " + typed
+    }
+    return "Search for " + typed
+}
+
+// --- The calendar ------------------------------------------------------------
+
+function harmonyHistoryMonthName(month: Int) -> String {
+    if month == 1 {
+        return "January"
+    }
+    if month == 2 {
+        return "February"
+    }
+    if month == 3 {
+        return "March"
+    }
+    if month == 4 {
+        return "April"
+    }
+    if month == 5 {
+        return "May"
+    }
+    if month == 6 {
+        return "June"
+    }
+    if month == 7 {
+        return "July"
+    }
+    if month == 8 {
+        return "August"
+    }
+    if month == 9 {
+        return "September"
+    }
+    if month == 10 {
+        return "October"
+    }
+    if month == 11 {
+        return "November"
+    }
+    return "December"
+}
+
+function harmonyHistoryWeekdayName(weekday: Int) -> String {
+    if weekday == 0 {
+        return "Sunday"
+    }
+    if weekday == 1 {
+        return "Monday"
+    }
+    if weekday == 2 {
+        return "Tuesday"
+    }
+    if weekday == 3 {
+        return "Wednesday"
+    }
+    if weekday == 4 {
+        return "Thursday"
+    }
+    if weekday == 5 {
+        return "Friday"
+    }
+    return "Saturday"
+}
+
+// What a day's heading says. The two days a person thinks of by name are named;
+// the week behind them is named by its weekday, because that is how someone
+// looking for a page they read "on Tuesday" is looking for it; anything older is
+// a date.
+function harmonyHistoryHeadingForDay(day: Int) -> String {
+    if day <= 0 {
+        return "Earlier"
+    }
+
+    let today = Int(hbHistoryToday())
+    if day == today {
+        return "Today"
+    }
+    if day == today - 1 {
+        return "Yesterday"
+    }
+
+    let native = I32(day)
+    let weekday = harmonyHistoryWeekdayName(Int(hbHistoryDayWeekday(native)))
+    let dayOfMonth = Int(hbHistoryDayOfMonth(native))
+    let month = harmonyHistoryMonthName(Int(hbHistoryDayMonth(native)))
+    if day > today - 7 {
+        return weekday
+    }
+
+    let year = Int(hbHistoryDayYear(native))
+    if year == Int(hbHistoryDayYear(I32(today))) {
+        return weekday + ", " + String(dayOfMonth) + " " + month
+    }
+    return weekday + ", " + String(dayOfMonth) + " " + month + " " + String(year)
+}
+
+// How long ago a page was read, for a row that has no room for a date. The
+// module's clock is asked for both ends of the subtraction, so a row never
+// compares two clocks.
+function harmonyHistoryAge(lastVisit: Float) -> String {
+    if lastVisit <= 0.0 {
+        return "Never"
+    }
+
+    let seconds = Int(harmonyBookmarksNow() - lastVisit)
+    if seconds < 60 {
+        return "Just now"
+    }
+    if seconds < 3600 {
+        let minutes = seconds / 60
+        if minutes == 1 {
+            return "1 minute ago"
+        }
+        return String(minutes) + " minutes ago"
+    }
+    if seconds < 86400 {
+        let hours = seconds / 3600
+        if hours == 1 {
+            return "1 hour ago"
+        }
+        return String(hours) + " hours ago"
+    }
+
+    let days = seconds / 86400
+    if days == 1 {
+        return "Yesterday"
+    }
+    if days < 30 {
+        return String(days) + " days ago"
+    }
+
+    let months = days / 30
+    if months == 1 {
+        return "A month ago"
+    }
+    if months < 12 {
+        return String(months) + " months ago"
+    }
+    return "Over a year ago"
+}
+
+// The time of day a history row is stamped with, on the twenty-four hour clock.
+// The day is the heading above the row, so the row itself only has to say when
+// inside that day it was.
+//
+// The minute is the module's answer rather than arithmetic here: a local time is
+// an offset that is not always a whole number of hours and that moves twice a
+// year, and a browser that subtracted a fixed one would misdate every row it
+// drew across a daylight change.
+function harmonyHistoryClockText(lastVisit: Float) -> String {
+    if lastVisit <= 0.0 {
+        return ""
+    }
+
+    let minutes = Int(hbHistoryMinuteOfDay(lastVisit))
+    let hours = minutes / 60
+    let rest = minutes - hours * 60
+    if rest < 10 {
+        return String(hours) + ":0" + String(rest)
+    }
+    return String(hours) + ":" + String(rest)
+}

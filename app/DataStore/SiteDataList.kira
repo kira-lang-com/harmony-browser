@@ -1,0 +1,213 @@
+import KiraUI
+
+// The sites the profile holds data for, and the control that forgets one.
+//
+// A site is named rather than hashed because the profile keeps its own ledger of
+// where the browser has been: WebKit hashes an origin into a directory name and
+// never writes the origin down beside it, so a list built from the directories
+// alone would be a list of base64. The ledger is what makes this a list of
+// sites, and the salted name is what makes forgetting one exact.
+
+// A sidebar column has no scroll view, so the list shows the largest sites and
+// says how many it is not showing. The rest are reached by clearing a type.
+function siteDataRowLimit() -> Int {
+    return 8
+}
+
+function siteDataRowHeight() -> Float {
+    return 44.0
+}
+
+function siteDataVisibleCount() -> Int {
+    let count = harmonyDataStoreSiteCount()
+    if count > siteDataRowLimit() {
+        return siteDataRowLimit()
+    }
+    return count
+}
+
+function siteDataHiddenCount() -> Int {
+    let hidden = harmonyDataStoreSiteCount() - siteDataVisibleCount()
+    if hidden < 0 {
+        return 0
+    }
+    return hidden
+}
+
+// --- One site ----------------------------------------------------------------
+
+// Three lines rather than one: nothing KiraUI draws wraps, and a site's name,
+// its weight and what it is holding do not fit on one line of a sidebar column.
+Widget SiteDataRowText(label: String, weight: String, held: String) {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            Text(label)
+                .typography(.subheadline)
+                .foregroundColor(.Primary)
+
+            Text(weight)
+                .typography(.caption)
+                .foregroundColor(.Secondary)
+
+            Text(held)
+                .typography(.caption)
+                .foregroundColor(.Quaternary)
+        }
+    }
+}
+
+Widget SiteDataRow(origin: String, label: String, weight: String, held: String, symbol: Symbol) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(symbol)
+                .imageScale(.Small)
+                .foregroundColor(.Secondary)
+
+            Expanded(flex = 1) {
+                SiteDataRowText(label = label, weight = weight, held = held)
+            }
+
+            ControlSlot() {
+                Icon(.TrashSimple)
+                    .imageScale(.Small)
+            }
+            .onClick(harmonyDataStoreRemoveAction(origin))
+        }
+        .height(siteDataRowHeight())
+        .foregroundColor(.Secondary)
+    }
+}
+
+// One row, read out of the cache once rather than once per field.
+function siteDataRowAt(index: Int) -> Any Widget {
+    let site = harmonyDataStoreSiteAt(index)
+    return SiteDataRow(
+        origin = site.origin,
+        label = site.label(),
+        weight = browsingDataSizeLabel(site.bytes) + " · " + browsingDataAge(site.lastUsed),
+        held = browsingDataTypeSummary(site),
+        symbol = harmonyTabSiteSymbol(site.host)
+    )
+}
+
+Widget SiteDataRows() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            For(index in indices(siteDataVisibleCount())) {
+                siteDataRowAt(index)
+            }
+        }
+    }
+}
+
+// --- The section -------------------------------------------------------------
+
+Widget SiteDataHeader() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text("Sites with stored data")
+                .typography(.footnote)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+
+            Text(browsingDataBytes(harmonyDataStoreTotalSize()))
+                .typography(.caption)
+                .foregroundColor(.Tertiary)
+        }
+        .height(24.0)
+    }
+}
+
+Widget SiteDataScanning() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Icon(.CircleNotch)
+                .imageScale(.Small)
+                .foregroundColor(.Accent)
+
+            Text("Reading the profile…")
+                .typography(.caption)
+                .foregroundColor(.Tertiary)
+
+            Spacer()
+        }
+        .height(22.0)
+    }
+}
+
+Widget SiteDataEmpty() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text("No site has stored anything yet")
+                .typography(.caption)
+                .foregroundColor(.Tertiary)
+
+            Spacer()
+        }
+        .height(22.0)
+    }
+}
+
+Widget SiteDataOverflow(hidden: Int) {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text(String(hidden) + " smaller sites not shown")
+                .typography(.caption)
+                .foregroundColor(.Tertiary)
+
+            Spacer()
+        }
+        .height(22.0)
+    }
+}
+
+Widget SiteDataSection() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            SiteDataHeader()
+
+            if harmonyDataStoreIsScanning() {
+                SiteDataScanning()
+            }
+
+            if harmonyDataStoreSiteCount() == 0 && harmonyDataStoreIsScanning() == false {
+                SiteDataEmpty()
+            }
+
+            SiteDataRows()
+
+            if siteDataHiddenCount() > 0 {
+                SiteDataOverflow(hidden = siteDataHiddenCount())
+            }
+        }
+    }
+}
+
+// The control that forgets the site showing in front, for a toolbar or a site
+// menu: the one place a person thinks about one site's data rather than all of
+// them.
+Widget ForgetThisSiteControl() {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            ControlSlot() {
+                Icon(.Prohibit)
+                    .imageScale(.Small)
+            }
+
+            Text("Forget " + harmonyDataStoreActiveSiteLabel())
+                .typography(.caption)
+                .foregroundColor(.Secondary)
+        }
+        .hugWidth()
+        .onClick(harmonyDataStoreRemoveActiveSite)
+    }
+}
+
+function harmonyDataStoreActiveSiteLabel() -> String {
+    let tab = harmonyActiveTabModel()
+    if tab.host.count > 0 {
+        return tab.host
+    }
+    return "this site"
+}

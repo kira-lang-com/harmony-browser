@@ -1,0 +1,109 @@
+// The navigation model the browser chrome reads.
+//
+// These are values, not stores: the truth lives in the WebKit thread's
+// published snapshot, and a build reads it fresh. Nothing here is a second copy
+// that could disagree with the page, and nothing here has to be invalidated
+// when the page moves.
+
+// One entry of a tab's back/forward list.
+struct NavigationHistoryEntry {
+    var index: Int = 0
+    var url: String = ""
+    var title: String = ""
+    var isCurrent: Bool = false
+
+    // What a history menu writes on the row. A page that has not reported a
+    // title yet is named by where it is.
+    function label() -> String {
+        if self.title.count > 0 {
+            return self.title
+        }
+        if self.url.count > 0 {
+            return harmonyNavigationDisplayAddress(self.url)
+        }
+        return "Untitled"
+    }
+}
+
+// One tab's navigation state as of the last change WebKit reported.
+struct NavigationPage {
+    var tab: Int = 0
+    var slot: Int = -1
+
+    // What the address bar shows: the load in flight while there is one, and
+    // the committed document otherwise.
+    var url: String = ""
+    var committedURL: String = ""
+    var provisionalURL: String = ""
+    var title: String = ""
+
+    var progress: Float = 0.0
+    var isLoading: Bool = false
+    var canGoBack: Bool = false
+    var canGoForward: Bool = false
+
+    var errorCode: Int = 0
+    var errorText: String = ""
+
+    // Whether this names a tab the engine is tracking, as against the empty
+    // answer for a tab that is not open.
+    function isOpen() -> Bool {
+        return self.tab > 0
+    }
+
+    function hasError() -> Bool {
+        return self.errorCode != 0
+    }
+
+    // Whether the document on screen came over a transport that authenticated
+    // it. The committed URL is what says so: the one being loaded has not
+    // arrived yet.
+    function isSecure() -> Bool {
+        return self.committedURL.startsWith("https://")
+    }
+
+    function isBlank() -> Bool {
+        if self.url.count == 0 {
+            return true
+        }
+        return self.url == "about:blank"
+    }
+
+    function displayAddress() -> String {
+        return harmonyNavigationDisplayAddress(self.url)
+    }
+
+    // What a tab row and the window title show. A page still loading has no
+    // title yet, so it is named by where it is going.
+    function displayTitle() -> String {
+        if self.title.count > 0 {
+            return self.title
+        }
+        if self.isBlank() {
+            return "New Tab"
+        }
+        return harmonyNavigationDisplayAddress(self.url)
+    }
+
+    // The load bar's width, 0 to 1. A finished load reads as full rather than
+    // as wherever it stopped reporting.
+    function progressFraction() -> Float {
+        if self.isLoading == false {
+            return 1.0
+        }
+        if self.progress < 0.0 {
+            return 0.0
+        }
+        if self.progress > 1.0 {
+            return 1.0
+        }
+        return self.progress
+    }
+
+    // Whether a load bar should be on screen at all. A load that has not
+    // reported anything yet still counts: the bar is how the window says it
+    // heard the click.
+    function showsProgress() -> Bool {
+        return self.isLoading
+    }
+}

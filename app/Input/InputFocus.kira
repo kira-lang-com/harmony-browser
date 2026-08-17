@@ -1,0 +1,99 @@
+import KiraUI
+
+// Which half of the browser has the keyboard.
+//
+// A browser window holds two keyboards' worth of surface that look like one: the
+// chrome, which this process draws, and the page, which is a window of its own
+// belonging to the engine. Exactly one of them receives keys, the system decides
+// which, and the page takes them the moment it is clicked. So "focused" is read
+// from the system on every question rather than kept here, and the only thing
+// kept is which chrome field the keys go to while the chrome has them.
+
+function harmonyInputFocusOwner() -> Int {
+    return Int(nativeInputFocusOwner())
+}
+
+function harmonyInputContentHasKeyboard() -> Bool {
+    return harmonyInputFocusOwner() == harmonyInputFocusContentCode()
+}
+
+function harmonyInputChromeHasKeyboard() -> Bool {
+    return harmonyInputFocusOwner() == harmonyInputFocusChromeCode()
+}
+
+// The chrome field keys are routed to, or none.
+function harmonyInputTextTarget() -> Int {
+    return Int(nativeInputChromeTextTarget())
+}
+
+function harmonyInputAddressHasKeyboard() -> Bool {
+    return harmonyInputChromeHasKeyboard() && harmonyInputTextTarget() == harmonyInputTargetAddress()
+}
+
+function harmonyInputFindHasKeyboard() -> Bool {
+    return harmonyInputChromeHasKeyboard() && harmonyInputTextTarget() == harmonyInputTargetFind()
+}
+
+// --- Moving it --------------------------------------------------------------
+
+// Ctrl+L, and the address bar's own button. The keyboard is taken off the
+// page's window first: until it is, the field cannot receive a single key.
+// What the field holds is offered for replacement, which is what makes typing
+// over an address one gesture rather than three.
+function harmonyInputFocusAddressBar() {
+    nativeInputFocusChrome()
+    nativeInputSetChromeTextTarget(I32(harmonyInputTargetAddress()))
+    textFieldSelectAll(harmonyInputAddressFieldKey())
+    return
+}
+
+function harmonyInputFocusFindField() {
+    nativeInputFocusChrome()
+    nativeInputSetChromeTextTarget(I32(harmonyInputTargetFind()))
+    textFieldSelectAll(harmonyInputFindFieldKey())
+    return
+}
+
+// Hands the keyboard back to the page, which is what leaving a chrome field
+// means: the page keeps its caret, its key handlers and its scrolling.
+function harmonyInputFocusPage() {
+    nativeInputSetChromeTextTarget(I32(harmonyInputTargetNone()))
+    nativeInputFocusContent()
+    return
+}
+
+// Tab and Shift+Tab: the next chrome field, then the page, then round again.
+function harmonyInputCycleFocus(direction: Int) {
+    nativeInputFocusCycle(I32(direction))
+    return
+}
+
+// --- Following the pointer --------------------------------------------------
+
+// A press in the chrome claims a field, or takes the keyboard out of both.
+//
+// The press is counted natively -- every button-down on the chrome's window,
+// including one too quick to span a frame -- and WHICH field it landed on is
+// the widget layer's own hit test, latched at the press. Reading the two
+// together is what lets the keyboard follow a click into the address bar
+// without this system having to know where the address bar was drawn.
+function harmonyInputSyncTarget() {
+    let store = HarmonyInputState()
+    let serial = Int(nativeInputPressSerial())
+    if serial == store.pressSerialValue() {
+        return
+    }
+    store.markPressSerial(serial)
+
+    let region = kiraUiHoveredKey()
+    if region == harmonyInputAddressFieldKey() {
+        nativeInputSetChromeTextTarget(I32(harmonyInputTargetAddress()))
+        return
+    }
+    if region == harmonyInputFindFieldKey() {
+        nativeInputSetChromeTextTarget(I32(harmonyInputTargetFind()))
+        return
+    }
+    nativeInputSetChromeTextTarget(I32(harmonyInputTargetNone()))
+    return
+}

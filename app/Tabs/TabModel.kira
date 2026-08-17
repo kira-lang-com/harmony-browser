@@ -1,0 +1,277 @@
+import KiraUI
+
+// One tab, as the UI sees it.
+//
+// The WKPage and the WKView behind a tab are native and stay native: `id` IS
+// the handle to them, and every command that reaches them takes it. What is
+// here is the part a tab strip draws -- what the page is called, where it is,
+// how far it has got, and whether it can go back or forward.
+struct TabModel {
+    var id: Int = 0
+    var index: Int = 0
+    var title: String = ""
+    var url: String = ""
+    var host: String = ""
+    var loading: Bool = false
+    var pinned: Bool = false
+    var active: Bool = false
+    var canGoBack: Bool = false
+    var canGoForward: Bool = false
+    var progress: Float = 0.0
+}
+
+function harmonyTabModelFor(tabId: Int) -> TabModel {
+    if tabId <= 0 {
+        return TabModel {}
+    }
+
+    let native = I32(tabId)
+    return TabModel {
+        id: tabId
+        index: harmonyTabsIndexOf(tabId)
+        title: nativeTabsTitle(native)
+        url: nativeTabsURL(native)
+        host: nativeTabsHost(native)
+        loading: nativeTabsIsLoading(native) != I32(0)
+        pinned: nativeTabsIsPinned(native) != I32(0)
+        active: harmonyTabsActiveId() == tabId
+        canGoBack: nativeTabsCanGoBack(native) != I32(0)
+        canGoForward: nativeTabsCanGoForward(native) != I32(0)
+        progress: nativeTabsProgress(native)
+    }
+}
+
+function harmonyTabModelAt(index: Int) -> TabModel {
+    return harmonyTabModelFor(harmonyTabsIdAt(index))
+}
+
+function harmonyActiveTabModel() -> TabModel {
+    return harmonyTabModelFor(harmonyTabsActiveId())
+}
+
+// --- What a tab is called ---------------------------------------------------
+
+// A tab in a strip has room for very little of its page's name. A page that has
+// not said what it is called yet is named by the site it is on, and a tab that
+// has not been anywhere is named for what it is.
+function harmonyTabNameFrom(title: String, host: String) -> String {
+    if title.count > 0 {
+        return title
+    }
+    if host.count > 0 {
+        return host
+    }
+    return "New Tab"
+}
+
+function harmonyTabLabel(tab: borrow TabModel) -> String {
+    return harmonyTabNameFrom(tab.title, tab.host)
+}
+
+function harmonyTabLabelFor(tabId: Int) -> String {
+    if tabId <= 0 {
+        return "New Tab"
+    }
+    return harmonyTabNameFrom(nativeTabsTitle(I32(tabId)), nativeTabsHost(I32(tabId)))
+}
+
+// --- The favicon slot -------------------------------------------------------
+//
+// WebKit's C API exposes no icon for a page -- the icon database is reachable
+// only from an injected bundle -- so what identifies a tab here is the mark of
+// the site it is on, drawn from the same symbol library the rest of the chrome
+// is drawn from. A site with no mark of its own gets the globe, which is what
+// the address bar shows for the same page. A tab that is loading shows that
+// instead, because that is the more urgent thing about it.
+
+function harmonyTabFaviconFor(tabId: Int) -> Symbol {
+    if tabId <= 0 {
+        return Symbol.Plus
+    }
+    if nativeTabsIsLoading(I32(tabId)) != I32(0) {
+        return Symbol.CircleNotch
+    }
+    return harmonyTabSiteSymbol(nativeTabsHost(I32(tabId)))
+}
+
+function harmonyTabFavicon(tab: borrow TabModel) -> Symbol {
+    if tab.loading {
+        return Symbol.CircleNotch
+    }
+    return harmonyTabSiteSymbol(tab.host)
+}
+
+function harmonyTabSiteSymbol(host: String) -> Symbol {
+    if host.count == 0 {
+        return Symbol.Globe
+    }
+    if host == "google.com" {
+        return Symbol.GoogleLogo
+    }
+    if host == "mail.google.com" {
+        return Symbol.Envelope
+    }
+    if host == "github.com" {
+        return Symbol.GithubLogo
+    }
+    if host == "gitlab.com" {
+        return Symbol.GitlabLogo
+    }
+    if host == "figma.com" {
+        return Symbol.FigmaLogo
+    }
+    if host == "youtube.com" {
+        return Symbol.YoutubeLogo
+    }
+    if host == "x.com" {
+        return Symbol.XLogo
+    }
+    if host == "twitter.com" {
+        return Symbol.TwitterLogo
+    }
+    if host == "linkedin.com" {
+        return Symbol.LinkedinLogo
+    }
+    if host == "reddit.com" {
+        return Symbol.RedditLogo
+    }
+    if host == "instagram.com" {
+        return Symbol.InstagramLogo
+    }
+    if host == "twitch.tv" {
+        return Symbol.TwitchLogo
+    }
+    if host == "open.spotify.com" {
+        return Symbol.SpotifyLogo
+    }
+    if host == "dribbble.com" {
+        return Symbol.DribbbleLogo
+    }
+    if host == "medium.com" {
+        return Symbol.MediumLogo
+    }
+    if host == "apple.com" {
+        return Symbol.AppleLogo
+    }
+    if host == "outlook.office.com" || host == "outlook.live.com" {
+        return Symbol.MicrosoftOutlookLogo
+    }
+    if host == "teams.microsoft.com" {
+        return Symbol.MicrosoftTeamsLogo
+    }
+    if host == "slack.com" || host == "app.slack.com" {
+        return Symbol.SlackLogo
+    }
+    if host == "discord.com" {
+        return Symbol.DiscordLogo
+    }
+    if host == "notion.so" {
+        return Symbol.NotionLogo
+    }
+    if host == "stackoverflow.com" {
+        return Symbol.StackOverflowLogo
+    }
+    return Symbol.GlobeSimple
+}
+
+// --- Per-tab reads the strip makes ------------------------------------------
+
+function harmonyTabIsActive(tabId: Int) -> Bool {
+    return tabId > 0 && harmonyTabsActiveId() == tabId
+}
+
+function harmonyTabIsPinned(tabId: Int) -> Bool {
+    return tabId > 0 && nativeTabsIsPinned(I32(tabId)) != I32(0)
+}
+
+function harmonyTabIsLoading(tabId: Int) -> Bool {
+    return tabId > 0 && nativeTabsIsLoading(I32(tabId)) != I32(0)
+}
+
+function harmonyTabProgressFor(tabId: Int) -> Float {
+    if tabId <= 0 {
+        return 0.0
+    }
+    return nativeTabsProgress(I32(tabId))
+}
+
+// --- Strip geometry ---------------------------------------------------------
+//
+// A pinned tab is drawn as its mark alone, so a run of them costs the width of
+// the marks rather than the width of that many labels.
+
+function harmonyTabStripHeight() -> Float {
+    return 34.0
+}
+
+function harmonyTabItemHeight() -> Float {
+    return 26.0
+}
+
+// One line of a menu, or of the sidebar's list of tabs.
+function harmonyTabRowHeight() -> Float {
+    return 28.0
+}
+
+function harmonyTabPinnedWidth() -> Float {
+    return 44.0
+}
+
+function harmonyTabFullWidth() -> Float {
+    return 196.0
+}
+
+function harmonyTabWidthFor(pinned: Bool) -> Float {
+    if pinned {
+        return harmonyTabPinnedWidth()
+    }
+    return harmonyTabFullWidth()
+}
+
+function harmonyTabItemWidthFor(tabId: Int) -> Float {
+    return harmonyTabWidthFor(harmonyTabIsPinned(tabId))
+}
+
+// The band under a tab says one thing at a time and always occupies the same
+// row, so a tab starting to load never moves the strip. While a page loads it
+// is that page's progress; once it has, it is the mark of the tab that is
+// showing; on any other tab it is drawn in the clear.
+function harmonyTabBarWidth(tabId: Int) -> Float {
+    let full = harmonyTabItemWidthFor(tabId) - 8.0
+    if harmonyTabIsLoading(tabId) == false {
+        return full
+    }
+    let done = full * harmonyTabProgressFor(tabId)
+    if done < 2.0 {
+        return 2.0
+    }
+    return done
+}
+
+function harmonyTabBarStyle(tabId: Int) -> BackgroundStyle {
+    if harmonyTabIsLoading(tabId) || harmonyTabIsActive(tabId) {
+        return BackgroundStyle.Accent
+    }
+    return BackgroundStyle.Clear
+}
+
+function harmonyTabSurface(tabId: Int) -> BackgroundStyle {
+    if harmonyTabIsActive(tabId) {
+        return BackgroundStyle.Raised
+    }
+    return BackgroundStyle.Clear
+}
+
+function harmonyTabInk(tabId: Int) -> PrimaryColor {
+    if harmonyTabIsActive(tabId) {
+        return PrimaryColor.Primary
+    }
+    return PrimaryColor.Secondary
+}
+
+function harmonyTabIconInk(tabId: Int) -> PrimaryColor {
+    if harmonyTabIsLoading(tabId) {
+        return PrimaryColor.Accent
+    }
+    return harmonyTabInk(tabId)
+}

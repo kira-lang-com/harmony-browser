@@ -1,0 +1,74 @@
+import KiraUI
+
+// The one file in the chrome that names anything outside the chrome.
+//
+// What the toolbar SHOWS comes from the navigation-state system, and what its
+// buttons DO goes to the page host. Both of those are somebody else's module,
+// and naming them at the fifteen call sites that want them is how a toolbar ends
+// up welded to one engine. Named once here, retargeting the chrome onto a
+// different navigation source or a different host is this file and nothing else.
+
+// --- What the chrome shows ---------------------------------------------------
+
+// The tab the toolbar is drawn for, which is the tab the browser is showing. The
+// navigation model answers for it when it is asked for tab 0, so nothing here
+// tracks an id.
+//
+// The whole of the model comes back in one read rather than six, because six
+// reads of a snapshot taken between them can disagree with each other: a bar that
+// shows a finished page's title beside a running page's progress is a bar that was
+// asked twice.
+function harmonyChromePage() -> NavigationPage {
+    return harmonyNavigationPage()
+}
+
+// The URL of the page the active tab is showing, as the engine reports it: the
+// address after redirects, not the one that was typed.
+function harmonyChromeCurrentURL() -> String {
+    return harmonyChromePage().url
+}
+
+// The page's own title. Empty until the document names itself, which is normal
+// for the whole of a provisional load.
+function harmonyChromeCurrentTitle() -> String {
+    return harmonyChromePage().title
+}
+
+function harmonyChromeIsLoading() -> Bool {
+    return harmonyChromePage().isLoading
+}
+
+// Between 0 and 1. WebKit's estimate starts partway along and is not monotonic
+// across a redirect, which is what a determinate bar is: an estimate, drawn
+// honestly rather than smoothed into a lie.
+function harmonyChromeLoadProgress() -> Float {
+    return harmonyChromePage().progress
+}
+
+function harmonyChromeCanGoBack() -> Bool {
+    return harmonyChromePage().canGoBack
+}
+
+function harmonyChromeCanGoForward() -> Bool {
+    return harmonyChromePage().canGoForward
+}
+
+// --- What the chrome does ----------------------------------------------------
+
+function harmonyChromeGoBack() {
+    harmonyNavigationGoBack()
+    return
+}
+
+function harmonyChromeGoForward() {
+    harmonyNavigationGoForward()
+    return
+}
+
+// What a person typed, which is a request rather than a URL: a bare host reaches
+// its site and a phrase reaches a search. The turning of one into the other is
+// the navigation system's, made once, where its result is what the bar then shows.
+function harmonyChromeLoadURL(url: String) {
+    harmonyNavigationNavigate(url)
+    return
+}

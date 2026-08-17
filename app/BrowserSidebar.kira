@@ -1,0 +1,62 @@
+import KiraUI
+
+// The column beside the page: the tab list as rows, and the two things the window
+// has to say about the tab that is showing.
+//
+// KiraUI has no sidebar widget. A leading column is a column, and what fills it is
+// an ordinary list that paints its own surface; the column's width is the same
+// number the page's own window is inset by, so the two can never drift.
+//
+// The row form of the tab list is the one that has room for a whole page title,
+// which is why a browser whose chrome is a column shows its tabs this way. It is
+// the same registry and the same commands as the strip across the top: two views
+// of one list, not two lists.
+
+Widget HarmonyBrowserSidebarHeader() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text("Tabs")
+                .typography(.footnote)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+
+            HarmonyTabCountLabel()
+        }
+        .height(28.0)
+    }
+}
+
+Widget HarmonyBrowserSidebar() {
+    body {
+        Panel(radius = CornerRadius.None) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
+                VStack(spacing = Spacing.None) {
+                    HarmonyBrowserSidebarHeader()
+
+                    Divider()
+                        .themeBorder(.Subtle)
+
+                    // Why the list is empty, when it is, is said once, over the
+                    // page area, where the eye already is.
+                    HarmonyTabSidebarList()
+
+                    Spacer()
+
+                    // Both belong at the foot of the column rather than over the
+                    // page: one says the tabs are still getting their history
+                    // back, the other says what this tab is not writing down, and
+                    // neither is about the document.
+                    SessionRestoreNote()
+
+                    PrivateBrowsingBanner()
+                }
+                .fillHeight()
+            }
+        }
+        .backgroundStyle(.Surface)
+        .material(.Frosted)
+        .width(harmonyBrowserSidebarWidth())
+        .fillHeight()
+    }
+}

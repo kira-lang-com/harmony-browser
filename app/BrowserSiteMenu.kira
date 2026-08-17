@@ -1,0 +1,293 @@
+import KiraUI
+
+// The menu the window keeps for the page that is showing: where it has been,
+// how large it is read at, and what this browser is holding for the site.
+//
+// It floats over the page rather than sitting in the flow above it: a menu in the
+// flow would inset the page while it was open and let it back out when it closed,
+// and a page that resizes because a menu was looked at is worse than any menu.
+// Every command closes it, and so does the control that opened it.
+//
+// Nothing here is implemented here. Every row calls the system that already owns
+// what it asks for, so the menu and the shortcut that does the same thing cannot
+// disagree.
+
+construct HarmonyBrowserMenuStore {
+    @Required let version: Int
+}
+
+HarmonyBrowserMenuStore HarmonyBrowserMenu() {
+    @State var open: Bool = false
+    let version: Int = 1
+
+    function isOpen() -> Bool {
+        return open
+    }
+
+    function setOpen(next: Bool) {
+        open = next
+        return
+    }
+}
+
+function harmonyBrowserMenuIsOpen() -> Bool {
+    return HarmonyBrowserMenu().isOpen()
+}
+
+function harmonyBrowserMenuClose() {
+    HarmonyBrowserMenu().setOpen(false)
+    return
+}
+
+// Opening this closes the tab menus. Two menus open at once is two menus a press
+// has to be aimed between.
+function harmonyBrowserMenuToggle() {
+    let store = HarmonyBrowserMenu()
+    let next = store.isOpen() == false
+    store.setOpen(next)
+    if next {
+        harmonyTabsDismissMenus()
+    }
+    return
+}
+
+// --- Where the page has been --------------------------------------------------
+
+// A press handler takes no arguments, so each history row is a closure built
+// around the entry's index in the tab's own list.
+function harmonyBrowserHistoryAction(index: Int) -> () -> Void {
+    let target = index
+    let press: () -> Void = { in
+        harmonyNavigationGoToHistoryEntry(target)
+        harmonyBrowserMenuClose()
+        return
+    }
+    return press
+}
+
+// The entries behind the current one, nearest first. This is what a press-and-hold
+// on the back button lists, and the window has no press-and-hold, so it lists them
+// here.
+Widget HarmonyBrowserBackHistory() {
+    body {
+        VStack(spacing = Spacing.None) {
+            For(entry in harmonyNavigationBackHistory()) {
+                HarmonyTabMenuItem(
+                    title = entry.label(),
+                    symbol = Symbol.ArrowLeft,
+                    action = harmonyBrowserHistoryAction(entry.index)
+                )
+            }
+        }
+    }
+}
+
+Widget HarmonyBrowserForwardHistory() {
+    body {
+        VStack(spacing = Spacing.None) {
+            For(entry in harmonyNavigationForwardHistory()) {
+                HarmonyTabMenuItem(
+                    title = entry.label(),
+                    symbol = Symbol.ArrowRight,
+                    action = harmonyBrowserHistoryAction(entry.index)
+                )
+            }
+        }
+    }
+}
+
+Widget HarmonyBrowserHistorySection() {
+    body {
+        VStack(spacing = Spacing.None) {
+            HarmonyBrowserBackHistory()
+
+            HarmonyBrowserForwardHistory()
+
+            Divider()
+                .themeBorder(.Subtle)
+        }
+    }
+}
+
+// --- How large the page is read at --------------------------------------------
+
+// The site the level on screen is remembered under. A page with no site -- an
+// about: document, a data URL -- can be zoomed but not remembered, and the row
+// says so rather than naming nothing.
+function harmonyBrowserZoomScope() -> String {
+    let origin = harmonyInputZoomOrigin()
+    if origin.count == 0 {
+        return "this page only"
+    }
+    return origin
+}
+
+function harmonyBrowserZoomPresetAction(percent: Int) -> () -> Void {
+    let target = percent
+    let press: () -> Void = { in
+        harmonyInputZoomSet(target)
+        return
+    }
+    return press
+}
+
+Widget HarmonyBrowserZoomPreset(percent: Int) {
+    body {
+        Panel(radius = CornerRadius.Small) {
+            Inset(horizontal = Spacing.Small) {
+                Text(String(percent) + "%")
+                    .typography(.caption)
+                    .foregroundColor(.Secondary)
+            }
+        }
+        .backgroundStyle(harmonyBrowserZoomPresetStyle(percent))
+        .height(20.0)
+        .hugWidth()
+        .onClick(harmonyBrowserZoomPresetAction(percent))
+    }
+}
+
+function harmonyBrowserZoomPresetStyle(percent: Int) -> BackgroundStyle {
+    if harmonyInputZoomPercent() == percent {
+        return BackgroundStyle.Accent
+    }
+    return BackgroundStyle.Control
+}
+
+// The zoom row: step down, what it is now and what it is remembered under, step
+// up, and the levels worth reaching in one press.
+Widget HarmonyBrowserZoomSection() {
+    body {
+        VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
+            HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+                ControlSlot() {
+                    Icon(.Minus)
+                        .imageScale(.Small)
+                }
+                .onClick(harmonyInputZoomOut)
+
+                Text(harmonyInputZoomLabel())
+                    .typography(.subheadline)
+                    .foregroundColor(.Primary)
+
+                ControlSlot() {
+                    Icon(.Plus)
+                        .imageScale(.Small)
+                }
+                .onClick(harmonyInputZoomIn)
+
+                Spacer()
+
+                Text(harmonyBrowserZoomScope())
+                    .typography(.caption)
+                    .foregroundColor(.Tertiary)
+            }
+            .height(26.0)
+
+            HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+                HarmonyBrowserZoomPreset(percent = 75)
+
+                HarmonyBrowserZoomPreset(percent = 100)
+
+                HarmonyBrowserZoomPreset(percent = 125)
+
+                HarmonyBrowserZoomPreset(percent = 150)
+
+                HarmonyBrowserZoomPreset(percent = 200)
+
+                Spacer()
+            }
+        }
+        .inset(horizontal = Spacing.Small)
+    }
+}
+
+// --- What the browser holds for the site --------------------------------------
+
+// The permission panel, opened already expanded on the site in front. The origin
+// is the one the zoom level is remembered under, which is the page's own and is
+// answered natively rather than parsed out of the address a second time.
+function harmonyBrowserOpenSitePermissions() {
+    harmonyPermissionPanelOpenAt(harmonyInputZoomOrigin())
+    harmonyBrowserMenuClose()
+    return
+}
+
+function harmonyBrowserPrintPage() {
+    harmonyInputPrint()
+    harmonyBrowserMenuClose()
+    return
+}
+
+Widget HarmonyBrowserSiteSection() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            HarmonyTabMenuItem(
+                title = "Site Permissions",
+                symbol = Symbol.SlidersHorizontal,
+                action = harmonyBrowserOpenSitePermissions
+            )
+
+            HarmonyTabMenuItem(
+                title = "Print",
+                symbol = Symbol.Printer,
+                action = harmonyBrowserPrintPage
+            )
+
+            Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
+                ForgetThisSiteControl()
+            }
+        }
+    }
+}
+
+// --- The menu -----------------------------------------------------------------
+
+function harmonyBrowserMenuWidth() -> Float {
+    return 320.0
+}
+
+Widget HarmonyBrowserMenuBody() {
+    body {
+        Panel(radius = CornerRadius.Small) {
+            VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+                HarmonyBrowserHistorySection()
+
+                HarmonyBrowserZoomSection()
+
+                Divider()
+                    .themeBorder(.Subtle)
+
+                HarmonyBrowserSiteSection()
+            }
+        }
+        .backgroundStyle(.Raised)
+        .themeBorder(.Subtle)
+        .width(harmonyBrowserMenuWidth())
+        .hugHeight()
+    }
+}
+
+// What the window puts under its toolbar. It occupies nothing while the menu is
+// closed, so the page keeps every pixel it had.
+Widget HarmonyBrowserMenuSlot() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            if harmonyBrowserMenuIsOpen() {
+                HarmonyBrowserMenuBody()
+            }
+        }
+        .hugHeight()
+    }
+}
+
+// The control that opens it.
+Widget HarmonyBrowserMenuButton() {
+    body {
+        ControlSlot(active = harmonyBrowserMenuIsOpen()) {
+            Icon(.DotsThree)
+                .imageScale(.Small)
+        }
+        .onClick(harmonyBrowserMenuToggle)
+    }
+}

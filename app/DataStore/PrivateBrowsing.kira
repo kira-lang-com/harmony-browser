@@ -1,0 +1,134 @@
+import KiraUI
+
+// Private browsing.
+//
+// A private tab is an ordinary tab of the registry whose page was created
+// against the profile's ephemeral store instead of its persistent one. Nothing
+// it writes -- cookies, cache, local storage, databases -- reaches disk, and the
+// store itself is released when the last private tab closes, so the session ends
+// with the tabs rather than with the process.
+//
+// Which tabs those are is the profile's answer, not this file's: the store is
+// bound when the page is created, and a page a private tab opened with
+// window.open inherits it. So a badge here reads the profile rather than a list
+// of its own that could disagree with what the page is actually writing to.
+
+function harmonyPrivateHomeURL() -> String {
+    return harmonyTabsHomeURL()
+}
+
+function harmonyPrivateOpenTab() {
+    let ignored = hbDataOpenPrivateTab(harmonyPrivateHomeURL())
+    return
+}
+
+function harmonyPrivateOpen(url: String) -> Int {
+    if url.count == 0 {
+        return Int(hbDataOpenPrivateTab(harmonyPrivateHomeURL()))
+    }
+    return Int(hbDataOpenPrivateTab(url))
+}
+
+function harmonyPrivateTabCount() -> Int {
+    return Int(hbDataPrivateTabCount())
+}
+
+function harmonyPrivateTabIsPrivate(tabId: Int) -> Bool {
+    if tabId <= 0 {
+        return false
+    }
+    return hbDataTabIsPrivate(I32(tabId)) != I32(0)
+}
+
+function harmonyPrivateActiveTabIsPrivate() -> Bool {
+    return harmonyPrivateTabIsPrivate(harmonyTabsActiveId())
+}
+
+// A private tab's mark, for a tab strip row. A tab that is not private keeps
+// whatever mark the site gave it.
+function harmonyPrivateTabSymbol(tabId: Int) -> Symbol {
+    if harmonyPrivateTabIsPrivate(tabId) {
+        return Symbol.Detective
+    }
+    return harmonyTabFaviconFor(tabId)
+}
+
+// Opening a link privately from a page's context menu.
+function harmonyPrivateOpenAction(url: String) -> () -> Void {
+    let target = url
+    let press: () -> Void = { in
+        let ignored = harmonyPrivateOpen(target)
+        return
+    }
+    return press
+}
+
+// --- The controls ------------------------------------------------------------
+
+// The toolbar control that opens a private tab, carrying the count of the ones
+// already open: the one thing a private-browsing button ever has to say.
+Widget PrivateBrowsingControl() {
+    body {
+        HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
+            ControlSlot(active = harmonyPrivateActiveTabIsPrivate()) {
+                Icon(.Detective)
+                    .imageScale(.Small)
+            }
+
+            if harmonyPrivateTabCount() > 0 {
+                Text(String(harmonyPrivateTabCount()))
+                    .typography(.caption)
+                    .foregroundColor(.Accent)
+            }
+        }
+        .hugWidth()
+        .onClick(harmonyPrivateOpenTab)
+    }
+}
+
+// What a private tab says about itself. It sits in the sidebar column, above the
+// page, because the page is a native child window and nothing KiraUI draws can
+// be composited over it.
+Widget PrivateBrowsingBanner() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            if harmonyPrivateActiveTabIsPrivate() {
+                PrivateBrowsingBannerBody()
+            }
+        }
+    }
+}
+
+Widget PrivateBrowsingBannerBody() {
+    body {
+        Panel(radius = CornerRadius.Medium) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
+                HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Top) {
+                    Icon(.Detective)
+                        .imageScale(.Medium)
+                        .foregroundColor(.Accent)
+
+                    // Nothing KiraUI draws wraps, so the sentence is written as
+                    // the lines it is.
+                    VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+                        Text("Private tab")
+                            .typography(.subheadline)
+                            .foregroundColor(.Primary)
+
+                        Text("Cookies, cache and storage stay in")
+                            .typography(.caption)
+                            .foregroundColor(.Secondary)
+
+                        Text("memory and go when this tab closes.")
+                            .typography(.caption)
+                            .foregroundColor(.Secondary)
+                    }
+                }
+            }
+        }
+        .backgroundStyle(.Raised)
+        .themeBorder(.Subtle)
+        .width(harmonyBrowserSidebarWidth() - 24.0)
+        .hugHeight()
+    }
+}

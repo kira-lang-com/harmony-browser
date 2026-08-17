@@ -1,0 +1,228 @@
+import KiraUI
+
+// Text that arrives from a page is arbitrary: a one-word alert, a paragraph, a
+// stack trace with its own newlines, or a megabyte of nothing. A run of text is
+// drawn as one line, so the dialog measures the text itself and hands the
+// column one line per row.
+
+// The widest line a dialog's body is allowed to draw before it breaks.
+function harmonyDialogTextWidth() -> Float {
+    return 396.0
+}
+
+// The size a dialog's body text is measured and drawn at. Measurement and
+// drawing have to agree, so both read this.
+function harmonyDialogTextSize() -> Float {
+    return 13.0
+}
+
+// The most lines a page's own text may occupy. A page that sends a novel gets
+// the beginning of it and an ellipsis; the buttons stay on screen either way.
+function harmonyDialogMaxLines() -> Int {
+    return 24
+}
+
+function harmonyDialogWrapped(content: borrow String) -> [String] {
+    return harmonyDialogWrapLines(content, harmonyDialogTextWidth(), harmonyDialogTextSize(), harmonyDialogMaxLines())
+}
+
+// Greedy wrapping by measured width: break at the last space that fits, and
+// when a single word is wider than the line, break inside it rather than
+// letting it run off the panel.
+function harmonyDialogWrapLines(content: borrow String, maxWidth: Float, size: Float, maxLines: Int) -> [String] {
+    var lines: [String] = []
+    let codes = kiraUiStringToCodepoints(content)
+    var lineStart = 0
+    var index = 0
+    var lastSpace = -1
+
+    while index < codes.count {
+        if lines.count >= maxLines {
+            return harmonyDialogElide(move lines)
+        }
+
+        // A newline in the page's own text is a break the page asked for.
+        if codes[index] == 10 {
+            lines.append(kiraUiStringFromCodepoints(codes, lineStart, index))
+            lineStart = index + 1
+            index = lineStart
+            lastSpace = -1
+            continue
+        }
+
+        if codes[index] == 32 {
+            lastSpace = index
+        }
+
+        let candidate = kiraUiStringFromCodepoints(codes, lineStart, index + 1)
+        if kiraUiTextWidth(candidate, size) <= maxWidth {
+            index = index + 1
+            continue
+        }
+
+        if lastSpace > lineStart {
+            lines.append(kiraUiStringFromCodepoints(codes, lineStart, lastSpace))
+            lineStart = lastSpace + 1
+            index = lineStart
+            lastSpace = -1
+            continue
+        }
+
+        if index > lineStart {
+            lines.append(kiraUiStringFromCodepoints(codes, lineStart, index))
+            lineStart = index
+            lastSpace = -1
+            continue
+        }
+
+        // One character wider than the whole line: it goes on a line of its own
+        // rather than looping here forever.
+        lines.append(kiraUiStringFromCodepoints(codes, lineStart, index + 1))
+        lineStart = index + 1
+        index = lineStart
+        lastSpace = -1
+    }
+
+    if lineStart < codes.count {
+        if lines.count >= maxLines {
+            return harmonyDialogElide(move lines)
+        }
+        lines.append(kiraUiStringFromCodepoints(codes, lineStart, codes.count))
+    }
+    return lines
+}
+
+function harmonyDialogElide(lines: [String]) -> [String] {
+    var elided = move lines
+    elided.append("…")
+    return elided
+}
+
+// The heading a question is given. The page writes the body; what kind of
+// question it is belongs to the browser, and a page cannot forge it.
+function harmonyDialogTitle(kind: HarmonyDialogKind, flags: Int) -> String {
+    var title = ""
+    match kind {
+        None -> {}
+        Alert -> { title = "Alert" }
+        Confirm -> { title = "Confirm" }
+        Prompt -> { title = "Prompt" }
+        BeforeUnload -> { title = "Leave this site?" }
+        Authenticate -> {
+            title = "Sign in"
+            if harmonyDialogHasFlag(flags, harmonyDialogFlagProxy()) {
+                title = "Sign in to the proxy"
+            }
+        }
+        Certificate -> { title = "Your connection is not private" }
+    }
+    return title
+}
+
+// The line under the heading that says who is asking.
+function harmonyDialogSubtitle(kind: HarmonyDialogKind, origin: borrow String, flags: Int) -> String {
+    var subtitle = origin
+    match kind {
+        None -> {}
+        Alert -> {}
+        Confirm -> {}
+        Prompt -> {}
+        BeforeUnload -> { subtitle = "Changes you made may not be saved." }
+        Authenticate -> { subtitle = origin + " is asking for a user name and password." }
+        Certificate -> {}
+    }
+    if harmonyDialogHasFlag(flags, harmonyDialogFlagSubframe()) {
+        subtitle = subtitle + " (embedded frame)"
+    }
+    if subtitle == "" {
+        return "This page"
+    }
+    return subtitle
+}
+
+// What the accepting button says.
+function harmonyDialogAcceptLabel(kind: HarmonyDialogKind) -> String {
+    var label = "OK"
+    match kind {
+        None -> {}
+        Alert -> {}
+        Confirm -> {}
+        Prompt -> {}
+        BeforeUnload -> { label = "Leave" }
+        Authenticate -> { label = "Sign In" }
+        Certificate -> { label = "Proceed anyway" }
+    }
+    return label
+}
+
+// What the refusing button says, and whether there is one. An alert states
+// something; there is nothing to refuse.
+function harmonyDialogDismissLabel(kind: HarmonyDialogKind) -> String {
+    var label = "Cancel"
+    match kind {
+        None -> {}
+        Alert -> {}
+        Confirm -> {}
+        Prompt -> {}
+        BeforeUnload -> { label = "Stay" }
+        Authenticate -> {}
+        Certificate -> { label = "Back to safety" }
+    }
+    return label
+}
+
+function harmonyDialogHasDismiss(kind: HarmonyDialogKind) -> Bool {
+    var present = true
+    match kind {
+        None -> { present = false }
+        Alert -> { present = false }
+        Confirm -> {}
+        Prompt -> {}
+        BeforeUnload -> {}
+        Authenticate -> {}
+        Certificate -> {}
+    }
+    return present
+}
+
+// --- The certificate warning -------------------------------------------------
+
+// What the warning says before anything technical. It names the site and the
+// consequence, because those are the two things a person needs to decide.
+function harmonyDialogCertificateSummary(origin: borrow String) -> String {
+    if origin.count == 0 {
+        return "This site's identity could not be verified, so anything sent to it could be read by somebody else."
+    }
+    return origin + " presented a certificate this browser could not verify. Somebody could be reading what you send to it."
+}
+
+function harmonyDialogCertificateDetailLabel(open: Bool) -> String {
+    if open {
+        return "Hide details"
+    }
+    return "Show details"
+}
+
+// The verification failure by number, for a person reporting it to whoever runs
+// the site. Zero means the system refused the certificate without saying which
+// check failed.
+function harmonyDialogCertificateCodeLine(code: Int) -> String {
+    if code == 0 {
+        return "The system refused the certificate without naming a reason."
+    }
+    return "Verification error " + String(code)
+}
+
+function harmonyDialogSymbol(kind: HarmonyDialogKind) -> Symbol {
+    var symbol = Symbol.Info
+    match kind {
+        None -> {}
+        Alert -> { symbol = Symbol.Warning }
+        Confirm -> { symbol = Symbol.Question }
+        Prompt -> { symbol = Symbol.Keyboard }
+        BeforeUnload -> { symbol = Symbol.SignOut }
+        Authenticate -> { symbol = Symbol.LockKey }
+        Certificate -> { symbol = Symbol.ShieldWarning }
+    }
+    return symbol
+}

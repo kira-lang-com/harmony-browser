@@ -1,0 +1,314 @@
+import KiraUI
+
+// Reading the browsing history, and everything a control on one of its rows
+// does.
+//
+// The module is the record and a build reads it fresh, so there is no second
+// list here that could disagree with what is on disk. What IS owned here is the
+// part of a history panel with no meaning below the UI -- whether it is open and
+// what is typed in its search field -- plus a cache of the rows the current
+// query answered with, so a column of them costs one query rather than one per
+// row drawn.
+
+// The field the history panel is searched through.
+function harmonyHistorySearchFieldKey() -> Int {
+    return 41510
+}
+
+// How many rows the panel holds. The module remembers thousands, and a sidebar
+// column with no scroll view is not where the rest of them are read: the search
+// field is.
+function harmonyHistoryPanelRowLimit() -> Int {
+    return 24
+}
+
+construct HarmonyHistoryStore {
+    @Required let version: Int
+}
+
+HarmonyHistoryStore HarmonyHistory() {
+    @State var panelOpen: Bool = false
+    @State var rows: [HistoryVisit] = []
+    @State var cachedRevision: Int = -1
+    @State var cachedQuery: String = ""
+    @State var seededQuery: Bool = false
+    // All time, which is the only range a history panel opens on: a panel that
+    // opened on "the last hour" would be a delete button aimed at whatever the
+    // user had just been reading.
+    @State var rangeIndex: Int = 4
+    let version: Int = 1
+
+    // Called once per build, before anything reads a row. The query is re-run
+    // when the model moves or when the typed text changes, and on no other
+    // frame: a substring search over the whole history on every frame of a load
+    // would be the most expensive thing the browser does while sitting still.
+    function sync() {
+        if panelOpen == false {
+            return
+        }
+
+        let typed = textFieldText(harmonyHistorySearchFieldKey())
+        let revision = harmonyBookmarksRevision()
+        if seededQuery && revision == cachedRevision && typed == cachedQuery {
+            return
+        }
+
+        rows = harmonyHistoryRead(typed, harmonyHistoryPanelRowLimit())
+        cachedRevision = revision
+        cachedQuery = typed
+        seededQuery = true
+        return
+    }
+
+    function isOpen() -> Bool {
+        return panelOpen
+    }
+
+    function setOpen(value: Bool) {
+        panelOpen = value
+        if value {
+            seededQuery = false
+        }
+        return
+    }
+
+    function invalidate() {
+        seededQuery = false
+        return
+    }
+
+    function rowCount() -> Int {
+        return rows.count
+    }
+
+    function rowAt(index: Int) -> HistoryVisit {
+        if index < 0 || index >= rows.count {
+            return HistoryVisit {}
+        }
+        return rows[index]
+    }
+
+    function query() -> String {
+        return cachedQuery
+    }
+
+    function range() -> BrowsingDataRange {
+        return browsingDataRangeFromCode(rangeIndex)
+    }
+
+    function rangeSelection() -> Int {
+        return rangeIndex
+    }
+
+    function setRangeIndex(index: Int) {
+        if index < 0 || index >= browsingDataRanges().count {
+            return
+        }
+        rangeIndex = index
+        return
+    }
+}
+
+// --- Reading ------------------------------------------------------------------
+
+// The module's answer, read once. The query call latches the answer for this
+// thread, so every field below belongs to the same ranking.
+function harmonyHistoryRead(text: String, limit: Int) -> [HistoryVisit] {
+    var visits: [HistoryVisit] = []
+    let count = Int(hbHistoryQuery(text, I32(harmonyHistoryMatchSubstring()), I32(limit)))
+    var index = 0
+    while index < count {
+        let native = I32(index)
+        visits.append(HistoryVisit {
+            url: hbHistoryURL(native)
+            title: hbHistoryTitle(native)
+            host: hbHistoryHost(native)
+            lastVisit: hbHistoryLastVisit(native)
+            visitCount: Int(hbHistoryVisitCount(native))
+            day: Int(hbHistoryDay(native))
+        })
+        index = index + 1
+    }
+    return visits
+}
+
+// Every accessor below syncs first, so the panel needs no per-frame hook of its
+// own: a widget tree that reads the history is a widget tree that has caught up
+// with it.
+function harmonyHistoryPanelIsOpen() -> Bool {
+    HarmonyHistory().sync()
+    return HarmonyHistory().isOpen()
+}
+
+function harmonyHistoryRowCount() -> Int {
+    HarmonyHistory().sync()
+    return HarmonyHistory().rowCount()
+}
+
+function harmonyHistoryRowAt(index: Int) -> HistoryVisit {
+    return HarmonyHistory().rowAt(index)
+}
+
+function harmonyHistorySearchText() -> String {
+    return HarmonyHistory().query()
+}
+
+// How many addresses the history holds in total, and how many visits to them.
+function harmonyHistoryTotalCount() -> Int {
+    return Int(hbHistoryCount())
+}
+
+function harmonyHistoryVisitTotal() -> Int {
+    return Int(hbHistoryVisitTotal())
+}
+
+// How many rows the query matched but the panel is not showing.
+function harmonyHistoryHiddenCount() -> Int {
+    let hidden = harmonyHistoryTotalCount() - harmonyHistoryRowCount()
+    if hidden < 0 {
+        return 0
+    }
+    return hidden
+}
+
+// --- Date grouping ------------------------------------------------------------
+
+// Whether a row opens a new day. The rows come back most-recent-first, so a day
+// changes at the row whose day differs from the one above it, and the first row
+// always opens one.
+function harmonyHistoryOpensDay(index: Int) -> Bool {
+    if index <= 0 {
+        return harmonyHistoryRowCount() > 0
+    }
+    return harmonyHistoryRowAt(index).day != harmonyHistoryRowAt(index - 1).day
+}
+
+function harmonyHistoryHeadingAt(index: Int) -> String {
+    return harmonyHistoryHeadingForDay(harmonyHistoryRowAt(index).day)
+}
+
+// --- Acting -------------------------------------------------------------------
+
+function harmonyHistoryTogglePanel() {
+    let store = HarmonyHistory()
+    store.setOpen(store.isOpen() == false)
+    return
+}
+
+function harmonyHistoryClosePanel() {
+    HarmonyHistory().setOpen(false)
+    return
+}
+
+function harmonyHistoryOpenPanel() {
+    HarmonyHistory().setOpen(true)
+    return
+}
+
+// A row's control has to carry the address it belongs to, and a press handler
+// takes no arguments, so each one is a closure built around that address.
+function harmonyHistoryOpenAction(url: String) -> () -> Void {
+    let target = url
+    let press: () -> Void = { in
+        harmonyNavigationLoad(target)
+        return
+    }
+    return press
+}
+
+function harmonyHistoryOpenInNewTabAction(url: String) -> () -> Void {
+    let target = url
+    let press: () -> Void = { in
+        let ignored = HarmonyTabList().open(target)
+        return
+    }
+    return press
+}
+
+function harmonyHistoryForgetAction(url: String) -> () -> Void {
+    let target = url
+    let press: () -> Void = { in
+        hbHistoryForgetURL(target)
+        HarmonyHistory().invalidate()
+        return
+    }
+    return press
+}
+
+function harmonyHistoryForgetHostAction(host: String) -> () -> Void {
+    let target = host
+    let press: () -> Void = { in
+        hbHistoryForgetHost(target)
+        HarmonyHistory().invalidate()
+        return
+    }
+    return press
+}
+
+// --- Clearing -----------------------------------------------------------------
+
+// The moment a range starts at, on the module's own clock. All time starts at
+// nothing, which is what clears the history whole.
+function harmonyHistoryCutoff(range: BrowsingDataRange) -> Float {
+    let now = harmonyBookmarksNow()
+    match range {
+        LastHour -> return now - 3600.0;
+        LastDay -> return now - 86400.0;
+        LastWeek -> return now - 604800.0;
+        LastFourWeeks -> return now - 2419200.0;
+        AllTime -> return 0.0;
+    }
+}
+
+// Forgets every visit inside a range, dropping an address once no visit to it is
+// left.
+function harmonyHistoryClearRange(range: BrowsingDataRange) {
+    hbHistoryForgetSince(harmonyHistoryCutoff(range))
+    HarmonyHistory().invalidate()
+    return
+}
+
+function harmonyHistoryRange() -> BrowsingDataRange {
+    return HarmonyHistory().range()
+}
+
+function harmonyHistoryRangeSelection() -> Int {
+    return HarmonyHistory().rangeSelection()
+}
+
+function harmonyHistorySetRange(index: Int) {
+    HarmonyHistory().setRangeIndex(index)
+    return
+}
+
+// What the history panel's own control does: the range the panel is set to, over
+// the history alone. The clear-browsing-data panel is where the rest of a
+// profile goes with it.
+function harmonyHistoryClearSelectedRange() {
+    harmonyHistoryClearRange(harmonyHistoryRange())
+    return
+}
+
+// What the clear-browsing-data panel's button does.
+//
+// The history is browsing data, and the panel that clears browsing data over a
+// range is the one place a person expects to clear it from. The range is the
+// panel's own -- read rather than repeated -- so the two can never disagree
+// about how far back "the last hour" reaches.
+function harmonyHistoryClearBrowsingData() {
+    harmonyHistoryClearRange(harmonyDataStoreRange())
+    harmonyDataStoreClear()
+    return
+}
+
+// The site the address bar is on, forgotten from the history in one press: the
+// one place a person thinks about one site rather than all of them.
+function harmonyHistoryForgetActiveSite() {
+    let tab = harmonyActiveTabModel()
+    if tab.host.count == 0 {
+        return
+    }
+    hbHistoryForgetHost(tab.host)
+    HarmonyHistory().invalidate()
+    return
+}

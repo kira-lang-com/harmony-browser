@@ -1,0 +1,341 @@
+import KiraUI
+
+// The clear-data panel's own state, and every read the panel makes of the
+// profile.
+//
+// The profile is the record: which sites hold data, how much of it, and whether
+// a removal is running are all read back from it. What is owned here is the part
+// with no meaning below the UI -- which types are ticked, which range is chosen,
+// and whether the panel is open -- plus a cache of the published site list, so a
+// column of rows costs one read of the list rather than one per row.
+construct HarmonyDataStoreStore {
+    @Required let version: Int
+}
+
+HarmonyDataStoreStore HarmonyDataStore() {
+    @State var panelOpen: Bool = false
+    // Cache, offline site caches and tracking records: what a browser clears
+    // without signing anyone out of anything.
+    @State var selectedTypes: Int = 162
+    @State var rangeIndex: Int = 4
+    @State var sites: [SiteData] = []
+    @State var cachedGeneration: Int = -1
+    @State var lastClearGeneration: Int = -1
+    @State var clearedBytes: Float = 0.0
+    @State var requested: Bool = false
+    let version: Int = 1
+
+    // Called once per build, before anything reads a row. The site list is
+    // asked for when the panel opens and again whenever a removal finishes,
+    // because that is exactly when what is on screen has stopped being true.
+    function sync() {
+        if panelOpen == false {
+            return
+        }
+
+        if requested == false {
+            requested = true
+            hbDataRequestRecords()
+        }
+
+        let generation = Int(hbDataRecordsGeneration())
+        if generation != cachedGeneration {
+            sites = harmonyDataStoreReadSites()
+            cachedGeneration = generation
+        }
+
+        let cleared = Int(hbDataClearGeneration())
+        if cleared != lastClearGeneration {
+            if lastClearGeneration >= 0 {
+                clearedBytes = hbDataClearedBytes()
+            }
+            lastClearGeneration = cleared
+        }
+        return
+    }
+
+    // --- The panel ----------------------------------------------------------
+
+    function isOpen() -> Bool {
+        return panelOpen
+    }
+
+    function setOpen(value: Bool) {
+        panelOpen = value
+        if value {
+            requested = false
+        }
+        return
+    }
+
+    function refresh() {
+        requested = false
+        cachedGeneration = -1
+        return
+    }
+
+    // --- The selection ------------------------------------------------------
+
+    function isSelected(kind: BrowsingDataType) -> Bool {
+        return (selectedTypes & browsingDataTypeBit(kind)) != 0
+    }
+
+    function toggle(kind: BrowsingDataType) {
+        let bit = browsingDataTypeBit(kind)
+        if (selectedTypes & bit) != 0 {
+            selectedTypes = selectedTypes - bit
+            return
+        }
+        selectedTypes = selectedTypes | bit
+        return
+    }
+
+    function selection() -> Int {
+        return selectedTypes
+    }
+
+    function range() -> BrowsingDataRange {
+        return browsingDataRangeFromCode(rangeIndex)
+    }
+
+    function setRangeIndex(index: Int) {
+        if index < 0 || index >= browsingDataRanges().count {
+            return
+        }
+        rangeIndex = index
+        return
+    }
+
+    function rangeSelection() -> Int {
+        return rangeIndex
+    }
+
+    // --- The site list ------------------------------------------------------
+
+    function siteCount() -> Int {
+        return sites.count
+    }
+
+    function siteAt(index: Int) -> SiteData {
+        if index < 0 || index >= sites.count {
+            return SiteData {}
+        }
+        return sites[index]
+    }
+
+    // --- Acting -------------------------------------------------------------
+
+    function clear() {
+        if selectedTypes == 0 {
+            return
+        }
+        clearedBytes = 0.0
+        hbDataClear(I32(selectedTypes), I32(browsingDataRangeCode(range())))
+        refresh()
+        return
+    }
+
+    function removeSite(origin: String) {
+        if origin.count == 0 {
+            return
+        }
+        hbDataRemoveOrigin(origin)
+        refresh()
+        return
+    }
+
+    function freedBytes() -> Float {
+        return clearedBytes
+    }
+}
+
+// --- Reading the profile -----------------------------------------------------
+
+// The published set, read once. The count call latches the set for this thread,
+// so every field below belongs to the same publication.
+function harmonyDataStoreReadSites() -> [SiteData] {
+    var sites: [SiteData] = []
+    let count = Int(hbDataRecordCount())
+    var index = 0
+    while index < count {
+        let native = I32(index)
+        sites.append(SiteData {
+            origin: hbDataRecordOrigin(native)
+            host: hbDataRecordHost(native)
+            bytes: hbDataRecordSize(native)
+            types: Int(hbDataRecordTypes(native))
+            lastUsed: hbDataRecordLastUsed(native)
+        })
+        index = index + 1
+    }
+    return sites
+}
+
+// Every accessor below syncs first, so the panel needs no per-frame hook of its
+// own: a widget tree that reads the profile is a widget tree that has caught up
+// with it.
+function harmonyDataStoreIsOpen() -> Bool {
+    HarmonyDataStore().sync()
+    return HarmonyDataStore().isOpen()
+}
+
+function harmonyDataStoreSiteCount() -> Int {
+    HarmonyDataStore().sync()
+    return HarmonyDataStore().siteCount()
+}
+
+function harmonyDataStoreSiteAt(index: Int) -> SiteData {
+    return HarmonyDataStore().siteAt(index)
+}
+
+function harmonyDataStoreTotalSize() -> Float {
+    return hbDataRecordsTotalSize()
+}
+
+function harmonyDataStoreTypeSize(kind: BrowsingDataType) -> Float {
+    return hbDataTypeSize(I32(browsingDataTypeBit(kind)))
+}
+
+function harmonyDataStoreIsScanning() -> Bool {
+    return hbDataRecordsPending() != I32(0)
+}
+
+function harmonyDataStoreIsClearing() -> Bool {
+    return hbDataClearPending() != I32(0)
+}
+
+function harmonyDataStoreIsSelected(kind: BrowsingDataType) -> Bool {
+    return HarmonyDataStore().isSelected(kind)
+}
+
+function harmonyDataStoreSelectionCount() -> Int {
+    var count = 0
+    for kind in browsingDataTypes() {
+        if HarmonyDataStore().isSelected(kind) {
+            count = count + 1
+        }
+    }
+    return count
+}
+
+function harmonyDataStoreRange() -> BrowsingDataRange {
+    return HarmonyDataStore().range()
+}
+
+function harmonyDataStoreRangeSelection() -> Int {
+    return HarmonyDataStore().rangeSelection()
+}
+
+function harmonyDataStoreProfilePath() -> String {
+    return hbDataProfilePath()
+}
+
+function harmonyDataStoreError() -> String {
+    return hbDataError()
+}
+
+function harmonyDataStoreFreedBytes() -> Float {
+    return HarmonyDataStore().freedBytes()
+}
+
+// --- Acting ------------------------------------------------------------------
+
+function harmonyDataStoreTogglePanel() {
+    HarmonyDataStore().setOpen(HarmonyDataStore().isOpen() == false)
+    return
+}
+
+function harmonyDataStoreClosePanel() {
+    HarmonyDataStore().setOpen(false)
+    return
+}
+
+function harmonyDataStoreRefresh() {
+    HarmonyDataStore().refresh()
+    return
+}
+
+function harmonyDataStoreClear() {
+    HarmonyDataStore().clear()
+    return
+}
+
+function harmonyDataStoreSetRange(index: Int) {
+    HarmonyDataStore().setRangeIndex(index)
+    return
+}
+
+// A row's control has to carry the type it belongs to, and a press handler takes
+// no arguments, so each one is a closure built around its type.
+function harmonyDataStoreToggleAction(kind: BrowsingDataType) -> () -> Void {
+    let target = kind
+    let press: () -> Void = { in
+        HarmonyDataStore().toggle(target)
+        return
+    }
+    return press
+}
+
+function harmonyDataStoreRemoveAction(origin: String) -> () -> Void {
+    let target = origin
+    let press: () -> Void = { in
+        HarmonyDataStore().removeSite(target)
+        return
+    }
+    return press
+}
+
+// The site the address bar is on, so a page can be forgotten from the page
+// itself rather than only from a list.
+function harmonyDataStoreRemoveActiveSite() {
+    let tab = harmonyActiveTabModel()
+    if tab.url.count == 0 {
+        return
+    }
+    HarmonyDataStore().removeSite(harmonyDataStoreOriginOf(tab.url))
+    return
+}
+
+// The origin of a URL, spelled the way the profile spells it: scheme, host, and
+// the port only when it is not the scheme's own. The URL comes back from WebKit
+// already normalized, so the case of the scheme and the host is WebKit's.
+//
+// This has to agree with `originForURL` in `harmony_data_store_origins.cpp`,
+// because the two are how a site names the same directory on disk.
+function harmonyDataStoreOriginOf(url: String) -> String {
+    let separator = url.indexOf("://")
+    if separator <= 0 {
+        return ""
+    }
+
+    let scheme = url.substring(0, separator)
+    if scheme == "about" || scheme == "data" || scheme == "blob" || scheme == "javascript" {
+        return ""
+    }
+    if scheme == "file" {
+        return "file://"
+    }
+
+    let rest = url.substring(separator + 3, url.count)
+    let authority = harmonyNavigationHostOf(harmonyNavigationAuthorityOf(rest))
+    if authority.count == 0 {
+        return ""
+    }
+    return scheme + "://" + harmonyDataStoreWithoutDefaultPort(scheme, authority)
+}
+
+// A scheme's own port is not part of what an origin IS, and WebKit leaves it
+// out of the spelling it hashes into a directory name.
+function harmonyDataStoreWithoutDefaultPort(scheme: String, authority: String) -> String {
+    if scheme == "https" && authority.count > 4 {
+        if authority.substring(authority.count - 4, authority.count) == ":443" {
+            return authority.substring(0, authority.count - 4)
+        }
+    }
+    if scheme == "http" && authority.count > 3 {
+        if authority.substring(authority.count - 3, authority.count) == ":80" {
+            return authority.substring(0, authority.count - 3)
+        }
+    }
+    return authority
+}
