@@ -28,6 +28,13 @@ Package HarmonyBrowser {
         NativeLibrary {
             name: "harmony_browser",
             linkMode: LinkMode.Static,
+            // Optional while the engine is Windows-only. Two thirds of these
+            // sources reach either the WebKit C API or Win32, so there is no
+            // Linux archive to name yet -- and with no row for that target the
+            // binding is excluded rather than the build failing. A call into it
+            // there traps by name, which is why the Kira side asks
+            // `harmonyBrowserEngineAvailable()` before it calls anything.
+            availability: Availability.Optional,
             headers: Headers { entrypoint: "NativeLibs/harmony_webkit.h", includeDirs: ["NativeLibs"] },
             sources: [
                 "NativeLibs/harmony_webkit.cpp",
