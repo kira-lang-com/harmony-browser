@@ -13,98 +13,344 @@
 // --- Lifetime ---------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_frame; abi: c; }
-function nativeInputFrame(hostWindow: RawPtr) -> Void;
+function nativeInputFrameEngine(hostWindow: RawPtr) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputFrame(hostWindow: RawPtr) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeInputFrameEngine(hostWindow)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_shutdown; abi: c; }
-function nativeInputShutdown() -> Void;
+function nativeInputShutdownEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputShutdown() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeInputShutdownEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_ready; abi: c; }
-function nativeInputReady() -> I32;
+function nativeInputReadyEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputReady() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeInputReadyEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_error; abi: c; }
-function nativeInputError() -> CString;
+function nativeInputErrorEngine() -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputError() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return nativeInputErrorEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_revision; abi: c; }
-function nativeInputRevision() -> I32;
+function nativeInputRevisionEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputRevision() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeInputRevisionEngine()
+}
 
 // --- Events -----------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_next_event; abi: c; }
-function nativeInputNextEvent() -> I32;
+function nativeInputNextEventEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputNextEvent() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeInputNextEventEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_event_argument; abi: c; }
-function nativeInputEventArgument() -> I32;
+function nativeInputEventArgumentEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputEventArgument() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeInputEventArgumentEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_event_target; abi: c; }
-function nativeInputEventTarget() -> I32;
+function nativeInputEventTargetEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputEventTarget() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeInputEventTargetEngine()
+}
 
 // --- Focus ------------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_focus_owner; abi: c; }
-function nativeInputFocusOwner() -> I32;
+function nativeInputFocusOwnerEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputFocusOwner() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeInputFocusOwnerEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_focus_chrome; abi: c; }
-function nativeInputFocusChrome() -> Void;
+function nativeInputFocusChromeEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputFocusChrome() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeInputFocusChromeEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_focus_content; abi: c; }
-function nativeInputFocusContent() -> Void;
+function nativeInputFocusContentEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputFocusContent() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeInputFocusContentEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_chrome_text_target; abi: c; }
-function nativeInputChromeTextTarget() -> I32;
+function nativeInputChromeTextTargetEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputChromeTextTarget() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeInputChromeTextTargetEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_set_chrome_text_target; abi: c; }
-function nativeInputSetChromeTextTarget(target: I32) -> Void;
+function nativeInputSetChromeTextTargetEngine(target: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputSetChromeTextTarget(target: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeInputSetChromeTextTargetEngine(target)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_focus_cycle; abi: c; }
-function nativeInputFocusCycle(direction: I32) -> Void;
+function nativeInputFocusCycleEngine(direction: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputFocusCycle(direction: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeInputFocusCycleEngine(direction)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_press_serial; abi: c; }
-function nativeInputPressSerial() -> I32;
+function nativeInputPressSerialEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputPressSerial() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeInputPressSerialEngine()
+}
 
 // --- Page zoom --------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_zoom_in; abi: c; }
-function nativeInputZoomIn() -> Void;
+function nativeInputZoomInEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputZoomIn() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeInputZoomInEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_zoom_out; abi: c; }
-function nativeInputZoomOut() -> Void;
+function nativeInputZoomOutEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputZoomOut() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeInputZoomOutEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_zoom_reset; abi: c; }
-function nativeInputZoomReset() -> Void;
+function nativeInputZoomResetEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputZoomReset() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeInputZoomResetEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_zoom_set; abi: c; }
-function nativeInputZoomSet(percent: I32) -> Void;
+function nativeInputZoomSetEngine(percent: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputZoomSet(percent: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeInputZoomSetEngine(percent)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_zoom_percent; abi: c; }
-function nativeInputZoomPercent() -> I32;
+function nativeInputZoomPercentEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputZoomPercent() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeInputZoomPercentEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_zoom_origin; abi: c; }
-function nativeInputZoomOrigin() -> CString;
+function nativeInputZoomOriginEngine() -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputZoomOrigin() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return nativeInputZoomOriginEngine()
+}
 
 // --- Find in page -----------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_find_open; abi: c; }
-function nativeInputFindOpen() -> Void;
+function nativeInputFindOpenEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputFindOpen() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeInputFindOpenEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_find_close; abi: c; }
-function nativeInputFindClose() -> Void;
+function nativeInputFindCloseEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputFindClose() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeInputFindCloseEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_find_is_open; abi: c; }
-function nativeInputFindIsOpen() -> I32;
+function nativeInputFindIsOpenEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputFindIsOpen() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeInputFindIsOpenEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_find_search; abi: c; }
-function nativeInputFindSearch(text: CString, backwards: I32) -> Void;
+function nativeInputFindSearchEngine(text: CString, backwards: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputFindSearch(text: borrow String, backwards: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeInputFindSearchEngine(text, backwards)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_find_match_count; abi: c; }
-function nativeInputFindMatchCount() -> I32;
+function nativeInputFindMatchCountEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputFindMatchCount() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeInputFindMatchCountEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_find_match_index; abi: c; }
-function nativeInputFindMatchIndex() -> I32;
+function nativeInputFindMatchIndexEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputFindMatchIndex() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeInputFindMatchIndexEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_find_searched; abi: c; }
-function nativeInputFindSearched() -> I32;
+function nativeInputFindSearchedEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputFindSearched() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeInputFindSearchedEngine()
+}
 
 // --- Printing ---------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_input_print; abi: c; }
-function nativeInputPrint() -> Void;
+function nativeInputPrintEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeInputPrint() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeInputPrintEngine()
+    return
+}

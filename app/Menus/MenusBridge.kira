@@ -11,25 +11,83 @@
 // browser finds them, in Kira types.
 
 @FFI.Extern { library: harmony_browser; symbol: hb_menus_attach; abi: c; }
-function nativeMenusAttach() -> Void;
+function nativeMenusAttachEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeMenusAttach() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeMenusAttachEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_menus_shutdown; abi: c; }
-function nativeMenusShutdown() -> Void;
+function nativeMenusShutdownEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeMenusShutdown() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeMenusShutdownEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_menus_next_command; abi: c; }
-function nativeMenusNextCommand() -> I32;
+function nativeMenusNextCommandEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeMenusNextCommand() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeMenusNextCommandEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_menus_command_text; abi: c; }
-function nativeMenusCommandText() -> CString;
+function nativeMenusCommandTextEngine() -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeMenusCommandText() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return nativeMenusCommandTextEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_menus_command_tab; abi: c; }
-function nativeMenusCommandTab() -> I32;
+function nativeMenusCommandTabEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeMenusCommandTab() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeMenusCommandTabEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_menus_revision; abi: c; }
-function nativeMenusRevision() -> I32;
+function nativeMenusRevisionEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeMenusRevision() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeMenusRevisionEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_menus_error; abi: c; }
-function nativeMenusError() -> CString;
+function nativeMenusErrorEngine() -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeMenusError() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return nativeMenusErrorEngine()
+}
 
 // --- The kinds, in the order harmony_menus.h numbers them --------------------
 

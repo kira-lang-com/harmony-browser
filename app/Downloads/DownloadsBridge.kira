@@ -11,52 +11,187 @@
 // have the same requirement.
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_revision; abi: c; }
-function downloadsNativeRevision() -> I32;
+function downloadsNativeRevisionEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeRevision() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return downloadsNativeRevisionEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_count; abi: c; }
-function downloadsNativeCount() -> I32;
+function downloadsNativeCountEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeCount() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return downloadsNativeCountEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_id_at; abi: c; }
-function downloadsNativeIdAt(index: I32) -> I32;
+function downloadsNativeIdAtEngine(index: I32) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeIdAt(index: I32) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return downloadsNativeIdAtEngine(index)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_active_count; abi: c; }
-function downloadsNativeActiveCount() -> I32;
+function downloadsNativeActiveCountEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeActiveCount() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return downloadsNativeActiveCountEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_state; abi: c; }
-function downloadsNativeState(id: I32) -> I32;
+function downloadsNativeStateEngine(id: I32) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeState(id: I32) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return downloadsNativeStateEngine(id)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_received_bytes; abi: c; }
-function downloadsNativeReceivedBytes(id: I32) -> Int;
+function downloadsNativeReceivedBytesEngine(id: I32) -> Int;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeReceivedBytes(id: I32) -> Int {
+    if harmonyBrowserEngineAvailable() == false {
+        return 0
+    }
+    return downloadsNativeReceivedBytesEngine(id)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_total_bytes; abi: c; }
-function downloadsNativeTotalBytes(id: I32) -> Int;
+function downloadsNativeTotalBytesEngine(id: I32) -> Int;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeTotalBytes(id: I32) -> Int {
+    if harmonyBrowserEngineAvailable() == false {
+        return 0
+    }
+    return downloadsNativeTotalBytesEngine(id)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_text; abi: c; }
-function downloadsNativeText(id: I32, field: I32) -> CString;
+function downloadsNativeTextEngine(id: I32, field: I32) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeText(id: I32, field: I32) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return downloadsNativeTextEngine(id, field)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_directory; abi: c; }
-function downloadsNativeDirectory() -> CString;
+function downloadsNativeDirectoryEngine() -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeDirectory() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return downloadsNativeDirectoryEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_cancel; abi: c; }
-function downloadsNativeCancel(id: I32) -> Void;
+function downloadsNativeCancelEngine(id: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeCancel(id: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    downloadsNativeCancelEngine(id)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_remove; abi: c; }
-function downloadsNativeRemove(id: I32) -> Void;
+function downloadsNativeRemoveEngine(id: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeRemove(id: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    downloadsNativeRemoveEngine(id)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_clear_finished; abi: c; }
-function downloadsNativeClearFinished() -> Void;
+function downloadsNativeClearFinishedEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeClearFinished() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    downloadsNativeClearFinishedEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_reveal; abi: c; }
-function downloadsNativeReveal(id: I32) -> Void;
+function downloadsNativeRevealEngine(id: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeReveal(id: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    downloadsNativeRevealEngine(id)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_open; abi: c; }
-function downloadsNativeOpen(id: I32) -> Void;
+function downloadsNativeOpenEngine(id: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeOpen(id: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    downloadsNativeOpenEngine(id)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_reveal_directory; abi: c; }
-function downloadsNativeRevealDirectory() -> Void;
+function downloadsNativeRevealDirectoryEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeRevealDirectory() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    downloadsNativeRevealDirectoryEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_downloads_force_next; abi: c; }
-function downloadsNativeForceNext(url: CString) -> Void;
+function downloadsNativeForceNextEngine(url: CString) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function downloadsNativeForceNext(url: borrow String) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    downloadsNativeForceNextEngine(url)
+    return
+}
 
 // --- The Kira-side surface ---------------------------------------------------
 

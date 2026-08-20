@@ -9,82 +9,305 @@
 // where a caller finds them, with Kira types and the active tab as a default.
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_active_tab; abi: c; }
-function hbNavActiveTab() -> I32;
+function hbNavActiveTabEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavActiveTab() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbNavActiveTabEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_tab_for_slot; abi: c; }
-function hbNavTabForSlot(slot: I32) -> I32;
+function hbNavTabForSlotEngine(slot: I32) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavTabForSlot(slot: I32) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbNavTabForSlotEngine(slot)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_tab_count; abi: c; }
-function hbNavTabCount() -> I32;
+function hbNavTabCountEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavTabCount() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbNavTabCountEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_tab_id_at; abi: c; }
-function hbNavTabIdAt(index: I32) -> I32;
+function hbNavTabIdAtEngine(index: I32) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavTabIdAt(index: I32) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbNavTabIdAtEngine(index)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_tab_slot; abi: c; }
-function hbNavTabSlot(tab: I32) -> I32;
+function hbNavTabSlotEngine(tab: I32) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavTabSlot(tab: I32) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbNavTabSlotEngine(tab)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_url; abi: c; }
-function hbNavURL(tab: I32) -> CString;
+function hbNavURLEngine(tab: I32) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavURL(tab: I32) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return hbNavURLEngine(tab)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_committed_url; abi: c; }
-function hbNavCommittedURL(tab: I32) -> CString;
+function hbNavCommittedURLEngine(tab: I32) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavCommittedURL(tab: I32) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return hbNavCommittedURLEngine(tab)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_provisional_url; abi: c; }
-function hbNavProvisionalURL(tab: I32) -> CString;
+function hbNavProvisionalURLEngine(tab: I32) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavProvisionalURL(tab: I32) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return hbNavProvisionalURLEngine(tab)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_title; abi: c; }
-function hbNavTitle(tab: I32) -> CString;
+function hbNavTitleEngine(tab: I32) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavTitle(tab: I32) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return hbNavTitleEngine(tab)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_progress; abi: c; }
-function hbNavProgress(tab: I32) -> Float;
+function hbNavProgressEngine(tab: I32) -> Float;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavProgress(tab: I32) -> Float {
+    if harmonyBrowserEngineAvailable() == false {
+        return 0.0
+    }
+    return hbNavProgressEngine(tab)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_is_loading; abi: c; }
-function hbNavIsLoading(tab: I32) -> I32;
+function hbNavIsLoadingEngine(tab: I32) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavIsLoading(tab: I32) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbNavIsLoadingEngine(tab)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_can_go_back; abi: c; }
-function hbNavCanGoBack(tab: I32) -> I32;
+function hbNavCanGoBackEngine(tab: I32) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavCanGoBack(tab: I32) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbNavCanGoBackEngine(tab)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_can_go_forward; abi: c; }
-function hbNavCanGoForward(tab: I32) -> I32;
+function hbNavCanGoForwardEngine(tab: I32) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavCanGoForward(tab: I32) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbNavCanGoForwardEngine(tab)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_error_code; abi: c; }
-function hbNavErrorCode(tab: I32) -> I32;
+function hbNavErrorCodeEngine(tab: I32) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavErrorCode(tab: I32) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbNavErrorCodeEngine(tab)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_error_text; abi: c; }
-function hbNavErrorText(tab: I32) -> CString;
+function hbNavErrorTextEngine(tab: I32) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavErrorText(tab: I32) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return hbNavErrorTextEngine(tab)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_history_count; abi: c; }
-function hbNavHistoryCount(tab: I32) -> I32;
+function hbNavHistoryCountEngine(tab: I32) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavHistoryCount(tab: I32) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbNavHistoryCountEngine(tab)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_history_current; abi: c; }
-function hbNavHistoryCurrent(tab: I32) -> I32;
+function hbNavHistoryCurrentEngine(tab: I32) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavHistoryCurrent(tab: I32) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbNavHistoryCurrentEngine(tab)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_history_url; abi: c; }
-function hbNavHistoryURL(tab: I32, index: I32) -> CString;
+function hbNavHistoryURLEngine(tab: I32, index: I32) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavHistoryURL(tab: I32, index: I32) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return hbNavHistoryURLEngine(tab, index)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_history_title; abi: c; }
-function hbNavHistoryTitle(tab: I32, index: I32) -> CString;
+function hbNavHistoryTitleEngine(tab: I32, index: I32) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavHistoryTitle(tab: I32, index: I32) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return hbNavHistoryTitleEngine(tab, index)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_navigate; abi: c; }
-function hbNavNavigate(tab: I32, url: CString) -> Void;
+function hbNavNavigateEngine(tab: I32, url: CString) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavNavigate(tab: I32, url: borrow String) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    hbNavNavigateEngine(tab, url)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_reload; abi: c; }
-function hbNavReload(tab: I32) -> Void;
+function hbNavReloadEngine(tab: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavReload(tab: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    hbNavReloadEngine(tab)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_reload_ignoring_cache; abi: c; }
-function hbNavReloadIgnoringCache(tab: I32) -> Void;
+function hbNavReloadIgnoringCacheEngine(tab: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavReloadIgnoringCache(tab: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    hbNavReloadIgnoringCacheEngine(tab)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_stop; abi: c; }
-function hbNavStop(tab: I32) -> Void;
+function hbNavStopEngine(tab: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavStop(tab: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    hbNavStopEngine(tab)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_go_back; abi: c; }
-function hbNavGoBack(tab: I32) -> Void;
+function hbNavGoBackEngine(tab: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavGoBack(tab: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    hbNavGoBackEngine(tab)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_go_forward; abi: c; }
-function hbNavGoForward(tab: I32) -> Void;
+function hbNavGoForwardEngine(tab: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavGoForward(tab: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    hbNavGoForwardEngine(tab)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_go_to_history_entry; abi: c; }
-function hbNavGoToHistoryEntry(tab: I32, index: I32) -> Void;
+function hbNavGoToHistoryEntryEngine(tab: I32, index: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavGoToHistoryEntry(tab: I32, index: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    hbNavGoToHistoryEntryEngine(tab, index)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_nav_diagnostic; abi: c; }
-function hbNavDiagnostic() -> CString;
+function hbNavDiagnosticEngine() -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function hbNavDiagnostic() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return hbNavDiagnosticEngine()
+}

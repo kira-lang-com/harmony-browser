@@ -13,105 +13,367 @@
 // --- Lifecycle ---------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_ready; abi: c; }
-function hbDataReady() -> I32;
+function hbDataReadyEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataReady() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbDataReadyEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_shutdown; abi: c; }
-function hbDataShutdown() -> Void;
+function hbDataShutdownEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataShutdown() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    hbDataShutdownEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_profile_path; abi: c; }
-function hbDataProfilePath() -> CString;
+function hbDataProfilePathEngine() -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataProfilePath() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return hbDataProfilePathEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_error; abi: c; }
-function hbDataError() -> CString;
+function hbDataErrorEngine() -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataError() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return hbDataErrorEngine()
+}
 
 // --- Private browsing --------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_open_private_tab; abi: c; }
-function hbDataOpenPrivateTab(url: CString) -> I32;
+function hbDataOpenPrivateTabEngine(url: CString) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataOpenPrivateTab(url: borrow String) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbDataOpenPrivateTabEngine(url)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_tab_is_private; abi: c; }
-function hbDataTabIsPrivate(tabId: I32) -> I32;
+function hbDataTabIsPrivateEngine(tabId: I32) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataTabIsPrivate(tabId: I32) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbDataTabIsPrivateEngine(tabId)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_private_tab_count; abi: c; }
-function hbDataPrivateTabCount() -> I32;
+function hbDataPrivateTabCountEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataPrivateTabCount() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbDataPrivateTabCountEngine()
+}
 
 // --- Records -----------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_request_records; abi: c; }
-function hbDataRequestRecords() -> Void;
+function hbDataRequestRecordsEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataRequestRecords() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    hbDataRequestRecordsEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_records_pending; abi: c; }
-function hbDataRecordsPending() -> I32;
+function hbDataRecordsPendingEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataRecordsPending() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbDataRecordsPendingEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_records_generation; abi: c; }
-function hbDataRecordsGeneration() -> I32;
+function hbDataRecordsGenerationEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataRecordsGeneration() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbDataRecordsGenerationEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_record_count; abi: c; }
-function hbDataRecordCount() -> I32;
+function hbDataRecordCountEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataRecordCount() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbDataRecordCountEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_record_origin; abi: c; }
-function hbDataRecordOrigin(index: I32) -> CString;
+function hbDataRecordOriginEngine(index: I32) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataRecordOrigin(index: I32) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return hbDataRecordOriginEngine(index)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_record_host; abi: c; }
-function hbDataRecordHost(index: I32) -> CString;
+function hbDataRecordHostEngine(index: I32) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataRecordHost(index: I32) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return hbDataRecordHostEngine(index)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_record_size; abi: c; }
-function hbDataRecordSize(index: I32) -> Float;
+function hbDataRecordSizeEngine(index: I32) -> Float;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataRecordSize(index: I32) -> Float {
+    if harmonyBrowserEngineAvailable() == false {
+        return 0.0
+    }
+    return hbDataRecordSizeEngine(index)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_record_types; abi: c; }
-function hbDataRecordTypes(index: I32) -> I32;
+function hbDataRecordTypesEngine(index: I32) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataRecordTypes(index: I32) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbDataRecordTypesEngine(index)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_record_last_used; abi: c; }
-function hbDataRecordLastUsed(index: I32) -> Float;
+function hbDataRecordLastUsedEngine(index: I32) -> Float;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataRecordLastUsed(index: I32) -> Float {
+    if harmonyBrowserEngineAvailable() == false {
+        return 0.0
+    }
+    return hbDataRecordLastUsedEngine(index)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_records_total_size; abi: c; }
-function hbDataRecordsTotalSize() -> Float;
+function hbDataRecordsTotalSizeEngine() -> Float;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataRecordsTotalSize() -> Float {
+    if harmonyBrowserEngineAvailable() == false {
+        return 0.0
+    }
+    return hbDataRecordsTotalSizeEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_type_size; abi: c; }
-function hbDataTypeSize(kind: I32) -> Float;
+function hbDataTypeSizeEngine(kind: I32) -> Float;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataTypeSize(kind: I32) -> Float {
+    if harmonyBrowserEngineAvailable() == false {
+        return 0.0
+    }
+    return hbDataTypeSizeEngine(kind)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_now; abi: c; }
-function hbDataNow() -> Float;
+function hbDataNowEngine() -> Float;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataNow() -> Float {
+    if harmonyBrowserEngineAvailable() == false {
+        return 0.0
+    }
+    return hbDataNowEngine()
+}
 
 // --- Removal -----------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_remove_origin; abi: c; }
-function hbDataRemoveOrigin(origin: CString) -> Void;
+function hbDataRemoveOriginEngine(origin: CString) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataRemoveOrigin(origin: borrow String) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    hbDataRemoveOriginEngine(origin)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_clear; abi: c; }
-function hbDataClear(types: I32, range: I32) -> Void;
+function hbDataClearEngine(types: I32, range: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataClear(types: I32, range: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    hbDataClearEngine(types, range)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_clear_pending; abi: c; }
-function hbDataClearPending() -> I32;
+function hbDataClearPendingEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataClearPending() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbDataClearPendingEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_clear_generation; abi: c; }
-function hbDataClearGeneration() -> I32;
+function hbDataClearGenerationEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataClearGeneration() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbDataClearGenerationEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_cleared_bytes; abi: c; }
-function hbDataClearedBytes() -> Float;
+function hbDataClearedBytesEngine() -> Float;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataClearedBytes() -> Float {
+    if harmonyBrowserEngineAvailable() == false {
+        return 0.0
+    }
+    return hbDataClearedBytesEngine()
+}
 
 // --- Session -----------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_restore_count; abi: c; }
-function hbDataSessionCount() -> I32;
+function hbDataSessionCountEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataSessionCount() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbDataSessionCountEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_restore_url; abi: c; }
-function hbDataSessionURL(index: I32) -> CString;
+function hbDataSessionURLEngine(index: I32) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataSessionURL(index: I32) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return hbDataSessionURLEngine(index)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_restore_title; abi: c; }
-function hbDataSessionTitle(index: I32) -> CString;
+function hbDataSessionTitleEngine(index: I32) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataSessionTitle(index: I32) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return hbDataSessionTitleEngine(index)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_restore_pinned; abi: c; }
-function hbDataSessionPinned(index: I32) -> I32;
+function hbDataSessionPinnedEngine(index: I32) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataSessionPinned(index: I32) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbDataSessionPinnedEngine(index)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_restore_active_index; abi: c; }
-function hbDataSessionActiveIndex() -> I32;
+function hbDataSessionActiveIndexEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataSessionActiveIndex() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbDataSessionActiveIndexEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_adopt; abi: c; }
-function hbDataSessionAdopt(index: I32, tabId: I32) -> Void;
+function hbDataSessionAdoptEngine(index: I32, tabId: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataSessionAdopt(index: I32, tabId: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    hbDataSessionAdoptEngine(index, tabId)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_restore_pending; abi: c; }
-function hbDataSessionRestorePending() -> I32;
+function hbDataSessionRestorePendingEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataSessionRestorePending() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return hbDataSessionRestorePendingEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_data_store_session_restore_finished; abi: c; }
-function hbDataSessionRestoreFinished() -> Void;
+function hbDataSessionRestoreFinishedEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function hbDataSessionRestoreFinished() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    hbDataSessionRestoreFinishedEngine()
+    return
+}

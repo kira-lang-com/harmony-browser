@@ -12,55 +12,180 @@
 // --- Lifetime ---------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_frame; abi: c; }
-function nativeSettingsFrame(hostWindow: RawPtr) -> Void;
+function nativeSettingsFrameEngine(hostWindow: RawPtr) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsFrame(hostWindow: RawPtr) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeSettingsFrameEngine(hostWindow)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_shutdown; abi: c; }
-function nativeSettingsShutdown() -> Void;
+function nativeSettingsShutdownEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsShutdown() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeSettingsShutdownEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_revision; abi: c; }
-function nativeSettingsRevision() -> I32;
+function nativeSettingsRevisionEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsRevision() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeSettingsRevisionEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_error; abi: c; }
-function nativeSettingsError() -> CString;
+function nativeSettingsErrorEngine() -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsError() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return nativeSettingsErrorEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_path; abi: c; }
-function nativeSettingsPath() -> CString;
+function nativeSettingsPathEngine() -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsPath() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return nativeSettingsPathEngine()
+}
 
 // --- Home page --------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_home_url; abi: c; }
-function nativeSettingsHomeURL() -> CString;
+function nativeSettingsHomeURLEngine() -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsHomeURL() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return nativeSettingsHomeURLEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_set_home_url; abi: c; }
-function nativeSettingsSetHomeURL(url: CString) -> Void;
+function nativeSettingsSetHomeURLEngine(url: CString) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsSetHomeURL(url: borrow String) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeSettingsSetHomeURLEngine(url)
+    return
+}
 
 // --- Startup ----------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_startup; abi: c; }
-function nativeSettingsStartup() -> I32;
+function nativeSettingsStartupEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsStartup() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeSettingsStartupEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_set_startup; abi: c; }
-function nativeSettingsSetStartup(behaviour: I32) -> Void;
+function nativeSettingsSetStartupEngine(behaviour: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsSetStartup(behaviour: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeSettingsSetStartupEngine(behaviour)
+    return
+}
 
 // --- Search engines ---------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_engine_count; abi: c; }
-function nativeSettingsEngineCount() -> I32;
+function nativeSettingsEngineCountEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsEngineCount() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeSettingsEngineCountEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_engine_name; abi: c; }
-function nativeSettingsEngineName(index: I32) -> CString;
+function nativeSettingsEngineNameEngine(index: I32) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsEngineName(index: I32) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return nativeSettingsEngineNameEngine(index)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_engine_query; abi: c; }
-function nativeSettingsEngineQuery(index: I32) -> CString;
+function nativeSettingsEngineQueryEngine(index: I32) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsEngineQuery(index: I32) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return nativeSettingsEngineQueryEngine(index)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_engine_default; abi: c; }
-function nativeSettingsEngineDefault() -> I32;
+function nativeSettingsEngineDefaultEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsEngineDefault() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeSettingsEngineDefaultEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_set_engine_default; abi: c; }
-function nativeSettingsSetEngineDefault(index: I32) -> Void;
+function nativeSettingsSetEngineDefaultEngine(index: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsSetEngineDefault(index: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeSettingsSetEngineDefaultEngine(index)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_add_engine; abi: c; }
-function nativeSettingsAddEngine(name: CString, query: CString) -> I32;
+function nativeSettingsAddEngineEngine(name: CString, query: CString) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsAddEngine(name: borrow String, query: borrow String) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeSettingsAddEngineEngine(name, query)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_update_engine; abi: c; }
 function nativeSettingsUpdateEngine(index: I32, name: CString, query: CString) -> Void;
@@ -69,52 +194,179 @@ function nativeSettingsUpdateEngine(index: I32, name: CString, query: CString) -
 function nativeSettingsRemoveEngine(index: I32) -> Void;
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_search_url; abi: c; }
-function nativeSettingsSearchURL(query: CString) -> CString;
+function nativeSettingsSearchURLEngine(query: CString) -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsSearchURL(query: borrow String) -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return nativeSettingsSearchURLEngine(query)
+}
 
 // --- Zoom -------------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_default_zoom_percent; abi: c; }
-function nativeSettingsDefaultZoomPercent() -> I32;
+function nativeSettingsDefaultZoomPercentEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsDefaultZoomPercent() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeSettingsDefaultZoomPercentEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_set_default_zoom_percent; abi: c; }
-function nativeSettingsSetDefaultZoomPercent(percent: I32) -> Void;
+function nativeSettingsSetDefaultZoomPercentEngine(percent: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsSetDefaultZoomPercent(percent: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeSettingsSetDefaultZoomPercentEngine(percent)
+    return
+}
 
 // --- What a page may do -----------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_javascript_enabled; abi: c; }
-function nativeSettingsJavaScriptEnabled() -> I32;
+function nativeSettingsJavaScriptEnabledEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsJavaScriptEnabled() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeSettingsJavaScriptEnabledEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_set_javascript_enabled; abi: c; }
-function nativeSettingsSetJavaScriptEnabled(enabled: I32) -> Void;
+function nativeSettingsSetJavaScriptEnabledEngine(enabled: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsSetJavaScriptEnabled(enabled: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeSettingsSetJavaScriptEnabledEngine(enabled)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_images_enabled; abi: c; }
-function nativeSettingsImagesEnabled() -> I32;
+function nativeSettingsImagesEnabledEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsImagesEnabled() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeSettingsImagesEnabledEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_set_images_enabled; abi: c; }
-function nativeSettingsSetImagesEnabled(enabled: I32) -> Void;
+function nativeSettingsSetImagesEnabledEngine(enabled: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsSetImagesEnabled(enabled: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeSettingsSetImagesEnabledEngine(enabled)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_popups_enabled; abi: c; }
-function nativeSettingsPopupsEnabled() -> I32;
+function nativeSettingsPopupsEnabledEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsPopupsEnabled() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeSettingsPopupsEnabledEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_set_popups_enabled; abi: c; }
-function nativeSettingsSetPopupsEnabled(enabled: I32) -> Void;
+function nativeSettingsSetPopupsEnabledEngine(enabled: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsSetPopupsEnabled(enabled: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeSettingsSetPopupsEnabledEngine(enabled)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_do_not_track; abi: c; }
-function nativeSettingsDoNotTrack() -> I32;
+function nativeSettingsDoNotTrackEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsDoNotTrack() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeSettingsDoNotTrackEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_set_do_not_track; abi: c; }
-function nativeSettingsSetDoNotTrack(enabled: I32) -> Void;
+function nativeSettingsSetDoNotTrackEngine(enabled: I32) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsSetDoNotTrack(enabled: I32) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeSettingsSetDoNotTrackEngine(enabled)
+    return
+}
 
 // --- Downloads --------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_download_directory; abi: c; }
-function nativeSettingsDownloadDirectory() -> CString;
+function nativeSettingsDownloadDirectoryEngine() -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsDownloadDirectory() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return nativeSettingsDownloadDirectoryEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_set_download_directory; abi: c; }
-function nativeSettingsSetDownloadDirectory(path: CString) -> Void;
+function nativeSettingsSetDownloadDirectoryEngine(path: CString) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsSetDownloadDirectory(path: borrow String) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeSettingsSetDownloadDirectoryEngine(path)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_choose_download_directory; abi: c; }
-function nativeSettingsChooseDownloadDirectory() -> Void;
+function nativeSettingsChooseDownloadDirectoryEngine() -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsChooseDownloadDirectory() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    nativeSettingsChooseDownloadDirectoryEngine()
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_settings_download_directory_pending; abi: c; }
-function nativeSettingsDownloadDirectoryPending() -> I32;
+function nativeSettingsDownloadDirectoryPendingEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeSettingsDownloadDirectoryPending() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeSettingsDownloadDirectoryPendingEngine()
+}

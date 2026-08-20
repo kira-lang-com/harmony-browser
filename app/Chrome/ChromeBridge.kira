@@ -5,13 +5,38 @@ import KiraGraphics
 // really is. Both are the host window's, and the tree draws inside that window
 // rather than owning it.
 @FFI.Extern { library: harmony_browser; symbol: hb_chrome_set_window_title; abi: c; }
-function chromeSetWindowTitle(window: RawPtr, title: CString) -> Void;
+function chromeSetWindowTitleEngine(window: RawPtr, title: CString) -> Void;
+
+// Guarded: a build with no engine answers without calling it.
+function chromeSetWindowTitle(window: RawPtr, title: borrow String) {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
+    chromeSetWindowTitleEngine(window, title)
+    return
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_chrome_client_width; abi: c; }
-function chromeClientWidth(window: RawPtr) -> I32;
+function chromeClientWidthEngine(window: RawPtr) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function chromeClientWidth(window: RawPtr) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return chromeClientWidthEngine(window)
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_chrome_client_height; abi: c; }
-function chromeClientHeight(window: RawPtr) -> I32;
+function chromeClientHeightEngine(window: RawPtr) -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function chromeClientHeight(window: RawPtr) -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return chromeClientHeightEngine(window)
+}
 
 // Run before KiraUI renders each frame.
 //
@@ -27,6 +52,11 @@ function chromeClientHeight(window: RawPtr) -> I32;
 function harmonyChromeFrame(frame: borrow mut KiraGraphics.RenderFrame) {
     let window = KiraGraphics.kiraGraphicsHostWindowHandle(frame)
     if pointerIsNull(window) {
+        return
+    }
+    // The title bar is set through the native half. A window without one keeps
+    // the title it opened with.
+    if harmonyBrowserEngineAvailable() == false {
         return
     }
     chromeSetWindowTitle(window, harmonyChromeWindowTitle())

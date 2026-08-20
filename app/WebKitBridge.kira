@@ -20,19 +20,55 @@ function nativeBrowserFrame(
 ) -> I32;
 
 @FFI.Extern { library: harmony_browser; symbol: hb_browser_ready; abi: c; }
-function nativeBrowserReady() -> I32;
+function nativeBrowserReadyEngine() -> I32;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeBrowserReady() -> I32 {
+    if harmonyBrowserEngineAvailable() == false {
+        return I32(0)
+    }
+    return nativeBrowserReadyEngine()
+}
 
 @FFI.Extern { library: harmony_browser; symbol: hb_browser_error; abi: c; }
-function nativeBrowserError() -> CString;
+function nativeBrowserErrorEngine() -> CString;
+
+// Guarded: a build with no engine answers without calling it.
+function nativeBrowserError() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return ""
+    }
+    return nativeBrowserErrorEngine()
+}
+
+// Whether this build has a WebKit engine behind it at all.
+//
+// `harmony_browser` is Windows-only: two thirds of its sources reach either the
+// WebKit C API or Win32, and its manifest declares no row for anything else. A
+// call into a library a target excludes traps by name, so this has to be asked
+// before the call rather than answered by it -- which is what every guarded
+// wrapper in the bridges below does.
+//
+// It reads the platform because that is what the manifest says. When the engine
+// gains a second port, this is the one line that learns about it.
+function harmonyBrowserEngineAvailable() -> Bool {
+    return KiraGraphics.hostPlatform() == KiraGraphics.Platform.Windows
+}
 
 // Whether the engine is up and serving commands.
 function harmonyBrowserReady() -> Bool {
+    if harmonyBrowserEngineAvailable() == false {
+        return false
+    }
     return nativeBrowserReady() != I32(0)
 }
 
 // Why the browser is not showing a page, or "" when nothing is wrong. The system
 // with something to say answers, starting with the one that owns the engine.
 function harmonyBrowserDiagnostic() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return "This build has no WebKit engine: the browser's native half is Windows-only."
+    }
     return nativeBrowserError()
 }
 
@@ -72,6 +108,14 @@ function harmonyBrowserFrame(frame: borrow mut KiraGraphics.RenderFrame) {
         return
     }
 
+    // Every step below reaches the engine. Without one there is nothing to keep
+    // in step with the window, and the chrome draws around an empty page area
+    // rather than not drawing at all.
+    if harmonyBrowserEngineAvailable() == false {
+        harmonyChromeFrame(frame)
+        return
+    }
+
     harmonyInputFrame(frame)
     harmonyPermissionPump()
 
@@ -107,6 +151,9 @@ function harmonyBrowserFrame(frame: borrow mut KiraGraphics.RenderFrame) {
 // owns the engine goes last, and takes the download engine and the navigation
 // model down from its own teardown hooks on the way.
 function harmonyBrowserShutdown() {
+    if harmonyBrowserEngineAvailable() == false {
+        return
+    }
     harmonyInputShutdown()
     harmonyPermissionShutdown()
     harmonyDialogsShutdown()
