@@ -153,7 +153,7 @@ Widget SettingsHomeRow() {
     }
 }
 
-function settingsStartupChip(behaviour: StartupBehaviour) -> Any Widget {
+function settingsStartupChip(behaviour: borrow StartupBehaviour) -> Any Widget {
     return SettingsChoiceChip(
         title = startupBehaviourTitle(behaviour),
         chosen = startupBehaviourCode(harmonySettingsStartup()) == startupBehaviourCode(behaviour),

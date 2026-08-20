@@ -55,7 +55,7 @@ function harmonyPrivateTabSymbol(tabId: Int) -> Symbol {
 
 // Opening a link privately from a page's context menu.
 function harmonyPrivateOpenAction(url: String) -> () -> Void {
-    let target = url
+    var target = url
     let press: () -> Void = { in
         let ignored = harmonyPrivateOpen(target)
         return

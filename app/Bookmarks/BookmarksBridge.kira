@@ -33,7 +33,7 @@ function hbBookmarksRevision() -> I32;
 // --- History -----------------------------------------------------------------
 
 @FFI.Extern { library: harmony_browser; symbol: hb_history_query; abi: c; }
-function hbHistoryQuery(text: CString, match: I32, limit: I32) -> I32;
+function hbHistoryQuery(text: CString, mode: I32, limit: I32) -> I32;
 
 @FFI.Extern { library: harmony_browser; symbol: hb_history_url; abi: c; }
 function hbHistoryURL(index: I32) -> CString;

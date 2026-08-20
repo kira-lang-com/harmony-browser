@@ -101,7 +101,7 @@ function harmonyTabFavicon(tab: borrow TabModel) -> Symbol {
     return harmonyTabSiteSymbol(tab.host)
 }
 
-function harmonyTabSiteSymbol(host: String) -> Symbol {
+function harmonyTabSiteSymbol(host: borrow String) -> Symbol {
     if host.count == 0 {
         return Symbol.Globe
     }

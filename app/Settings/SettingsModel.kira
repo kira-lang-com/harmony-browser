@@ -30,7 +30,7 @@ struct SearchEngine {
 // --- Startup behaviour -------------------------------------------------------
 
 // The numbers the native bridge speaks, from harmony_settings.h.
-function startupBehaviourCode(behaviour: StartupBehaviour) -> Int {
+function startupBehaviourCode(behaviour: borrow StartupBehaviour) -> Int {
     match behaviour {
         NewTab -> return 0;
         RestoreSession -> return 1;
@@ -48,7 +48,7 @@ function startupBehaviours() -> [StartupBehaviour] {
     return [StartupBehaviour.NewTab, StartupBehaviour.RestoreSession]
 }
 
-function startupBehaviourTitle(behaviour: StartupBehaviour) -> String {
+function startupBehaviourTitle(behaviour: borrow StartupBehaviour) -> String {
     match behaviour {
         NewTab -> return "Open a new tab";
         RestoreSession -> return "Reopen the last tabs";
@@ -150,7 +150,7 @@ function harmonySettingsSearchTermsToken() -> String {
     return "{searchTerms}"
 }
 
-function harmonySettingsQueryIsUsable(query: String) -> Bool {
+function harmonySettingsQueryIsUsable(query: borrow String) -> Bool {
     return query.contains(harmonySettingsSearchTermsToken())
 }
 

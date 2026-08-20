@@ -52,7 +52,7 @@ function harmonyNavigationIsHostByte(byte: Int) -> Bool {
     return byte == 58 || byte == 91 || byte == 93
 }
 
-function harmonyNavigationHasSpace(text: String) -> Bool {
+function harmonyNavigationHasSpace(text: borrow String) -> Bool {
     var index = 0
     while index < text.count {
         if text.charAt(index) <= 32 {
@@ -65,7 +65,7 @@ function harmonyNavigationHasSpace(text: String) -> Bool {
 
 // The index of the ':' that closes a scheme, or -1 when the text opens with
 // none.
-function harmonyNavigationSchemeEnd(text: String) -> Int {
+function harmonyNavigationSchemeEnd(text: borrow String) -> Int {
     if text.count == 0 {
         return -1
     }
@@ -87,7 +87,7 @@ function harmonyNavigationSchemeEnd(text: String) -> Int {
     return -1
 }
 
-function harmonyNavigationHasAuthority(text: String, schemeEnd: Int) -> Bool {
+function harmonyNavigationHasAuthority(text: borrow String, schemeEnd: Int) -> Bool {
     if schemeEnd + 3 > text.count {
         return false
     }
@@ -97,7 +97,7 @@ function harmonyNavigationHasAuthority(text: String, schemeEnd: Int) -> Bool {
 // Whether what follows the colon is a port. A scheme may hold dots, so
 // "example.com:8080" parses as one; the digits behind the colon are what say it
 // is a host and a port instead.
-function harmonyNavigationColonOpensPort(text: String, schemeEnd: Int) -> Bool {
+function harmonyNavigationColonOpensPort(text: borrow String, schemeEnd: Int) -> Bool {
     if schemeEnd + 1 >= text.count {
         return false
     }
@@ -106,7 +106,7 @@ function harmonyNavigationColonOpensPort(text: String, schemeEnd: Int) -> Bool {
 
 // A one-letter scheme on Windows is a drive letter and the text behind it is a
 // path on this machine.
-function harmonyNavigationIsDrivePath(text: String, schemeEnd: Int) -> Bool {
+function harmonyNavigationIsDrivePath(text: borrow String, schemeEnd: Int) -> Bool {
     if schemeEnd != 1 || text.count < 3 {
         return false
     }
@@ -114,13 +114,13 @@ function harmonyNavigationIsDrivePath(text: String, schemeEnd: Int) -> Bool {
     return separator == 92 || separator == 47
 }
 
-function harmonyNavigationFileURL(path: String) -> String {
+function harmonyNavigationFileURL(path: borrow String) -> String {
     return "file:///" + path.replace("\\", "/")
 }
 
 // The text up to the first '/', '?' or '#': the part of a bare address that
 // would be the authority once a scheme is put in front of it.
-function harmonyNavigationAuthorityOf(text: String) -> String {
+function harmonyNavigationAuthorityOf(text: borrow String) -> String {
     var index = 0
     while index < text.count {
         let byte = text.charAt(index)
@@ -133,7 +133,7 @@ function harmonyNavigationAuthorityOf(text: String) -> String {
 }
 
 // The authority without its userinfo, which is everything before the last '@'.
-function harmonyNavigationHostOf(authority: String) -> String {
+function harmonyNavigationHostOf(authority: borrow String) -> String {
     var at = -1
     var index = 0
     while index < authority.count {
@@ -150,7 +150,7 @@ function harmonyNavigationHostOf(authority: String) -> String {
 
 // Whether every byte of a host is one a host may carry, and whether it holds a
 // label on each side of a dot.
-function harmonyNavigationIsResolvableHost(host: String) -> Bool {
+function harmonyNavigationIsResolvableHost(host: borrow String) -> Bool {
     if host.count == 0 {
         return false
     }
@@ -178,7 +178,7 @@ function harmonyNavigationIsResolvableHost(host: String) -> Bool {
 
 // Whether the text names a place that can be reached by putting a scheme in
 // front of it.
-function harmonyNavigationLooksLikeHost(text: String) -> Bool {
+function harmonyNavigationLooksLikeHost(text: borrow String) -> Bool {
     if harmonyNavigationHasSpace(text) {
         return false
     }
@@ -192,7 +192,7 @@ function harmonyNavigationHexDigit(value: Int) -> String {
 // The percent-encoding a query needs. The text is walked a byte at a time, so a
 // character outside ASCII is encoded as the UTF-8 bytes it is made of, which is
 // what a server expects to read back.
-function harmonyNavigationPercentEncoded(text: String) -> String {
+function harmonyNavigationPercentEncoded(text: borrow String) -> String {
     var encoded = ""
     var index = 0
     while index < text.count {
@@ -207,13 +207,13 @@ function harmonyNavigationPercentEncoded(text: String) -> String {
     return encoded
 }
 
-function harmonyNavigationSearchURL(query: String) -> String {
+function harmonyNavigationSearchURL(query: borrow String) -> String {
     return harmonyNavigationSearchPrefix() + harmonyNavigationPercentEncoded(query)
 }
 
 // The URL a typed address loads. Empty text loads nothing, and is answered with
 // nothing rather than with a search for nothing.
-function harmonyNavigationNormalizedURL(input: String) -> String {
+function harmonyNavigationNormalizedURL(input: borrow String) -> String {
     let text = input.trim()
     if text.count == 0 {
         return ""
@@ -243,7 +243,7 @@ function harmonyNavigationNormalizedURL(input: String) -> String {
 
 // The URL as an address bar shows it: without the scheme every page has, and
 // without the trailing slash a bare host is written with.
-function harmonyNavigationDisplayAddress(url: String) -> String {
+function harmonyNavigationDisplayAddress(url: borrow String) -> String {
     if url.count == 0 {
         return ""
     }

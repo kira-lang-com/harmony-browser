@@ -52,7 +52,7 @@ HarmonyTabListStore HarmonyTabList() {
 
     // --- Opening and closing ------------------------------------------------
 
-    function open(url: String) -> Int {
+    function open(url: borrow String) -> Int {
         return Int(nativeTabsOpen(url, I32(1)))
     }
 
@@ -60,7 +60,7 @@ HarmonyTabListStore HarmonyTabList() {
         return Int(nativeTabsOpen(url, I32(0)))
     }
 
-    function openAt(url: String, index: Int) -> Int {
+    function openAt(url: borrow String, index: Int) -> Int {
         return Int(nativeTabsOpenAt(url, I32(index), I32(1)))
     }
 
@@ -119,7 +119,7 @@ HarmonyTabListStore HarmonyTabList() {
 
     // --- Navigation on a tab ------------------------------------------------
 
-    function load(tabId: Int, url: String) {
+    function load(tabId: Int, url: borrow String) {
         nativeTabsLoad(I32(tabId), url)
         return
     }

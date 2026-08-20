@@ -53,7 +53,7 @@ HarmonyAddressSuggestionStore HarmonyAddressSuggestions() {
         }
 
         rows = harmonyAddressSuggestionsFor(typed)
-        cachedText = typed
+        cachedText = move typed
         cachedRevision = revision
         seeded = true
         return
@@ -95,7 +95,7 @@ function harmonyAddressIsEditing() -> Bool {
 }
 
 // The ranked list: what was typed, then the bookmarks and history that answer it.
-function harmonyAddressSuggestionsFor(text: String) -> [AddressSuggestion] {
+function harmonyAddressSuggestionsFor(text: borrow String) -> [AddressSuggestion] {
     var rows: [AddressSuggestion] = []
     let typed = text.trim()
     if typed.count == 0 {
@@ -167,19 +167,19 @@ function harmonyAddressSuggestionsAreOpen() -> Bool {
 // next reports, and saying what it was seeded with is what stops the next frame
 // treating the row's own URL as an edit the user has not submitted.
 function harmonyAddressSuggestionLoad(url: String) {
-    let target = url.trim()
+    var target = url.trim()
     if target.count == 0 {
         return
     }
 
     textFieldReset(harmonyChromeAddressFieldKey())
-    HarmonyChromeAddress().markSeeded(target)
+    HarmonyChromeAddress().markSeeded(url.trim())
     harmonyNavigationLoad(target)
     return
 }
 
 function harmonyAddressSuggestionAction(url: String) -> () -> Void {
-    let target = url
+    var target = url
     let press: () -> Void = { in
         harmonyAddressSuggestionLoad(target)
         return
@@ -188,7 +188,7 @@ function harmonyAddressSuggestionAction(url: String) -> () -> Void {
 }
 
 function harmonyAddressSuggestionNewTabAction(url: String) -> () -> Void {
-    let target = url
+    var target = url
     let press: () -> Void = { in
         textFieldReset(harmonyChromeAddressFieldKey())
         let ignored = HarmonyTabList().open(target)

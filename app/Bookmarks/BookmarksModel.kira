@@ -140,7 +140,7 @@ function suggestionInk(kind: SuggestionKind) -> PrimaryColor {
 // What the first row says it will do with what is in the bar. The decision is
 // the navigation system's, asked rather than repeated: a row that said "search"
 // and then loaded a site would be a row lying about its own press.
-function suggestionTypedLabel(text: String) -> String {
+function suggestionTypedLabel(text: borrow String) -> String {
     let typed = text.trim()
     if typed.count == 0 {
         return ""

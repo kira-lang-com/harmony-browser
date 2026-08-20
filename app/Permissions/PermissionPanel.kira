@@ -15,7 +15,7 @@ function permissionPanelWidth() -> Float {
 // --- What a press does -------------------------------------------------------
 
 function permissionExpandAction(origin: String) -> () -> Void {
-    let target = origin
+    var target = origin
     let press: () -> Void = { in
         harmonyPermissionPanelExpand(target)
         return
@@ -24,7 +24,7 @@ function permissionExpandAction(origin: String) -> () -> Void {
 }
 
 function permissionForgetOriginAction(origin: String) -> () -> Void {
-    let target = origin
+    var target = origin
     let press: () -> Void = { in
         harmonyPermissionForgetOrigin(target)
         return
@@ -36,8 +36,8 @@ function permissionForgetOriginAction(origin: String) -> () -> Void {
 // about again. A row that only offered "forget" would make changing an answer a
 // two-step job through a prompt the site has to be persuaded to raise.
 function permissionCycleAction(origin: String, kind: PermissionKind) -> () -> Void {
-    let target = origin
-    let subject = kind
+    var target = origin
+    var subject = kind
     let press: () -> Void = { in
         harmonyPermissionRemember(target, subject, permissionDecisionNext(harmonyPermissionStoredDecision(target, subject)))
         return

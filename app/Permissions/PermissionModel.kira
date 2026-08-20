@@ -73,7 +73,7 @@ function permissionKindFromCode(code: Int) -> PermissionKind {
     return PermissionKind.Geolocation
 }
 
-function permissionDecisionCode(decision: PermissionDecision) -> Int {
+function permissionDecisionCode(decision: borrow PermissionDecision) -> Int {
     match decision {
         Ask -> return 0;
         Allow -> return 1;
@@ -96,7 +96,7 @@ function permissionStoredKinds() -> [PermissionKind] {
 // The token a kind is written to disk as. Names, never ordinals: a kind added
 // in the middle would otherwise re-read every answer ever saved as its
 // neighbour's.
-function permissionKindToken(kind: PermissionKind) -> String {
+function permissionKindToken(kind: borrow PermissionKind) -> String {
     match kind {
         Geolocation -> return "geolocation";
         Notifications -> return "notifications";

@@ -56,7 +56,7 @@ function harmonyPermissionGrants() -> [PermissionGrant] {
 
 // The answer stored for exactly this kind, with no combining. Ask when there is
 // none, which is what makes a fresh profile prompt for everything.
-function harmonyPermissionStoredDecision(origin: borrow String, kind: PermissionKind) -> PermissionDecision {
+function harmonyPermissionStoredDecision(origin: borrow String, kind: borrow PermissionKind) -> PermissionDecision {
     for grant in harmonyPermissionGrants() {
         if grant.origin == origin {
             if grant.kind == kind {
@@ -127,7 +127,7 @@ function harmonyPermissionGrantCount() -> Int {
 
 // Remembers one answer. A combined request is remembered as the two device
 // answers it was really made of; Ask forgets instead of storing an absence.
-function harmonyPermissionRemember(origin: borrow String, kind: PermissionKind, decision: PermissionDecision) {
+function harmonyPermissionRemember(origin: borrow String, kind: borrow PermissionKind, decision: borrow PermissionDecision) {
     if permissionOriginIsStorable(origin) == false {
         return
     }

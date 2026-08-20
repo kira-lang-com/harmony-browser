@@ -47,9 +47,8 @@ function harmonyChromeAddressTextWidth(
     context: borrow KiraUIFoundation.FoundationUiContext,
     modifiers: borrow ModifierContext,
 ) -> Float {
-    let metrics = resolvedControlMetrics(modifiers)
     let gap = spacingImplementation(Spacing.Small, modifiers)
-    var width = harmonyChromeAddressBarWidth(context, modifiers) - 3.0 * gap - metrics.iconSmall
+    var width = harmonyChromeAddressBarWidth(context, modifiers) - 3.0 * gap - iconScaleSize(IconScale.Small, modifiers)
     if width < 120.0 {
         width = 120.0
     }

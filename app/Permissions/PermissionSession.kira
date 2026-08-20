@@ -53,7 +53,7 @@ function harmonyPermissionPromptRemember() -> Bool {
     return harmonyPermissionSession().remember
 }
 
-function harmonyPermissionAdopt(requestId: Int, kind: PermissionKind, origin: borrow String) {
+function harmonyPermissionAdopt(requestId: Int, kind: borrow PermissionKind, origin: borrow String) {
     var session = harmonyPermissionSession()
     session.requestId = requestId
     session.kind = kind

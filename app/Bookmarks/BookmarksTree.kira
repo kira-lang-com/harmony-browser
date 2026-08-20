@@ -112,7 +112,9 @@ HarmonyBookmarksStore HarmonyBookmarks() {
         if isExpanded(id) {
             return
         }
-        expanded.append(id)
+        var next = expanded
+        next.append(id)
+        expanded = move next
         shape = shape + 1
         return
     }
@@ -306,7 +308,7 @@ function harmonyBookmarksIsSelected(id: Int) -> Bool {
 }
 
 function harmonyBookmarksSelectRowAction(id: Int) -> () -> Void {
-    let target = id
+    var target = id
     let press: () -> Void = { in
         HarmonyBookmarks().select(target)
         return
@@ -411,7 +413,7 @@ function harmonyBookmarksAddFolder() {
 // A row's control has to carry the node it belongs to, and a press handler takes
 // no arguments, so each one is a closure built around that id.
 function harmonyBookmarksOpenAction(url: String) -> () -> Void {
-    let target = url
+    var target = url
     let press: () -> Void = { in
         harmonyNavigationLoad(target)
         return
@@ -420,7 +422,7 @@ function harmonyBookmarksOpenAction(url: String) -> () -> Void {
 }
 
 function harmonyBookmarksOpenInNewTabAction(url: String) -> () -> Void {
-    let target = url
+    var target = url
     let press: () -> Void = { in
         let ignored = HarmonyTabList().open(target)
         return
@@ -429,7 +431,7 @@ function harmonyBookmarksOpenInNewTabAction(url: String) -> () -> Void {
 }
 
 function harmonyBookmarksExpandAction(id: Int) -> () -> Void {
-    let target = id
+    var target = id
     let press: () -> Void = { in
         HarmonyBookmarks().toggleExpanded(target)
         return
@@ -438,7 +440,7 @@ function harmonyBookmarksExpandAction(id: Int) -> () -> Void {
 }
 
 function harmonyBookmarksSelectAction(id: Int) -> () -> Void {
-    let target = id
+    var target = id
     let press: () -> Void = { in
         HarmonyBookmarks().setTargetFolder(target)
         return
@@ -447,7 +449,7 @@ function harmonyBookmarksSelectAction(id: Int) -> () -> Void {
 }
 
 function harmonyBookmarksRemoveAction(id: Int) -> () -> Void {
-    let target = id
+    var target = id
     let press: () -> Void = { in
         hbBookmarkRemove(I32(target))
         HarmonyBookmarks().invalidate()
@@ -457,7 +459,7 @@ function harmonyBookmarksRemoveAction(id: Int) -> () -> Void {
 }
 
 function harmonyBookmarksRenameAction(id: Int) -> () -> Void {
-    let target = id
+    var target = id
     let press: () -> Void = { in
         HarmonyBookmarks().beginRename(target)
         return
@@ -511,7 +513,7 @@ function harmonyBookmarksMoveBy(id: Int, delta: Int) {
 }
 
 function harmonyBookmarksMoveUpAction(id: Int) -> () -> Void {
-    let target = id
+    var target = id
     let press: () -> Void = { in
         harmonyBookmarksMoveBy(target, -1)
         return
@@ -520,7 +522,7 @@ function harmonyBookmarksMoveUpAction(id: Int) -> () -> Void {
 }
 
 function harmonyBookmarksMoveDownAction(id: Int) -> () -> Void {
-    let target = id
+    var target = id
     let press: () -> Void = { in
         harmonyBookmarksMoveBy(target, 1)
         return
@@ -531,7 +533,7 @@ function harmonyBookmarksMoveDownAction(id: Int) -> () -> Void {
 // Out of its folder, into the one that folder is in, immediately after it. A row
 // already at a root has nowhere further out to go.
 function harmonyBookmarksMoveOutAction(id: Int) -> () -> Void {
-    let target = id
+    var target = id
     let press: () -> Void = { in
         let parent = Int(hbBookmarkParentOf(I32(target)))
         let grandparent = Int(hbBookmarkParentOf(I32(parent)))
@@ -550,7 +552,7 @@ function harmonyBookmarksMoveOutAction(id: Int) -> () -> Void {
 // of rows can offer without a drop target: the folder the row would fall into is
 // the one it is sitting under.
 function harmonyBookmarksMoveInAction(id: Int) -> () -> Void {
-    let target = id
+    var target = id
     let press: () -> Void = { in
         let parent = Int(hbBookmarkParentOf(I32(target)))
         let at = Int(hbBookmarkIndexOf(I32(target)))

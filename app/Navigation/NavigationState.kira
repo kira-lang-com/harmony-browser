@@ -155,7 +155,7 @@ function harmonyNavigationForwardHistory(tab: Int = 0) -> [NavigationHistoryEntr
 
 // Loads what a person typed. The text is turned into a URL first, so a bare
 // host reaches its site and a phrase reaches a search.
-function harmonyNavigationNavigate(input: String, tab: Int = 0) {
+function harmonyNavigationNavigate(input: borrow String, tab: Int = 0) {
     let url = harmonyNavigationNormalizedURL(input)
     if url.count == 0 {
         return
@@ -166,7 +166,7 @@ function harmonyNavigationNavigate(input: String, tab: Int = 0) {
 
 // Loads a URL that is already absolute, without asking what the text meant.
 // This is what a link, a bookmark or a home page uses.
-function harmonyNavigationLoad(url: String, tab: Int = 0) {
+function harmonyNavigationLoad(url: borrow String, tab: Int = 0) {
     let target = url.trim()
     if target.count == 0 {
         return

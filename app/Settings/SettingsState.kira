@@ -274,7 +274,7 @@ function harmonySettingsCancelEngineEdit() {
 
 // --- Everything else a press does ---------------------------------------------
 
-function harmonySettingsStartupAction(behaviour: StartupBehaviour) -> () -> Void {
+function harmonySettingsStartupAction(behaviour: borrow StartupBehaviour) -> () -> Void {
     let target = behaviour
     let press: () -> Void = { in
         harmonySettingsSetStartup(target)

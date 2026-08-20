@@ -76,7 +76,7 @@ HarmonyDataStoreStore HarmonyDataStore() {
 
     // --- The selection ------------------------------------------------------
 
-    function isSelected(kind: BrowsingDataType) -> Bool {
+    function isSelected(kind: borrow BrowsingDataType) -> Bool {
         return (selectedTypes & browsingDataTypeBit(kind)) != 0
     }
 
@@ -204,7 +204,7 @@ function harmonyDataStoreIsClearing() -> Bool {
     return hbDataClearPending() != I32(0)
 }
 
-function harmonyDataStoreIsSelected(kind: BrowsingDataType) -> Bool {
+function harmonyDataStoreIsSelected(kind: borrow BrowsingDataType) -> Bool {
     return HarmonyDataStore().isSelected(kind)
 }
 
@@ -268,7 +268,7 @@ function harmonyDataStoreSetRange(index: Int) {
 // A row's control has to carry the type it belongs to, and a press handler takes
 // no arguments, so each one is a closure built around its type.
 function harmonyDataStoreToggleAction(kind: BrowsingDataType) -> () -> Void {
-    let target = kind
+    var target = kind
     let press: () -> Void = { in
         HarmonyDataStore().toggle(target)
         return
@@ -277,7 +277,7 @@ function harmonyDataStoreToggleAction(kind: BrowsingDataType) -> () -> Void {
 }
 
 function harmonyDataStoreRemoveAction(origin: String) -> () -> Void {
-    let target = origin
+    var target = origin
     let press: () -> Void = { in
         HarmonyDataStore().removeSite(target)
         return
@@ -326,7 +326,7 @@ function harmonyDataStoreOriginOf(url: String) -> String {
 
 // A scheme's own port is not part of what an origin IS, and WebKit leaves it
 // out of the spelling it hashes into a directory name.
-function harmonyDataStoreWithoutDefaultPort(scheme: String, authority: String) -> String {
+function harmonyDataStoreWithoutDefaultPort(scheme: borrow String, authority: borrow String) -> String {
     if scheme == "https" && authority.count > 4 {
         if authority.substring(authority.count - 4, authority.count) == ":443" {
             return authority.substring(0, authority.count - 4)

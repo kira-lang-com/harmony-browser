@@ -41,9 +41,9 @@ function settingsEngineInk(isDefault: Bool) -> PrimaryColor {
 Widget SettingsEngineRow(index: Int, name: String, query: String, isDefault: Bool, removable: Bool) {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-            Icon(settingsEngineSymbol(SearchEngine { isDefault: isDefault }))
+            Icon(settingsEngineSymbol(isDefault))
                 .imageScale(.Small)
-                .foregroundColor(settingsEngineInk(SearchEngine { isDefault: isDefault }))
+                .foregroundColor(settingsEngineInk(isDefault))
 
             Expanded(flex = 1) {
                 VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {

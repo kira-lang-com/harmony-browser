@@ -26,7 +26,7 @@ enum BrowsingDataRange {
 
 // The bit the profile gives a type. These are the values in
 // `harmony_data_store.h`, and the two must agree.
-function browsingDataTypeBit(kind: BrowsingDataType) -> Int {
+function browsingDataTypeBit(kind: borrow BrowsingDataType) -> Int {
     match kind {
         Cookies -> return 1;
         Cache -> return 2;
@@ -106,7 +106,7 @@ function browsingDataTypeSymbol(kind: BrowsingDataType) -> Symbol {
     }
 }
 
-function browsingDataRangeName(range: BrowsingDataRange) -> String {
+function browsingDataRangeName(range: borrow BrowsingDataRange) -> String {
     match range {
         LastHour -> return "Last hour";
         LastDay -> return "Last 24 hours";
@@ -195,7 +195,7 @@ struct SiteData {
     var types: Int = 0
     var lastUsed: Float = 0.0
 
-    function holds(kind: BrowsingDataType) -> Bool {
+    function holds(kind: borrow BrowsingDataType) -> Bool {
         return (self.types & browsingDataTypeBit(kind)) != 0
     }
 
@@ -317,7 +317,7 @@ function browsingDataAge(lastUsed: Float) -> String {
     return "Over a year ago"
 }
 
-function browsingDataShortTypeName(kind: BrowsingDataType) -> String {
+function browsingDataShortTypeName(kind: borrow BrowsingDataType) -> String {
     match kind {
         Cookies -> return "Cookies";
         Cache -> return "Cache";

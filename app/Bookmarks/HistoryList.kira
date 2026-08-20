@@ -55,7 +55,7 @@ HarmonyHistoryStore HarmonyHistory() {
 
         rows = harmonyHistoryRead(typed, harmonyHistoryPanelRowLimit())
         cachedRevision = revision
-        cachedQuery = typed
+        cachedQuery = move typed
         seededQuery = true
         return
     }
@@ -113,7 +113,7 @@ HarmonyHistoryStore HarmonyHistory() {
 
 // The module's answer, read once. The query call latches the answer for this
 // thread, so every field below belongs to the same ranking.
-function harmonyHistoryRead(text: String, limit: Int) -> [HistoryVisit] {
+function harmonyHistoryRead(text: borrow String, limit: Int) -> [HistoryVisit] {
     var visits: [HistoryVisit] = []
     let count = Int(hbHistoryQuery(text, I32(harmonyHistoryMatchSubstring()), I32(limit)))
     var index = 0
@@ -208,7 +208,7 @@ function harmonyHistoryOpenPanel() {
 // A row's control has to carry the address it belongs to, and a press handler
 // takes no arguments, so each one is a closure built around that address.
 function harmonyHistoryOpenAction(url: String) -> () -> Void {
-    let target = url
+    var target = url
     let press: () -> Void = { in
         harmonyNavigationLoad(target)
         return
@@ -217,7 +217,7 @@ function harmonyHistoryOpenAction(url: String) -> () -> Void {
 }
 
 function harmonyHistoryOpenInNewTabAction(url: String) -> () -> Void {
-    let target = url
+    var target = url
     let press: () -> Void = { in
         let ignored = HarmonyTabList().open(target)
         return
@@ -226,7 +226,7 @@ function harmonyHistoryOpenInNewTabAction(url: String) -> () -> Void {
 }
 
 function harmonyHistoryForgetAction(url: String) -> () -> Void {
-    let target = url
+    var target = url
     let press: () -> Void = { in
         hbHistoryForgetURL(target)
         HarmonyHistory().invalidate()
@@ -236,7 +236,7 @@ function harmonyHistoryForgetAction(url: String) -> () -> Void {
 }
 
 function harmonyHistoryForgetHostAction(host: String) -> () -> Void {
-    let target = host
+    var target = host
     let press: () -> Void = { in
         hbHistoryForgetHost(target)
         HarmonyHistory().invalidate()
@@ -249,7 +249,7 @@ function harmonyHistoryForgetHostAction(host: String) -> () -> Void {
 
 // The moment a range starts at, on the module's own clock. All time starts at
 // nothing, which is what clears the history whole.
-function harmonyHistoryCutoff(range: BrowsingDataRange) -> Float {
+function harmonyHistoryCutoff(range: borrow BrowsingDataRange) -> Float {
     let now = harmonyBookmarksNow()
     match range {
         LastHour -> return now - 3600.0;

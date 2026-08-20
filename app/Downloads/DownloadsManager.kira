@@ -147,8 +147,8 @@ function downloadsResolvedTab(tab: Int) -> Int {
 // Save a link rather than follow it. The engine marks the address, and the load
 // that follows turns into a download the moment it is asked what to do with it.
 // This is also how a stopped download is asked for again.
-function downloadsSaveLinkAs(url: String, tab: Int = 0) {
-    let target = url.trim()
+function downloadsSaveLinkAs(url: borrow String, tab: Int = 0) {
+    var target = url.trim()
     if target.count == 0 {
         return
     }
@@ -168,7 +168,7 @@ function downloadsSaveLinkAs(url: String, tab: Int = 0) {
 // takes no arguments, so each one is a closure built around its id.
 
 function downloadCancelAction(id: Int) -> () -> Void {
-    let target = id
+    var target = id
     let press: () -> Void = { in
         downloadsNativeCancel(I32(target))
         return
@@ -177,7 +177,7 @@ function downloadCancelAction(id: Int) -> () -> Void {
 }
 
 function downloadRemoveAction(id: Int) -> () -> Void {
-    let target = id
+    var target = id
     let press: () -> Void = { in
         downloadsNativeRemove(I32(target))
         return
@@ -186,7 +186,7 @@ function downloadRemoveAction(id: Int) -> () -> Void {
 }
 
 function downloadRevealAction(id: Int) -> () -> Void {
-    let target = id
+    var target = id
     let press: () -> Void = { in
         downloadsNativeReveal(I32(target))
         return
@@ -195,7 +195,7 @@ function downloadRevealAction(id: Int) -> () -> Void {
 }
 
 function downloadOpenAction(id: Int) -> () -> Void {
-    let target = id
+    var target = id
     let press: () -> Void = { in
         downloadsNativeOpen(I32(target))
         return
@@ -206,7 +206,7 @@ function downloadOpenAction(id: Int) -> () -> Void {
 // A download that failed or was cancelled is asked for again from the address
 // it came from, in the tab that is showing.
 function downloadRetryAction(url: String) -> () -> Void {
-    let source = url
+    var source = url
     let press: () -> Void = { in
         downloadsSaveLinkAs(source)
         return

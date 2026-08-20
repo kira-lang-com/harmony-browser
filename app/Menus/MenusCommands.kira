@@ -23,7 +23,7 @@ function harmonyMenuTargetTab(tab: Int) -> Int {
 
 // A link opened from a menu belongs beside the page it was on, which is the
 // position a browser has always opened it at.
-function harmonyMenuOpenInNewTab(url: String, tab: Int, foreground: Bool) {
+function harmonyMenuOpenInNewTab(url: borrow String, tab: Int, foreground: Bool) {
     let target = url.trim()
     if target.count == 0 {
         return
@@ -61,7 +61,7 @@ function harmonyMenuOpenInNewTab(url: String, tab: Int, foreground: Bool) {
 // Save link as, save image as, save media as: one thing, three items. The
 // download engine marks the address and the load that follows turns into a file
 // rather than a document.
-function harmonyMenuSaveAs(url: String, tab: Int) {
+function harmonyMenuSaveAs(url: borrow String, tab: Int) {
     downloadsSaveLinkAs(url, harmonyMenuTargetTab(tab))
     return
 }
