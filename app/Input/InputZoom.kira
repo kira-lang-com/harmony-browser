@@ -8,6 +8,13 @@ import KiraUI
 // side keeps the levels and applies them; this is the badge and the buttons.
 
 function harmonyInputZoomPercent() -> Int {
+    // A hundred is what "not zoomed" reads, and a build with no engine is not
+    // zoomed. Zero would be a page shrunk to nothing -- and the toolbar asks
+    // this to decide whether it needs a zoom badge, so a zero puts a control on
+    // screen that has nothing to control and moves everything beside it.
+    if harmonyBrowserEngineAvailable() == false {
+        return 100
+    }
     return Int(nativeInputZoomPercent())
 }
 
