@@ -1,0 +1,237 @@
+import Foundation
+import HarmonyCore
+import KiraGraphics
+import KiraIpc
+import KiraUI
+import KiraUIFoundation
+import OpacityUI
+
+// What Harmony AI paints, and where.
+//
+// Two surfaces, not one: a sidebar and a document. They are separate textures
+// because the shell places them separately -- and because a sidebar that is its
+// own texture is one the window can slide the browser's over, which is what
+// makes swiping between the tab list and the assistant possible at all.
+
+struct AiSurfaces {
+    var device: GraphicsHeadless = GraphicsHeadless {}
+    var painter: HarmonySurfacePainter = HarmonySurfacePainter {}
+    var sidebar: HarmonyComponentSurface = harmonyNoSurface(HarmonySurfaceRole.Sidebar, "")
+    var document: HarmonyComponentSurface = harmonyNoSurface(HarmonySurfaceRole.Document, "")
+    // Ask AI: the trailing column, and the only OPTIONAL surface here.
+    //
+    // Published like the others and simply not drawn by the shell when the panel
+    // is closed. Allocating it once and leaving it is the cheaper trade: the
+    // panel is opened and closed repeatedly during a session, and a surface
+    // torn down and rebuilt each time is a handle transfer and an import per
+    // toggle for memory that was already the right size.
+    var inspector: HarmonyComponentSurface = harmonyNoSurface(HarmonySurfaceRole.Inspector, "")
+    // The room the shell gave each of them.
+    var sidebarRoom: HarmonyAllotment = HarmonyAllotment {}
+    var documentRoom: HarmonyAllotment = HarmonyAllotment {}
+    var inspectorRoom: HarmonyAllotment = HarmonyAllotment {}
+
+    function isReady() -> Bool {
+        return device.ready && sidebar.isReady() && document.isReady()
+    }
+
+    function note() -> String {
+        if device.ready == false {
+            return "No headless graphics device is available on this machine."
+        }
+        if sidebar.note.count > 0 {
+            return sidebar.note
+        }
+        return document.note
+    }
+}
+
+// Take one role's allotment: open the texture the window asked for, at the size
+// it asked for, and only when that is not the size it already has.
+//
+// The same shape the browser uses, for the same reason. The extents are the
+// SHELL's: it owns the window, and a component that chose its own chose one that
+// agreed with the columns until somebody resized them.
+function aiAllot(surfaces: borrow mut AiSurfaces, allotment: borrow HarmonyAllotment) -> Bool {
+    if harmonyAllotmentIsUsable(allotment) == false {
+        return false
+    }
+    if surfaces.device.ready == false {
+        surfaces.device = openHeadlessGraphics()
+        if surfaces.device.ready == false {
+            return false
+        }
+        surfaces.painter = harmonyOpenPainter(surfaces.device)
+    }
+    let width = harmonyAllotmentWidth(allotment)
+    let height = harmonyAllotmentHeight(allotment)
+    match allotment.role {
+        Sidebar -> {
+            if harmonyAllotmentSame(surfaces.sidebarRoom, allotment) {
+                return false
+            }
+            harmonyReleaseComponentSurface(surfaces.sidebar)
+            surfaces.sidebar = harmonyOpenComponentSurface(surfaces.device, HarmonySurfaceRole.Sidebar, width, height)
+            surfaces.sidebarRoom = harmonyAllotmentCopy(allotment)
+            return true
+        }
+        Document -> {
+            if harmonyAllotmentSame(surfaces.documentRoom, allotment) {
+                return false
+            }
+            harmonyReleaseComponentSurface(surfaces.document)
+            surfaces.document = harmonyOpenComponentSurface(surfaces.device, HarmonySurfaceRole.Document, width, height)
+            surfaces.documentRoom = harmonyAllotmentCopy(allotment)
+            return true
+        }
+        Inspector -> {
+            if harmonyAllotmentSame(surfaces.inspectorRoom, allotment) {
+                return false
+            }
+            harmonyReleaseComponentSurface(surfaces.inspector)
+            surfaces.inspector = harmonyOpenComponentSurface(surfaces.device, HarmonySurfaceRole.Inspector, width, height)
+            surfaces.inspectorRoom = harmonyAllotmentCopy(allotment)
+            return true
+        }
+        Floating -> {
+            // The assistant floats nothing of its own yet. Being allotted the
+            // overlay is not an error: the shell allots every role it has room
+            // for, and a component renders only the ones it fills.
+            return false
+        }
+    }
+    return false
+}
+
+// The assistant's own colours, so that which component painted a region is
+// visible at a glance while the surfaces are still flat fills.
+function aiSidebarColour() -> Color {
+    return Color { r: 0.20, g: 0.15, b: 0.30, a: 1.0 }
+}
+
+function aiInspectorColour() -> Color {
+    return Color { r: 0.24, g: 0.18, b: 0.32, a: 1.0 }
+}
+
+function aiDocumentColour() -> Color {
+    return Color { r: 0.16, g: 0.20, b: 0.34, a: 1.0 }
+}
+
+// The trees, lowered against the extent each surface was allotted.
+//
+// The SAME widgets a window would lay out, laid out the way a window lays them
+// out. Nothing in them knows they are being drawn for another process, which is
+// what made giving the assistant a real interface a matter of writing the views
+// rather than of writing a second renderer for them.
+function aiSidebarTree(surfaces: borrow AiSurfaces) -> FoundationView {
+    let themed = modifierContextApply(ModifierContext {}, modifierDeltaTheme(Opacity()))
+    return harmonyLowerWidget(
+        surfaces.painter,
+        AiSidebar(),
+        themed,
+        harmonyAllotmentWidth(surfaces.sidebarRoom),
+        harmonyAllotmentHeight(surfaces.sidebarRoom)
+    )
+}
+
+function aiContentTree(surfaces: borrow AiSurfaces) -> FoundationView {
+    let themed = modifierContextApply(ModifierContext {}, modifierDeltaTheme(Opacity()))
+    return harmonyLowerWidget(
+        surfaces.painter,
+        AiContent(),
+        themed,
+        harmonyAllotmentWidth(surfaces.documentRoom),
+        harmonyAllotmentHeight(surfaces.documentRoom)
+    )
+}
+
+function aiInspectorTree(surfaces: borrow AiSurfaces) -> FoundationView {
+    let themed = modifierContextApply(ModifierContext {}, modifierDeltaTheme(Opacity()))
+    return harmonyLowerWidget(
+        surfaces.painter,
+        AiInspector(),
+        themed,
+        harmonyAllotmentWidth(surfaces.inspectorRoom),
+        harmonyAllotmentHeight(surfaces.inspectorRoom)
+    )
+}
+
+function aiDrawSurfaces(surfaces: borrow mut AiSurfaces) -> Bool {
+    if surfaces.isReady() == false {
+        return false
+    }
+    let sidebarTree = aiSidebarTree(surfaces)
+    let sidebar = harmonyPaintSurface(
+        surfaces.device,
+        surfaces.painter,
+        surfaces.sidebar,
+        move sidebarTree,
+        aiSidebarColour()
+    )
+    let contentTree = aiContentTree(surfaces)
+    let document = harmonyPaintSurface(
+        surfaces.device,
+        surfaces.painter,
+        surfaces.document,
+        move contentTree,
+        aiDocumentColour()
+    )
+    // Only when the window opened one. A trailing column that is not open is a
+    // role this component was not allotted, so there is no texture to paint and
+    // nothing to say about it.
+    if surfaces.inspector.isReady() {
+        let inspectorTree = aiInspectorTree(surfaces)
+        let ignored = harmonyPaintSurface(
+            surfaces.device,
+            surfaces.painter,
+            surfaces.inspector,
+            move inspectorTree,
+            aiInspectorColour()
+        )
+    }
+    return sidebar && document
+}
+
+// Where the window says its pointer is, over whichever surface it names.
+function aiPointer(surfaces: borrow mut AiSurfaces, delivery: borrow IpcDelivery) -> Bool {
+    if delivery.sound() == false || delivery.envelope.method != harmonyPointerMethod() {
+        return false
+    }
+    if surfaces.painter.ready == false {
+        return false
+    }
+    var reader = ipcPayloadReader(delivery.envelope)
+    let event = decode_HarmonyPointer(reader)
+    if reader.ok() == false {
+        return false
+    }
+    match event.phase {
+        Move -> harmonyPointerMoved(surfaces.painter, event.x, event.y);
+        Press -> harmonyPointerPressed(surfaces.painter, event.x, event.y);
+        Release -> harmonyPointerReleased(surfaces.painter, event.x, event.y);
+        Leave -> harmonyPointerLeft(surfaces.painter);
+    }
+    return true
+}
+
+function aiAnnounceSurfaces(attachment: borrow mut HarmonyAttachment, surfaces: borrow mut AiSurfaces) {
+    harmonyAnnounceComponentSurface(attachment, surfaces.sidebar, 1)
+    harmonyAnnounceComponentSurface(attachment, surfaces.document, 2)
+    if surfaces.inspector.isReady() {
+        harmonyAnnounceComponentSurface(attachment, surfaces.inspector, 3)
+    }
+    return
+}
+
+// Take the room the shell just gave one of this component's roles.
+function harmonyAiAllot(surfaces: borrow mut AiSurfaces, delivery: borrow IpcDelivery) -> Bool {
+    if delivery.sound() == false || delivery.envelope.method != harmonyAllotMethod() {
+        return false
+    }
+    var reader = ipcPayloadReader(delivery.envelope)
+    let allotment = decode_HarmonyAllotment(reader)
+    if reader.ok() == false {
+        return false
+    }
+    return aiAllot(surfaces, allotment)
+}

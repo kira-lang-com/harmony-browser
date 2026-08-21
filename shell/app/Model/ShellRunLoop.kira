@@ -1,0 +1,77 @@
+import HarmonyCore
+import KiraGraphics
+import KiraUI
+import KiraUIFoundation
+
+// The shell's own runner.
+//
+// The widget library's fixes its rebuild predicate at "nothing the window shows
+// changes without an input event". That is true of an editor and false of a
+// shell: a component connects, says what version it is, and stops, all on its
+// own schedule and none of it on the person's. A shell on the library's runner
+// draws its first frame and then never notices anything arriving.
+//
+// So the arrangement is advanced from the frame hook, which runs every frame,
+// and the tree is rebuilt only when what it would draw has actually moved.
+function RunHarmonyShellApp(
+    title: String,
+    width: Int,
+    height: Int,
+    rootBuilder: borrow () -> KiraUIApp,
+    harness: KiraGraphics.HarnessConfig,
+) {
+    RunFoundationInteractiveApp(move title, width, height, { context in
+        kiraUiTapSeqReset()
+        // The arrangement moves forward HERE, inside the build, and not from the
+        // frame hook. A wrapped property is addressed through the build's own
+        // state, so a hook that runs outside the build reads and writes
+        // somewhere the window never sees -- which looks exactly like a
+        // component that starts and never connects.
+        harmonyShellAdvance(context.viewport)
+        let build: borrow () -> KiraUIApp = rootBuilder
+        let app = build()
+        let root = app.content
+        return root.lower(context, ModifierContext {})
+    },
+        engineFrame: harmonyShellFrame,
+        needsRebuild: harmonyShellNeedsRebuild,
+        showFpsOverlay: false,
+        showGraphicsHud: false,
+        rebuildOnResize: true,
+        windowMode: WindowMode.Windowed,
+        transparent: false,
+        opacity: 1.0,
+        harness: move harness
+    )
+    return
+}
+
+// Once per frame, before the window draws: import whatever a component handed
+// over since the last one.
+//
+// Here rather than in the build because importing needs the FRAME, and the build
+// is the one place that does not have one. The build records what arrived; this
+// turns it into a texture.
+function harmonyShellFrame(frame: borrow mut KiraGraphics.RenderFrame) {
+    harmonyShellImportPending(frame)
+    return
+}
+
+// Whether to build the tree again.
+//
+// Always, for a shell, and the reason is worth stating because the obvious
+// alternative is a trap. A predicate that asked the arrangement whether anything
+// had moved would be READING WRAPPED STATE, and this runs outside the build --
+// where a wrapped property cannot find its slot and answers with its own
+// initializer instead. For a value whose initializer publishes an endpoint, that
+// is one endpoint per frame: the socket the peers are connecting to is unlinked
+// and rebound underneath them until the channel table is full, and the component
+// that did connect is holding a channel to a name that no longer exists.
+//
+// So nothing here touches the store. A shell rebuilds every frame because its
+// arrangement genuinely changes without input -- a component connects, names its
+// version, and stops, all on its own schedule -- and it is compositing live
+// surfaces from other processes anyway.
+function harmonyShellNeedsRebuild() -> Bool {
+    return true
+}

@@ -1,0 +1,89 @@
+import Foundation
+import KiraUI
+
+// Which platform this build is for, and the two things that follow from it.
+//
+// Answered by the COMPILER at expansion time, not by asking the environment at
+// run time. A program that read `OS` out of the environment would be asking a
+// Windows convention on every platform, would get an empty answer wherever it is
+// not set, and would believe whatever a shell had exported. The target is
+// something the build already knows.
+
+enum HarmonyPlatform {
+    Windows
+    Linux
+    MacOS
+    IOS
+    Unknown
+}
+
+@Native
+comptime macro harmonyPlatformName {
+    kind { function }
+    expand(input: Syntax) -> Syntax {
+        let name = Build.platform()
+        return quote { #{name} }
+    }
+}
+
+function harmonyPlatform() -> HarmonyPlatform {
+    let name = harmonyPlatformName!()
+    if name == "windows" {
+        return HarmonyPlatform.Windows
+    }
+    if name == "linux" {
+        return HarmonyPlatform.Linux
+    }
+    if name == "macos" {
+        return HarmonyPlatform.MacOS
+    }
+    if name == "ios" {
+        return HarmonyPlatform.IOS
+    }
+    return HarmonyPlatform.Unknown
+}
+
+// The extension an executable carries. One `match`, in one place, so nothing
+// above this line has to know which platform it is on.
+function harmonyExecutableSuffix() -> String {
+    match harmonyPlatform() {
+        Windows -> return ".exe";
+        Linux -> return "";
+        MacOS -> return "";
+        IOS -> return "";
+        Unknown -> return "";
+    }
+}
+
+// The appearance a component is told to draw in, as a word the KiraUI override
+// takes.
+//
+// Resolved once, in the shell, from the same question a window asks. A component
+// reads it out of its environment and never asks the desktop itself.
+function harmonyShellAppearanceName() -> String {
+    match resolvedAppearance(Appearance.Dark) {
+        Light -> return "light";
+        Dark -> return "dark";
+    }
+}
+
+// Whether this platform lets one program start another and talk to it.
+//
+// Harmony's shape -- a shell that starts a browser and an ai, each in its own
+// process -- is a DESKTOP shape, and it is not a preference. iOS forbids a
+// program spawning another outright, so there is no arrangement of this code
+// that would run there: the components would have to be linked into the shell,
+// which is a different program with different failure modes and a different
+// install story.
+//
+// Stated here rather than discovered by a launch that fails, so a shell can say
+// what it is instead of showing a component that never arrives.
+function harmonySupportsComponents() -> Bool {
+    match harmonyPlatform() {
+        Windows -> return true;
+        Linux -> return true;
+        MacOS -> return true;
+        IOS -> return false;
+        Unknown -> return false;
+    }
+}

@@ -1,0 +1,221 @@
+import Foundation
+import KiraGraphics
+import KiraIpc
+
+// A component's pixels, for whichever component is producing them.
+//
+// The browser and the assistant do exactly the same thing here -- open a device
+// with no window, allocate memory both processes can reach, render into it, hand
+// the shell a handle -- so they do it through one piece of code rather than two
+// that drift. What differs between them is what they DRAW, which is the one
+// thing this does not decide.
+//
+// A component publishes one of these per ROLE it fills. The browser's sidebar
+// and its page are two surfaces, not one, because the shell places them
+// independently -- and because a sidebar that is its own texture is a sidebar
+// the window can slide another component's over.
+
+struct HarmonyComponentSurface {
+    var role: HarmonySurfaceRole
+    var shared: SharedTexture
+    var announced: Bool
+    // Bumped whenever the TEXTURE is replaced, so the shell drops the handle it
+    // holds rather than compositing memory that has been freed under it.
+    var generation: Int
+    var note: String
+
+    function isReady() -> Bool {
+        return shared.isValid()
+    }
+}
+
+// Give up the memory a surface was using, before its slot takes another.
+//
+// The reopen path, not the shutdown path. A component reopens a surface every
+// time the window changes the region it fills, and the surface it was using is
+// a GPU allocation the size of that whole region: dropping the struct on the
+// floor leaks one per resize, which is as fast as somebody can drag an edge.
+function harmonyReleaseComponentSurface(surface: borrow mut HarmonyComponentSurface) {
+    if surface.shared.isValid() == false {
+        return
+    }
+    surface.shared.release()
+    surface.announced = false
+    return
+}
+
+// A surface that could not be had, and why.
+function harmonyNoSurface(role: HarmonySurfaceRole, note: String) -> HarmonyComponentSurface {
+    return HarmonyComponentSurface {
+        role: move role
+        shared: SharedTexture {}
+        announced: false
+        generation: 0
+        note: move note
+    }
+}
+
+// Allocate a surface for one role and import it as a texture.
+//
+// The device is the caller's, because a component has ONE device and as many
+// surfaces as it has roles: opening a device per surface would be a second
+// adapter, a second queue, and two sets of memory that cannot be shared with
+// each other.
+function harmonyOpenComponentSurface(
+    device: borrow GraphicsHeadless,
+    role: HarmonySurfaceRole,
+    width: Int,
+    height: Int,
+) -> HarmonyComponentSurface {
+    if device.ready == false {
+        return harmonyNoSurface(move role, "No headless graphics device is available.")
+    }
+    if sharedSurfacesAvailable() == false {
+        return harmonyNoSurface(move role, sharedSurfaceDiagnostic())
+    }
+    let surface = createSharedSurface(width, height)
+    if surface.isValid() == false {
+        return harmonyNoSurface(move role, sharedSurfaceDiagnostic())
+    }
+    let shared = importSharedTexture(device.graphics, surface)
+    if shared.isValid() == false {
+        return harmonyNoSurface(move role, "The shared surface could not be imported as a texture.")
+    }
+    return HarmonyComponentSurface {
+        role: move role
+        shared: move shared
+        announced: false
+        generation: 1
+        note: ""
+    }
+}
+
+// Fill a surface with one colour.
+//
+// Access is BEGUN and ENDED around the pass, which is not a formality: ending it
+// exports a fence, and the fence is how the shell is told the writing actually
+// finished. Without one the memory crosses and the timing does not, and the
+// compositor samples a half-drawn frame.
+function harmonyFillComponentSurface(
+    device: borrow GraphicsHeadless,
+    surface: borrow mut HarmonyComponentSurface,
+    colour: borrow Color,
+) -> Bool {
+    if surface.isReady() == false {
+        return false
+    }
+    if surface.shared.beginWrite() == false {
+        return false
+    }
+    var frame = device.frame()
+    var encoder = frame.beginRenderPass(clearTextureRenderPass(surface.shared.texture, colour))
+    frame.endPass()
+    device.submit()
+    let ended = surface.shared.endAccess()
+    device.tick()
+    return ended
+}
+
+// Tell the shell what it has, and hand the handle over with the message.
+//
+// The handle rides the CHANNEL rather than the message, because a handle naming
+// GPU memory means nothing in the process that did not allocate it. What the
+// message carries is which surface the handle that arrived with it belongs to.
+function harmonyAnnounceComponentSurface(
+    attachment: borrow mut HarmonyAttachment,
+    surface: borrow mut HarmonyComponentSurface,
+    id: Int,
+) {
+    if surface.isReady() == false || surface.announced {
+        return
+    }
+    var out = IpcWriter {}
+    encode_HarmonySurfaceNote(HarmonySurfaceNote {
+        surface: HarmonySurface {
+            role: surface.role
+            id: id
+            layer: harmonyLayerForRole(surface.role)
+            rect: HarmonyRect {
+                x: 0.0
+                y: 0.0
+                width: Float(surface.shared.surface.width)
+                height: Float(surface.shared.surface.height)
+            }
+            scale: 1.0
+            generation: surface.generation
+            stride: surface.shared.surface.stride
+            modifier: surface.shared.surface.modifier
+        }
+    }, out)
+    if attachment.emitHandle(harmonySurfaceAttachMethod(), out.bytes, surface.shared.surface.handle) {
+        surface.announced = true
+    }
+    return
+}
+
+// Tell the shell a surface is gone.
+//
+// The mirror of announcing, and the overlay layer is what needs it: a component
+// with nothing floating has no overlay, and a window still holding the last one
+// would be compositing a menu that has been closed. Dropping RESETS `announced`,
+// so the next thing opened is announced afresh -- with its handle, because the
+// shell let go of the one it had.
+function harmonyDropComponentSurface(
+    attachment: borrow mut HarmonyAttachment,
+    surface: borrow mut HarmonyComponentSurface,
+    id: Int,
+) {
+    if surface.announced == false {
+        return
+    }
+    var out = IpcWriter {}
+    encode_HarmonySurfaceNote(HarmonySurfaceNote {
+        surface: HarmonySurface {
+            role: surface.role
+            id: id
+            layer: harmonyLayerForRole(surface.role)
+            rect: HarmonyRect {}
+            scale: 1.0
+            generation: surface.generation
+            stride: 0
+            modifier: 0
+        }
+    }, out)
+    if attachment.emit(harmonySurfaceDropMethod(), out.bytes) {
+        surface.announced = false
+    }
+    return
+}
+
+// Say that something was just opened into this component's overlay.
+//
+// Sent on the transition from empty to occupied and not on every frame it stays
+// up: this is what orders overlays BETWEEN components, and a message per frame
+// would give the top to whichever component redrew last rather than to the one
+// the person opened last.
+function harmonyRaiseComponentOverlay(
+    attachment: borrow mut HarmonyAttachment,
+    surface: borrow mut HarmonyComponentSurface,
+    id: Int,
+) {
+    var out = IpcWriter {}
+    encode_HarmonySurfaceNote(HarmonySurfaceNote {
+        surface: HarmonySurface {
+            role: surface.role
+            id: id
+            layer: harmonyLayerForRole(surface.role)
+            rect: HarmonyRect {
+                x: 0.0
+                y: 0.0
+                width: Float(surface.shared.surface.width)
+                height: Float(surface.shared.surface.height)
+            }
+            scale: 1.0
+            generation: surface.generation
+            stride: surface.shared.surface.stride
+            modifier: surface.shared.surface.modifier
+        }
+    }, out)
+    let ignored = attachment.emit(harmonyOverlayRaiseMethod(), out.bytes)
+    return
+}

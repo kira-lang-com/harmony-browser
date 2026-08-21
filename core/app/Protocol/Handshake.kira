@@ -1,0 +1,64 @@
+import KiraIpc
+
+// The first thing a component says, and what the shell says back.
+//
+// A component connects to the endpoint it was started with and announces which
+// component it is. Until it has, the shell has a channel and does not know whose
+// it is -- which matters, because one endpoint serves every component and they
+// connect in whatever order they come up in.
+
+// The version of the ARRANGEMENT, not of any message.
+//
+// Almost nothing needs this. A message that gains a field is readable by both
+// sides already -- that is what `@Derive(IpcMessage)`'s keyed fields are for --
+// so adding to the protocol does not move this number. It moves only when a
+// change cannot be expressed as an appended field: a method that means something
+// different, a surface handed over a different way, an exchange with a new step
+// in it. Bumping it for anything less would refuse peers that would have worked.
+function harmonyProtocolVersion() -> Int {
+    return 1
+}
+
+@Derive(IpcMessage)
+struct HarmonyHello {
+    var component: HarmonyComponent
+    var protocol: Int
+    // What the component calls its own release, for a person to read when the
+    // two do not agree. Never compared: the protocol number is what decides.
+    var version: String
+}
+
+@Derive(IpcMessage)
+struct HarmonyWelcome {
+    var protocol: Int
+    var accepted: Bool
+    // Why not, when not. Said in words because it is shown to a person: the
+    // machine already knows the answer is no.
+    var reason: String
+}
+
+function harmonyHelloMethod() -> String {
+    return "harmony.hello"
+}
+
+function harmonyWelcomeMethod() -> String {
+    return "harmony.welcome"
+}
+
+// Whether a peer announcing this protocol can be talked to.
+function harmonyProtocolAccepts(protocol: Int) -> Bool {
+    return protocol == harmonyProtocolVersion()
+}
+
+// What to tell a person when it cannot.
+//
+// Which side is behind is worth saying, because the two have different fixes: a
+// component older than the shell is updated, while a component NEWER than the
+// shell means the shell is what is out of date -- which is the ordinary result
+// of installing the AI runtime on top of an older Harmony Browser.
+function harmonyProtocolRefusal(component: borrow HarmonyComponent, protocol: Int) -> String {
+    if protocol < harmonyProtocolVersion() {
+        return harmonyComponentTitle(component) + " is older than this version of Harmony. Update it to use it."
+    }
+    return harmonyComponentTitle(component) + " is newer than this version of Harmony. Update Harmony to use it."
+}

@@ -1,0 +1,72 @@
+import Foundation
+import KiraIpc
+
+// What Harmony is made of, and how a piece of it is named.
+//
+// Three programs and a library. The shell is the window; the browser and the ai
+// are components it starts, each in its own process, each drawing into a surface
+// the shell composites. Nothing is loaded into the shell's address space, and
+// that is the whole of the install story:
+//
+//   Harmony Browser        shell + browser
+//   The AI runtime         shell + ai
+//   A machine with both    one shell, and both components
+//
+// A component that is not installed is an executable that is not on disk. Not a
+// missing symbol, not a failed load, not a feature flag: a file that is not
+// there, which `fileExists` answers and every layer above treats the same way it
+// treats a component that has not started yet.
+
+@Derive(IpcMessage)
+enum HarmonyComponent {
+    // The window. Never a peer of itself; here so a message can say who it came
+    // from without a second enum.
+    Shell
+    // The web engine, its tabs, and everything that reaches WebKit.
+    Browser
+    // The model runtime and the harness around it.
+    Ai
+}
+
+// The name a component's executable is installed under, without the platform's
+// extension.
+function harmonyComponentProgram(component: borrow HarmonyComponent) -> String {
+    match component {
+        Shell -> return "harmony-shell";
+        Browser -> return "harmony-browser";
+        Ai -> return "harmony-ai";
+    }
+}
+
+// What a component calls itself on the wire. This is the `service` an envelope
+// carries, and it is a name rather than a number because the components are
+// installed separately: a number would need a registry both sides agreed on, and
+// the point is that neither was built against the other.
+function harmonyComponentService(component: borrow HarmonyComponent) -> String {
+    match component {
+        Shell -> return "harmony.shell";
+        Browser -> return "harmony.browser";
+        Ai -> return "harmony.ai";
+    }
+}
+
+// What a person is told the component is, when the interface has to say.
+function harmonyComponentTitle(component: borrow HarmonyComponent) -> String {
+    match component {
+        Shell -> return "Harmony";
+        Browser -> return "Harmony Browser";
+        Ai -> return "Harmony AI";
+    }
+}
+
+// The file a component would be installed as, beside the shell that looks for
+// it.
+//
+// Beside, rather than at a path from a registry or a settings file: a component
+// is installed by putting it next to the shell, and it is uninstalled by
+// removing it. There is nothing to keep in sync and nothing to go stale, which
+// is what makes "is the AI runtime installed" a question with one true answer
+// rather than a cached one.
+function harmonyComponentExecutable(directory: borrow String, component: borrow HarmonyComponent) -> String {
+    return directory + "/" + harmonyComponentProgram(component) + harmonyExecutableSuffix()
+}

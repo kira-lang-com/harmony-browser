@@ -1,0 +1,89 @@
+import KiraIpc
+
+// What the shell and the AI component say to each other.
+//
+// The runtime is PLUGGABLE and this is the seam that makes it so: nothing here
+// names a model, a provider, a file on disk or a network. The shell asks what
+// the component can do and sends it turns; the component answers with deltas.
+// Whether the answer came from weights on this machine or from somewhere else
+// is the component's business, and swapping one for the other changes nothing
+// on this side.
+
+function aiCapabilitiesMethod() -> String {
+    return "ai.capabilities"
+}
+
+function aiSendMethod() -> String {
+    return "ai.send"
+}
+
+function aiCancelMethod() -> String {
+    return "ai.cancel"
+}
+
+// An event, not an answer. A turn produces many of these and the shell is not
+// waiting on any one of them.
+function aiDeltaMethod() -> String {
+    return "ai.delta"
+}
+
+// What the component can do, asked once when it becomes ready.
+//
+// `runtimeReady` is separate from the component being attached, because they are
+// different things: the AI component can be installed, running and talking while
+// its runtime is still loading, or while it has no model to load. A shell that
+// conflated them would offer a conversation that cannot be had.
+@Derive(IpcMessage)
+struct AiCapabilities {
+    var runtimeReady: Bool
+    // What to call the thing answering, for a person. Empty while nothing is
+    // loaded.
+    var model: String
+    // Whether answers arrive as deltas or in one piece. A shell draws both, and
+    // knowing which lets it decide whether to show a caret.
+    var streaming: Bool
+    // Why the runtime is not ready, when it is not. For a person.
+    var note: String
+}
+
+// One thing a person said.
+@Derive(IpcMessage)
+struct AiTurn {
+    // Which conversation this belongs to. A shell may have several open, and the
+    // component answers each independently.
+    var conversation: Int
+    var text: String
+}
+
+// Where a turn stands after this piece of it.
+//
+// Carried as one value rather than as a `done` flag beside a `failed` flag,
+// because the two booleans describe four states and one of them -- failed but
+// not finished -- is not a thing a turn can be.
+@Derive(IpcMessage)
+enum AiDeltaKind {
+    // More is coming. A streaming runtime sends many of these.
+    Continuing
+    // The turn is over and the answer is complete.
+    Finished
+    // The turn is over because something went wrong. The delta's text is then
+    // the reason, for a person to read.
+    Failed
+}
+
+// A piece of an answer.
+//
+// A one-piece answer is a single delta that is already Finished, and a streamed
+// one is many that end on it -- the shell draws both the same way and does not
+// branch on which kind it is getting.
+@Derive(IpcMessage)
+struct AiDelta {
+    var conversation: Int
+    var text: String
+    var kind: AiDeltaKind
+}
+
+@Derive(IpcMessage)
+struct AiCancel {
+    var conversation: Int
+}

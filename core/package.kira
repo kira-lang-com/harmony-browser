@@ -1,0 +1,34 @@
+Package HarmonyCore {
+    let version = "0.1.0"
+    let kira = "0.1.0"
+    let kind = PackageKind.Library
+    let moduleRoot = "HarmonyCore"
+    let defaults = Defaults { executionMode: Backend.Hybrid, buildTarget: BuildTarget.Host }
+    let allowThinFfiShim = true
+    let dependencies = [
+        Dependency { name: "KiraIpc", path: "../../kira-ipc" },
+        Dependency { name: "KiraGraphics", path: "../../kira-graphics" },
+        Dependency { name: "KiraUI", path: "../../kira-ui" }
+    ]
+    // Starting a component, and knowing whether it is still there. That is all
+    // core needs from the platform: `fileExists` already answers whether a
+    // component is installed, and KiraIpc already carries what it says.
+    let nativeLibraries = [
+        NativeLibrary {
+            name: "harmony_core",
+            linkMode: LinkMode.Static,
+            headers: Headers { entrypoint: "NativeLibs/harmony_core.h", includeDirs: ["NativeLibs"] },
+            sources: ["NativeLibs/harmony_core_process.c"],
+            autobind: Autobind { module: "process", headers: ["NativeLibs/harmony_core.h"], mode: AutobindMode.AllPublic },
+            nativeTargets: [
+                NativeTarget { triple: "x86_64-windows-msvc", systemLibs: ["kernel32"] },
+                NativeTarget { triple: "x86_64-linux-gnu" },
+                NativeTarget { triple: "aarch64-linux-gnu" },
+                NativeTarget { triple: "aarch64-macos-none" },
+                NativeTarget { triple: "x86_64-macos-none" },
+                NativeTarget { triple: "aarch64-ios-none" },
+                NativeTarget { triple: "aarch64-ios-simulator" }
+            ]
+        }
+    ]
+}

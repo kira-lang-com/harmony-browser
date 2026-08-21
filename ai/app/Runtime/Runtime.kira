@@ -1,0 +1,84 @@
+import HarmonyCore
+
+// The seam a model runtime plugs into.
+//
+// Everything above this line -- the harness, the protocol, the shell's panel --
+// is written against these four calls and nothing else. A runtime is whatever
+// answers them: weights on this machine, a service over the network, or the
+// stand-in beside this file. Adding one is a new declaration backed by this
+// family and no change anywhere else.
+//
+// # The turn's state belongs to the HARNESS, not to the runtime
+//
+// A runtime is handed the session it is working on rather than keeping it. That
+// is not a workaround: a shell may have several conversations open at once, and
+// which turn is in flight, what was asked, and how much of the answer has gone
+// out are all things the HARNESS has to know to route deltas -- so they cannot
+// also be the runtime's private business without two copies of one truth.
+//
+// What is genuinely the runtime's -- loaded weights, a connection, a tokenizer
+// -- is not per-turn and does not belong in a session. A real runtime holds
+// those behind its own seam, where a multi-gigabyte model is not being copied
+// into a value every frame.
+//
+// # It is a PULL interface
+//
+// `advance` is called on the component's own loop and answers what is ready.
+// A runtime that called back into the harness would be a runtime's thread
+// inside the harness's state, and the harness is what owns the conversations.
+
+// One turn in flight, whoever is answering it.
+//
+// Small and copyable on purpose: it is passed to a runtime and comes back, once
+// per turn of the component's loop.
+struct AiSession {
+    // Which conversation the turn belongs to. Zero when nothing is in flight,
+    // which is why zero is never a conversation a shell may open.
+    var conversation: Int = 0
+    var prompt: String = ""
+    // How many deltas have gone out for this turn. A streaming runtime reads it
+    // to know where it is; a one-piece one reads it to know whether it has
+    // already answered.
+    var produced: Int = 0
+    var running: Bool = false
+}
+
+// What one turn of a runtime produced: the session it left behind, and whatever
+// it has to send.
+//
+// A runtime takes a session and ANSWERS the next one rather than writing through
+// a borrow. Two reasons, and the second is the one that matters. It reads as
+// what it is -- a step is a function of the turn so far -- and a session is four
+// small fields, so nothing is saved by mutating one in place. (It also steps
+// around a compiler fault: a `borrow mut` parameter on a construct-family
+// member passes analysis and then emits malformed code on both backends,
+// because the dispatcher does not carry the write back.)
+struct AiStep {
+    var session: AiSession
+    var delta: AiDelta
+}
+
+// The empty delta: what `advance` answers when it has nothing.
+//
+// Named rather than written out at each site, because "nothing to send" is
+// tested by the conversation being zero and a runtime that spelled it slightly
+// differently would be a runtime whose silence the harness relayed.
+function aiNoDelta() -> AiDelta {
+    return AiDelta {
+        conversation: 0
+        text: ""
+        kind: AiDeltaKind.Continuing
+    }
+}
+
+construct AiRuntime {
+    // What this runtime is, and whether it can answer yet.
+    @Required function capabilities() -> AiCapabilities
+    // Begin answering. The text is everything the person said this turn.
+    @Required function begin(session: AiSession, conversation: Int, text: borrow String) -> AiSession
+    // The next step: whatever is ready now, and the session it leaves behind.
+    // The delta is `aiNoDelta()` when there is nothing to send.
+    @Required function advance(session: AiSession) -> AiStep
+    // Stop answering, and produce nothing further for this conversation.
+    @Required function cancel(session: AiSession, conversation: Int) -> AiSession
+}

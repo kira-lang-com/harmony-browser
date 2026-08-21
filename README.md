@@ -1,4 +1,108 @@
-# Harmony Browser
+# Harmony
+
+A monorepo holding four packages. Three of them are programs that run in
+separate processes, and one is the library that lets them understand each other.
+
+```
+shell/    the window. Owns every pixel, and starts the components it finds.
+browser/  the web engine, its tabs, and everything that reaches WebKit.
+ai/       the model runtime and the harness around it.
+core/     what the three share: who they are, how they find each other, and
+          every message they exchange.
+```
+
+`core` is built on [KiraIpc](../kira-ipc), whose typed messages survive the two
+sides being built from different releases -- which is the property this whole
+arrangement rests on.
+
+## What you get when you install it
+
+A component is installed by putting its executable **beside the shell**, and
+uninstalled by removing it. There is no registry key and no manifest, so the
+question "is the AI runtime installed" has one true answer rather than a cached
+one.
+
+| You install | You get | What runs |
+| --- | --- | --- |
+| Harmony Browser | `harmony-shell` + `harmony-browser` | a browser; every AI feature off |
+| The AI runtime | `harmony-shell` + `harmony-ai` | a conversation, and no web engine |
+| Both | one shell, both components | a browser with AI in it |
+
+Nothing is told which arrangement it is in. The shell starts what it finds, and
+what it does not find is simply absent -- which it can say, rather than failing
+to load something.
+
+The split is a **desktop** shape. iOS forbids one program starting another, so
+`harmonySupportsComponents()` answers false there and the shell says so instead
+of waiting for a component that can never arrive.
+
+## How a component draws
+
+A component has no window. It renders each of its regions into a shared GPU
+texture and tells the shell where each one goes:
+
+```kira
+TextureTarget(handle = pageHandle, zLevel = 0) { PageContent() }
+TextureTarget(handle = sidebarHandle, zLevel = 0) { Sidebar() }
+OverlayTarget(handle = overlayHandle)
+```
+
+Each region is its own texture, so a sidebar does not repaint when the content
+beside it scrolls. Everything a component FLOATS goes into one overlay target the
+size of the whole canvas, because a menu opened from the sidebar runs across the
+content beside it.
+
+The shell composites in four bands, and the rule lives in one place
+(`core/app/Protocol/Surface.kira`):
+
+```
+0  every component's content, at its rectangle
+1  the shell's own content
+2  component overlays, most recently raised last
+3  the shell's own overlay, over everything
+```
+
+The shell is top no matter what. A component able to cover the shell's menus
+would be a component able to take the window away from the person using it.
+
+Handles do not travel inside messages. A handle naming GPU memory means nothing
+outside the process that owns it, so the CHANNEL transfers it -- `SCM_RIGHTS` on
+POSIX, `DuplicateHandle` into the peer on Windows -- and the message carries only
+an id saying which transferred handle it means. See
+[KiraIpc](../kira-ipc#handles).
+
+## Running it
+
+Each package builds on its own:
+
+```bash
+kira build browser
+kira build ai
+```
+
+Components find each other by executable name, so a run needs them staged in one
+directory as `harmony-shell`, `harmony-browser` and `harmony-ai`.
+
+To watch the arrangement without a window in the way:
+
+```bash
+kira run core/Examples/component-handshake
+```
+
+To look at the shell, which is the only honest way to review a window:
+
+```bash
+kira build --backend llvm shell
+HARMONY_SHELL_CAPTURE=/tmp/shell.ppm KIRA_GRAPHICS_BACKEND=dawn ./harmony-shell
+```
+
+A browser started with an endpoint argument runs as a component with no window
+of its own; started with none it opens its own window, which is the development
+path and the same program either way.
+
+---
+
+## The browser
 
 Harmony Browser is the first KiraUI application intended to host WebKit on
 Windows.
@@ -61,7 +165,7 @@ Build WebKit using the upstream scripts:
 git clone https://github.com/WebKit/WebKit.git third_party\WebKit
 .\scripts\build-webkit-windows.ps1 -WebKitRoot .\third_party\WebKit
 $env:HARMONY_WEBKIT_ROOT = (Resolve-Path .\third_party\WebKit\WebKitBuild\Release\bin)
-kira run .
+kira run browser
 ```
 
 The build runs at `BelowNormal` priority and uses half the logical processors,

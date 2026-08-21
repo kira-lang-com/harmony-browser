@@ -1,0 +1,49 @@
+import KiraUI
+
+// Ask AI: the trailing column, open over whatever the other component is showing.
+//
+// The only OPTIONAL surface the assistant has. The window decides whether it is
+// open, by allotting the role or not -- so there is nothing here that has to
+// know whether it is visible, which is what keeps "is the panel open" one
+// question with one answer rather than one per side.
+
+Widget AiInspector() {
+    body {
+        Panel(radius = CornerRadius.None) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
+                VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+                    AiInspectorHeader()
+
+                    Divider()
+                        .themeBorder(.Subtle)
+
+                    Inset(horizontal = Spacing.None, vertical = Spacing.Small) {
+                        Text(aiInspectorPrompt())
+                            .typography(.subheadline)
+                            .foregroundColor(.Secondary)
+                    }
+
+                    Spacer()
+                }
+                .fillHeight()
+            }
+        }
+        .backgroundStyle(.Surface)
+        .material(.Flat)
+        .fillWidth()
+        .fillHeight()
+    }
+}
+
+Widget AiInspectorHeader() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text("Ask AI")
+                .typography(.footnote)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+        }
+        .height(28.0)
+    }
+}

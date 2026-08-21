@@ -1,0 +1,66 @@
+import KiraUI
+
+// Where the document is.
+//
+// It is the bar's PRINCIPAL item, so it sits over the detail column and not over
+// the sidebar: the address belongs to the page, and a field that started at the
+// window's left edge would be a field that claims to address the tab list too.
+Widget AddressField(text: String, secure: Bool) {
+    body {
+        Panel(radius = CornerRadius.Capsule) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.None) {
+                HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+                    Icon(addressFieldSymbol(secure))
+                        .imageScale(.Small)
+                        .foregroundColor(addressFieldInk(secure))
+
+                    Text(text)
+                        .typography(.subheadline)
+                        .foregroundColor(addressFieldTextInk(text))
+
+                    Spacer()
+                }
+                .fillHeight()
+            }
+        }
+        .backgroundStyle(.Control)
+        // A stated width, because the bar's document section is a row and a
+        // field that filled it would push the trailing controls off the window.
+        // Wide enough for a long URL at the size it is set in, and the same
+        // width whether or not there is a page behind it -- an address bar that
+        // resized with its contents would move every control beside it.
+        .width(460.0)
+        .height(28.0)
+    }
+}
+
+// The transport, said with a glyph.
+//
+// A padlock is only ever shown for a connection that has one. An address with
+// no page behind it shows a magnifier instead, because there is no transport to
+// report and a padlock over nothing is the one thing a browser must never draw.
+function addressFieldSymbol(secure: Bool) -> Symbol {
+    if secure {
+        return Symbol.Lock
+    }
+    return Symbol.MagnifyingGlass
+}
+
+function addressFieldInk(secure: Bool) -> PrimaryColor {
+    if secure {
+        return PrimaryColor.Green
+    }
+    return PrimaryColor.Tertiary
+}
+
+// Placeholder text recedes; a real address does not.
+function addressFieldTextInk(text: borrow String) -> PrimaryColor {
+    if text == addressFieldPlaceholder() {
+        return PrimaryColor.Tertiary
+    }
+    return PrimaryColor.Primary
+}
+
+function addressFieldPlaceholder() -> String {
+    return "Search or enter address"
+}

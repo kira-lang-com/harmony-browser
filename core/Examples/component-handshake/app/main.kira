@@ -1,0 +1,183 @@
+import Foundation
+import HarmonyCore
+import KiraIpc
+
+// What a shell does about its components, without a window in the way.
+//
+// This is the arrangement Harmony runs on, start to finish: publish an endpoint,
+// start whatever is installed beside us, wait for each to connect and say what
+// it is, talk to it, and let it go. The real shell does exactly this beside its
+// window; here it is on its own so the sequence is readable.
+//
+// Run it from a directory holding `harmony-ai` and `harmony-browser` -- or from
+// one holding neither, which is just as interesting: nothing fails, and both
+// links report Absent.
+
+function stateName(state: borrow HarmonyLinkState) -> String {
+    match state {
+        Absent -> return "absent (not installed)";
+        Idle -> return "idle";
+        Starting -> return "starting";
+        Ready -> return "ready";
+        Refused -> return "refused";
+        Lost -> return "lost";
+    }
+}
+
+function reportLink(link: borrow HarmonyLink) {
+    var line = harmonyComponentTitle(link.component) + ": " + stateName(link.state)
+    if link.version.count > 0 {
+        line = line + " " + link.version
+    }
+    if link.note.count > 0 {
+        line = line + " -- " + link.note
+    }
+    print(line)
+    return
+}
+
+function layerName(layer: borrow HarmonySurfaceLayer) -> String {
+    match layer {
+        Content -> return "content";
+        Overlay -> return "overlay";
+    }
+}
+
+// Order a handful of surfaces the way the shell would composite them.
+//
+// An insertion sort, because the list is one entry per surface on screen and the
+// comparison is the point rather than the sorting.
+function reportCompositeOrder() {
+    var components: [HarmonyComponent] = [
+        HarmonyComponent.Shell,
+        HarmonyComponent.Ai,
+        HarmonyComponent.Browser,
+        HarmonyComponent.Ai,
+        HarmonyComponent.Shell,
+        HarmonyComponent.Browser
+    ]
+    var layers: [HarmonySurfaceLayer] = [
+        HarmonySurfaceLayer.Overlay,
+        HarmonySurfaceLayer.Overlay,
+        HarmonySurfaceLayer.Content,
+        HarmonySurfaceLayer.Content,
+        HarmonySurfaceLayer.Content,
+        HarmonySurfaceLayer.Overlay
+    ]
+    // When each overlay was raised. The browser's menu was opened after the AI's,
+    // so it belongs on top of it -- and under the shell's regardless.
+    var raised: [Int] = [9, 3, 0, 0, 0, 7]
+    var names: [String] = [
+        "shell.menu",
+        "ai.menu",
+        "browser.page",
+        "ai.sidebar",
+        "shell.toolbar",
+        "browser.menu"
+    ]
+
+    var order: [Int] = []
+    var index = 0
+    while index < names.count {
+        var at = 0
+        while at < order.count && harmonySurfaceDrawsUnder(
+            components[order[at]], layers[order[at]], raised[order[at]],
+            components[index], layers[index], raised[index]
+        ) {
+            at = at + 1
+        }
+        var rebuilt: [Int] = []
+        var step = 0
+        while step < order.count {
+            if step == at {
+                rebuilt.append(index)
+            }
+            rebuilt.append(order[step])
+            step = step + 1
+        }
+        if at >= order.count {
+            rebuilt.append(index)
+        }
+        order = move rebuilt
+        index = index + 1
+    }
+
+    print("composite order, bottom first:")
+    var seat = 0
+    while seat < order.count {
+        let which = order[seat]
+        print("  " + String(seat) + " " + names[which]
+            + " band=" + String(harmonySurfaceBand(components[which], layers[which]))
+            + " " + layerName(layers[which]))
+        seat = seat + 1
+    }
+    return
+}
+
+@Main
+function entry() {
+    print("installed beside us: " + harmonyInstallDirectory())
+    print("  browser: " + String(harmonyComponentIsInstalled(HarmonyComponent.Browser)))
+    print("  ai: " + String(harmonyComponentIsInstalled(HarmonyComponent.Ai)))
+
+    var host = harmonyHost()
+    print("published: " + String(host.endpoint.isOpen()) + " as " + harmonySessionName())
+
+    host.startInstalled()
+
+    // The shell's own loop, in miniature: advance the arrangement, then get on
+    // with whatever else the frame owes. Here there is nothing else, so it waits
+    // a frame's worth between turns rather than spinning.
+    var turns = 0
+    while turns < 400 {
+        host.advance()
+        if host.browser.state != HarmonyLinkState.Starting && host.ai.state != HarmonyLinkState.Starting {
+            turns = 400
+        } else {
+            sleepMilliseconds(16)
+            turns = turns + 1
+        }
+    }
+
+    reportLink(host.browser)
+    reportLink(host.ai)
+
+    // Ask the AI component what it can do. A shell asks this once, when the link
+    // becomes ready, and draws its panel from the answer -- including the case
+    // where the component is up and has no model behind it.
+    if host.ai.isReady() {
+        var ask = IpcWriter {}
+        let call = host.ai.request(aiCapabilitiesMethod(), ask.bytes)
+        print("asked capabilities as call " + String(call))
+        var waited = 0
+        var answered = false
+        while waited < 400 && answered == false {
+            let delivery = host.ai.pump()
+            if delivery.arrived() && delivery.envelope.call == call {
+                answered = true
+                var reader = ipcPayloadReader(delivery.envelope)
+                let able = decode_AiCapabilities(reader)
+                print("  sound: " + String(reader.ok()))
+                print("  runtime ready: " + String(able.runtimeReady))
+                print("  note: " + able.note)
+            } else {
+                sleepMilliseconds(16)
+                waited = waited + 1
+            }
+        }
+        if answered == false {
+            print("  no answer")
+        }
+    }
+
+    // What the shell would draw, and in what order.
+    //
+    // The rule is the whole agreement between the three programs, so it is worth
+    // seeing rather than trusting: components paint underneath, their overlays
+    // stack by whichever was opened last, and the shell is over everything.
+    reportCompositeOrder()
+
+    host.shutdown()
+    print("shut down")
+    return
+}

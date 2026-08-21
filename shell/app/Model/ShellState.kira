@@ -1,0 +1,500 @@
+import Foundation
+import HarmonyCore
+import KiraIpc
+import KiraUI
+
+// What the window keeps between frames: the components it hosts.
+//
+// The shell is the only process with a window, so it is the only one that has a
+// frame loop to advance the arrangement on. Everything else here reads.
+construct HarmonyShellStore {
+    @Required let version: Int
+}
+
+HarmonyShellStore HarmonyShell() {
+    // Publishing the endpoint is the FIRST thing the window does, before it has
+    // drawn anything: a component started later connects to a name that is
+    // already listening, so there is no window in which a component comes up,
+    // finds nothing, and gives up.
+    @State var host: HarmonyHost = harmonyHost()
+    @State var started: Bool = false
+    // What the window last drew, as one number. Compared rather than remembered
+    // field by field: every part of it is small and changes together.
+    @State var drawn: Int = 0 - 1
+    // Whether a component has handed the window a surface to composite, and
+    // where it goes.
+    //
+    // Tracked here rather than asked of the link, because "the component is
+    // running" and "the component has given me something to draw" are different
+    // questions with different answers for several frames at startup -- and the
+    // document column has different things to say about each.
+    @State var hasDetailSurface: Bool = false
+    // Where the pointer was last seen, so a move across a boundary is noticed
+    // rather than having to be recomputed from nothing every frame.
+    @State var pointerRole: HarmonySurfaceRole = HarmonySurfaceRole.Document
+    @State var pointerInside: Bool = false
+    @State var pointerDown: Bool = false
+    let version: Int = 1
+
+    // One turn of the arrangement, run once per frame beside the window.
+    //
+    // Read out, moved forward, written back. A wrapped property answers with a
+    // COPY, so a mutating call on it would advance something discarded on the
+    // next line -- the arrangement has to come back through the wrapper to
+    // survive the frame.
+    function advance() {
+        var current = host
+        if started == false {
+            current.startInstalled()
+            started = true
+        }
+        current.advance()
+        // Everything a component has said since the last frame. Drained rather
+        // than taken one at a time: a component that announced a surface and
+        // then presented into it twice said three things this frame, and a
+        // window that took one per frame would be three frames behind by the
+        // time it drew.
+        // BOTH components, not just the browser. Draining one and not the other
+        // is a component whose messages pile up unread -- and the first thing it
+        // says is the surface it wants composited, so the symptom is a component
+        // that is running, healthy, and invisible.
+        var carried = hasDetailSurface
+        carried = harmonyDrainLink(current.browser, carried)
+        carried = harmonyDrainLink(current.ai, carried)
+        hasDetailSurface = carried
+        host = move current
+        return
+    }
+
+    // Say something to the browser, from a place that is not the build.
+    function tellBrowser(method: borrow String, payload: borrow [U8]) {
+        var current = host
+        let ignored = current.browser.emit(method, payload)
+        host = move current
+        return
+    }
+
+    // Send the pointer to whichever component's surface it is over.
+    //
+    // The window owns the pointer and the components own what is under it, so
+    // this is the whole of the routing: find the region, translate into that
+    // surface's own coordinates, and say so. A component is never told where the
+    // window is, which is why it does not have to be told again when the window
+    // moves.
+    function pointerAt(x: Float, y: Float, pressed: Bool) {
+        var current = host
+        let region = harmonyShellRegionAt(x, y)
+        // Left the one it was over. Said before the new one is told, so a row in
+        // the surface being left stops looking hovered rather than staying lit
+        // until something else happens to it.
+        if pointerRole != region.role || pointerInside != region.inside {
+            if pointerInside {
+                // To the one that was being told about it, for the same reason.
+                if harmonyRoleBelongsToAi(pointerRole, showingAiSurfaces()) {
+                    current.ai.sendPointer(pointerRole, HarmonyPointerPhase.Leave, 0.0, 0.0)
+                } else {
+                    current.browser.sendPointer(pointerRole, HarmonyPointerPhase.Leave, 0.0, 0.0)
+                }
+            }
+            pointerRole = region.role
+            pointerInside = region.inside
+        }
+        if region.inside == false {
+            pointerDown = false
+            host = move current
+            return
+        }
+        var phase = HarmonyPointerPhase.Move
+        if pressed != pointerDown {
+            if pressed {
+                phase = HarmonyPointerPhase.Press
+            } else {
+                phase = HarmonyPointerPhase.Release
+            }
+            pointerDown = pressed
+        }
+        // To whoever OWNS that region, which is not always whoever the window
+        // is showing. The inspector is the assistant's wherever the swipe
+        // stands: a person can have the tab list in front of them and the Ask
+        // AI panel open beside it, and routing by what is showing sent every
+        // press in that panel to the browser -- which drew none of it.
+        if harmonyRoleBelongsToAi(region.role, showingAiSurfaces()) {
+            current.ai.sendPointer(region.role, phase, region.x, region.y)
+        } else {
+            current.browser.sendPointer(region.role, phase, region.x, region.y)
+        }
+        host = move current
+        return
+    }
+
+    // Tell the components what the window has for them.
+    //
+    // Separate from `advance` because it needs the VIEWPORT, which only the
+    // build has. Everything else the arrangement does is answerable without
+    // knowing how big the window is.
+    function layoutChanged(viewport: borrow Size) {
+        let regions = harmonyShellRegions(viewport)
+        harmonyShellRecordRegions(regions)
+        var current = host
+        current.publishAllotments(regions)
+        host = move current
+        return
+    }
+
+    function showsSurface() -> Bool {
+        return hasDetailSurface
+    }
+
+    function showingAiSurfaces() -> Bool {
+        return harmonyShellShowingAi()
+    }
+
+    function browser() -> HarmonyLink {
+        return host.browser
+    }
+
+    function ai() -> HarmonyLink {
+        return host.ai
+    }
+
+    // Whether anything the window shows has moved since it last drew.
+    function moved() -> Bool {
+        let now = harmonyArrangementSignature(host.browser, host.ai)
+        if now == drawn {
+            return false
+        }
+        drawn = now
+        return true
+    }
+
+    // Whether any component is still on its way somewhere.
+    //
+    // Idle and Starting are the two states that become something else on their
+    // own; the other four only change when a person or a peer does something,
+    // which arrives as an event and rebuilds the tree anyway.
+    function settling() -> Bool {
+        if harmonyLinkIsSettling(host.browser) {
+            return true
+        }
+        return harmonyLinkIsSettling(host.ai)
+    }
+
+    function shutdown() {
+        var current = host
+        current.shutdown()
+        host = move current
+        return
+    }
+}
+
+// Everything the window draws about the arrangement, folded into one number.
+//
+// The two link states and whether each has said its version. Nothing else on
+// screen depends on the arrangement, so nothing else belongs in here -- a
+// signature that folded in something the window does not draw would rebuild the
+// tree for a change nobody could see.
+function harmonyArrangementSignature(browser: borrow HarmonyLink, ai: borrow HarmonyLink) -> Int {
+    var value = harmonyLinkStateCode(browser.state) * 16 + harmonyLinkStateCode(ai.state)
+    value = value * 4
+    if browser.version.count > 0 {
+        value = value + 1
+    }
+    if ai.version.count > 0 {
+        value = value + 2
+    }
+    return value
+}
+
+function harmonyLinkIsSettling(link: borrow HarmonyLink) -> Bool {
+    if link.state == HarmonyLinkState.Idle {
+        return true
+    }
+    return link.state == HarmonyLinkState.Starting
+}
+
+function harmonyLinkStateCode(state: borrow HarmonyLinkState) -> Int {
+    match state {
+        Absent -> return 0;
+        Idle -> return 1;
+        Starting -> return 2;
+        Ready -> return 3;
+        Refused -> return 4;
+        Lost -> return 5;
+    }
+}
+
+// Read everything one component has said since the last frame.
+//
+// Drained rather than taken one at a time: a component that announced a surface
+// and then presented into it twice said three things this frame, and a window
+// that took one per frame would be three frames behind by the time it drew.
+//
+// Bounded anyway, because the number of messages a frame reads should not be
+// something the peer alone decides.
+function harmonyDrainLink(link: borrow mut HarmonyLink, had: Bool) -> Bool {
+    var carried = had
+    var turns = 0
+    while turns < 32 {
+        let delivery = link.pump()
+        if delivery.arrived() == false {
+            turns = 32
+        } else {
+            harmonyShellSurfaceArrived(link.component, delivery)
+            harmonyShellOverlayMoved(link.component, delivery)
+            carried = harmonySurfaceFollows(carried, delivery)
+            turns = turns + 1
+        }
+    }
+    return carried
+}
+
+// What one message from a component does to whether the window has a surface.
+//
+// Attaching gives it one and dropping takes it away; presenting into one it
+// already holds changes nothing about whether it holds it. Anything else is a
+// message this layer has no opinion about.
+function harmonySurfaceFollows(had: Bool, delivery: borrow IpcDelivery) -> Bool {
+    if delivery.sound() == false {
+        return had
+    }
+    let method = delivery.envelope.method
+    if method == harmonySurfaceAttachMethod() {
+        return true
+    }
+    if method == harmonySurfaceDropMethod() {
+        return false
+    }
+    return had
+}
+
+function harmonyShellShowsSurface() -> Bool {
+    return HarmonyShell().showsSurface()
+}
+
+function harmonyShellAdvance(viewport: borrow Size) {
+    HarmonyShell().advance()
+    HarmonyShell().layoutChanged(viewport)
+    // The pointer, forwarded once a frame rather than per event.
+    //
+    // Here because this is where the window already reads its own input state,
+    // and a frame is as often as anything a component draws could show a change
+    // -- so a burst of moves between two frames is one message rather than
+    // twenty, and the one that is sent is the position that mattered.
+    HarmonyShell().pointerAt(kiraUiPointerX(), kiraUiPointerY(), kiraUiPointerIsDown())
+    return
+}
+
+// How the window divides itself, in the numbers the split view will actually
+// use.
+//
+// Taken from `navigationMetrics`, which is what NavigationSplitView asks: the
+// column width and the bar height are decisions the split view makes from the
+// window's width, and a shell that restated either would be a second opinion
+// about a number it does not own. That is the whole reason the window states
+// neither -- and it is why a component is TOLD its extent rather than choosing
+// one that agreed with the columns until the window was resized.
+function harmonyShellRegions(viewport: borrow Size) -> [HarmonyAllotment] {
+    let metrics = navigationMetrics(viewport.width)
+    var sidebar = metrics.primaryWidth
+    if harmonyShellSidebarShown() == false {
+        sidebar = 0.0
+    }
+    let top = metrics.toolbarHeight
+    let content = viewport.height - top
+    let inspector = harmonyShellInspectorWidth(viewport.width)
+    let document = viewport.width - sidebar - inspector
+    let canvas = HarmonyRect {
+        x: 0.0
+        y: 0.0
+        width: viewport.width
+        height: viewport.height
+    }
+    // One per role this window has room for. The inspector is in the list only
+    // while it is OPEN: a role with no region is a role a component is not
+    // allotted rather than one allotted nothing, and a component that was
+    // allotted nothing would still have to decide what that meant.
+    var regions: [HarmonyAllotment] = [
+        HarmonyAllotment {
+            role: HarmonySurfaceRole.Document
+            region: HarmonyRect { x: sidebar, y: top, width: document, height: content }
+            canvas: harmonyRectCopy(canvas)
+            scale: harmonyShellScale()
+        },
+        // The overlay covers the WHOLE canvas, which is the point of it: a menu
+        // opened from the sidebar runs across the document beside it, and a menu
+        // clipped to the column it was opened from is a menu with its bottom
+        // half missing.
+        HarmonyAllotment {
+            role: HarmonySurfaceRole.Floating
+            region: harmonyRectCopy(canvas)
+            canvas: harmonyRectCopy(canvas)
+            scale: harmonyShellScale()
+        }
+    ]
+    // The leading column only while the window is showing one. A component
+    // allotted a region the window does not composite paints a whole column
+    // every frame into a texture nobody samples -- the same rule the inspector
+    // follows, and it has to be the same rule or "allotted" stops meaning
+    // anything.
+    if sidebar > 0.0 {
+        regions.append(HarmonyAllotment {
+            role: HarmonySurfaceRole.Sidebar
+            region: HarmonyRect { x: 0.0, y: top, width: sidebar, height: content }
+            canvas: harmonyRectCopy(canvas)
+            scale: harmonyShellScale()
+        })
+    }
+    if inspector > 0.0 {
+        regions.append(HarmonyAllotment {
+            role: HarmonySurfaceRole.Inspector
+            region: HarmonyRect { x: sidebar + document, y: top, width: inspector, height: content }
+            canvas: harmonyRectCopy(canvas)
+            scale: harmonyShellScale()
+        })
+    }
+    return regions
+}
+
+// How wide the assistant's trailing column is, or zero while it is closed.
+//
+// Taken from the same metrics the leading column is, so the two are the same
+// kind of number rather than one measured and one guessed. A window too narrow
+// to hold three columns does not open a third: a document squeezed to nothing
+// between two panels is worse than a panel that did not open.
+function harmonyShellInspectorWidth(width: Float) -> Float {
+    if harmonyShellInspectorOpen() == false {
+        return 0.0
+    }
+    let metrics = navigationMetrics(width)
+    if width < metrics.primaryWidth * 3.0 {
+        return 0.0
+    }
+    return metrics.primaryWidth
+}
+
+// Which component a region belongs to.
+//
+// The two leading roles follow the swipe -- they are the columns the window
+// slides between -- and the inspector does not: it is the assistant's panel
+// whichever component the window has in front, which is the whole reason it is
+// a separate role rather than a second document.
+function harmonyRoleBelongsToAi(role: borrow HarmonySurfaceRole, showingAi: Bool) -> Bool {
+    if role == HarmonySurfaceRole.Inspector {
+        return true
+    }
+    return showingAi
+}
+
+// Whether the assistant's trailing column is open. The WINDOW's, because it is
+// the window that has to find the room for it.
+//
+// In the surface table rather than in a `@State` on the store, because the thing
+// that changes it is a CLICK. A press handler runs during input dispatch, which
+// is outside the build -- and a wrapped property addressed from outside the build
+// re-runs its initializer instead of keeping what was written, so the button
+// would have looked wired and toggled nothing. The swipe writes through the same
+// slot for the same reason.
+function harmonyShellInspectorOpen() -> Bool {
+    return harmonyShellSurfaceState().inspectorOpen
+}
+
+// The leading column, shown or not.
+//
+// In the slot beside the other two for the same reason: what changes it is a
+// press, and a press runs outside the build.
+function harmonyShellSidebarShown() -> Bool {
+    return harmonyShellSurfaceState().sidebarShown
+}
+
+function harmonyShellToggleSidebar() {
+    harmonyShellSurfacesEnsure()
+    var surfaces = nativeRecover<HarmonyShellSurfaces>(kiraUiStateSlotGet(harmonyShellSurfacesKey()))
+    surfaces.sidebarShown = surfaces.sidebarShown == false
+    return
+}
+
+// Which columns the window is showing, in the split view's own vocabulary.
+function harmonyShellColumns() -> NavigationSplitViewVisibility {
+    if harmonyShellSidebarShown() {
+        return NavigationSplitViewVisibility.All
+    }
+    return NavigationSplitViewVisibility.DetailOnly
+}
+
+// Open a tab. The browser owns the tabs, so this ASKS rather than does: the
+// window has no registry of its own to add one to.
+function harmonyShellNewTab() {
+    var out = IpcWriter {}
+    encode_BrowserOpen(BrowserOpen {
+        address: ""
+        foreground: true
+    }, out)
+    HarmonyShell().tellBrowser(browserOpenMethod(), out.bytes)
+    return
+}
+
+function harmonyShellToggleInspector() {
+    harmonyShellSurfacesEnsure()
+    var surfaces = nativeRecover<HarmonyShellSurfaces>(kiraUiStateSlotGet(harmonyShellSurfacesKey()))
+    surfaces.inspectorOpen = surfaces.inspectorOpen == false
+    return
+}
+
+// Device pixels per point.
+//
+// One, until the window reports otherwise: the shell composites at the scale it
+// draws at, and a component told a different one renders a texture that is soft
+// or clipped rather than one that is wrong in a way anybody would notice.
+function harmonyShellScale() -> Float {
+    return 1.0
+}
+
+function harmonyShellBrowser() -> HarmonyLink {
+    return HarmonyShell().browser()
+}
+
+function harmonyShellAi() -> HarmonyLink {
+    return HarmonyShell().ai()
+}
+
+// What a link's state is called where a person reads it.
+//
+// Six states and six sentences, because each one has a different thing to do
+// about it and a label that blurred two of them would be a label that told
+// somebody to wait when they should be installing something.
+function harmonyLinkSummary(link: borrow HarmonyLink) -> String {
+    match link.state {
+        Absent -> return "Not installed";
+        Idle -> return "Ready to start";
+        Starting -> return "Starting";
+        Ready -> return "Running";
+        Refused -> return "Version mismatch";
+        Lost -> return "Stopped";
+    }
+}
+
+function harmonyLinkIsWell(link: borrow HarmonyLink) -> Bool {
+    return link.state == HarmonyLinkState.Ready
+}
+
+function harmonyLinkInk(link: borrow HarmonyLink) -> PrimaryColor {
+    match link.state {
+        Absent -> return PrimaryColor.Tertiary;
+        Idle -> return PrimaryColor.Secondary;
+        Starting -> return PrimaryColor.Accent;
+        Ready -> return PrimaryColor.Green;
+        Refused -> return PrimaryColor.Red;
+        Lost -> return PrimaryColor.Red;
+    }
+}
+
+function harmonyLinkSymbol(link: borrow HarmonyLink) -> Symbol {
+    match link.state {
+        Absent -> return Symbol.CircleDashed;
+        Idle -> return Symbol.Circle;
+        Starting -> return Symbol.CircleNotch;
+        Ready -> return Symbol.CheckCircle;
+        Refused -> return Symbol.WarningCircle;
+        Lost -> return Symbol.XCircle;
+    }
+}

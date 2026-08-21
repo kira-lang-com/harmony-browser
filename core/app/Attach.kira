@@ -1,0 +1,172 @@
+import Foundation
+import KiraIpc
+
+// A component's side of the arrangement.
+//
+// The mirror of `HarmonyHost`, and much smaller, because a component has exactly
+// one peer: the shell that started it. It takes the endpoint name off its own
+// command line, connects, says which component it is, and waits to be welcomed.
+//
+// A component started by hand with no argument, or whose shell has already gone,
+// finds nothing to connect to. That is a component with no work to do and it
+// says so rather than sitting on a socket that will never answer.
+
+enum HarmonyAttachState {
+    // No endpoint to connect to: started with no argument, or the shell has
+    // gone. There is nothing for this process to do.
+    Detached
+    // Connected, hello sent, waiting to be welcomed.
+    Greeting
+    // Welcomed. Everything this component does is now wanted.
+    Attached
+    // The shell and this component do not agree on the protocol. `note` says
+    // which of the two is out of date.
+    Refused
+}
+
+struct HarmonyAttachment {
+    var component: HarmonyComponent
+    var state: HarmonyAttachState
+    var port: IpcPort
+    var note: String
+
+    function isAttached() -> Bool {
+        return state == HarmonyAttachState.Attached
+    }
+
+    // Whether this process should still be running.
+    //
+    // A component exits when its shell goes. That is the ordinary shutdown path
+    // and the only one that is guaranteed to run: a shell that crashed sent no
+    // goodbye, and a component that waited for one would outlive it forever.
+    function shouldRun() -> Bool {
+        if state == HarmonyAttachState.Detached || state == HarmonyAttachState.Refused {
+            return false
+        }
+        return port.isOpen()
+    }
+
+    // Read the welcome, if it has arrived. Called until it answers something
+    // other than Greeting.
+    function settle() {
+        if state != HarmonyAttachState.Greeting {
+            return
+        }
+        let delivery = self.port.pump()
+        if delivery.arrived() == false {
+            return
+        }
+        if delivery.sound() == false || delivery.envelope.method != harmonyWelcomeMethod() {
+            self.state = HarmonyAttachState.Refused
+            self.note = "The shell said something this build did not understand."
+            return
+        }
+        var reader = ipcPayloadReader(delivery.envelope)
+        let welcome = decode_HarmonyWelcome(reader)
+        if reader.ok() == false || welcome.accepted == false {
+            self.state = HarmonyAttachState.Refused
+            self.note = welcome.reason
+            return
+        }
+        self.state = HarmonyAttachState.Attached
+        return
+    }
+
+    function pump() -> IpcDelivery {
+        if isAttached() == false {
+            return IpcDelivery {}
+        }
+        return self.port.pump()
+    }
+
+    function respond(call: Int, method: borrow String, payload: borrow [U8]) -> Bool {
+        return self.port.respond(call, harmonyComponentService(component), method, payload)
+    }
+
+    function emit(method: borrow String, payload: borrow [U8]) -> Bool {
+        if isAttached() == false {
+            return false
+        }
+        return self.port.emit(harmonyComponentService(component), method, payload)
+    }
+
+    // Announce something and hand an OS handle over with it.
+    //
+    // An event rather than a request because a surface is ANNOUNCED: the shell
+    // is told what it now has, and there is nothing to answer.
+    function emitHandle(method: borrow String, payload: borrow [U8], handle: Int) -> Bool {
+        if isAttached() == false {
+            return false
+        }
+        return self.port.emitHandle(harmonyComponentService(component), method, payload, handle)
+    }
+
+    function detach() {
+        self.port.close()
+        self.state = HarmonyAttachState.Detached
+        return
+    }
+}
+
+// The endpoint this component was started with.
+//
+// One argument, and it is the whole of the rendezvous. A component with no
+// argument was started by hand rather than by a shell, which is a thing that
+// happens while developing and must not be a crash.
+//
+// Index ZERO. Kira's argument list holds what the program was CALLED WITH and
+// not what it is called: `processArgument(0)` is the first argument a shell
+// passed, where a C `argv[0]` would be the program's own path.
+function harmonyEndpointArgument() -> String {
+    if processArgumentCount() < 1 {
+        return ""
+    }
+    return processArgument(0)
+}
+
+// Connect to the shell that started this process and announce what we are.
+function harmonyAttach(component: HarmonyComponent, version: String) -> HarmonyAttachment {
+    let endpoint = harmonyEndpointArgument()
+    if endpoint.count == 0 {
+        return HarmonyAttachment {
+            component: move component
+            state: HarmonyAttachState.Detached
+            port: IpcPort {}
+            note: "Started with no shell to attach to."
+        }
+    }
+    var port = ipcPort(ipcConnect(endpoint))
+    if port.isOpen() == false {
+        return HarmonyAttachment {
+            component: move component
+            state: HarmonyAttachState.Detached
+            port: move port
+            note: "The shell that started this is no longer there."
+        }
+    }
+    var hello = IpcWriter {}
+    encode_HarmonyHello(HarmonyHello {
+        component: component
+        protocol: harmonyProtocolVersion()
+        version: move version
+    }, hello)
+    let call = port.request(
+        harmonyComponentService(HarmonyComponent.Shell),
+        harmonyHelloMethod(),
+        hello.bytes
+    )
+    if call == 0 {
+        return HarmonyAttachment {
+            component: move component
+            state: HarmonyAttachState.Detached
+            port: move port
+            note: "The shell went while this was starting."
+        }
+    }
+    return HarmonyAttachment {
+        component: move component
+        state: HarmonyAttachState.Greeting
+        port: move port
+        note: ""
+    }
+}

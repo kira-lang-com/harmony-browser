@@ -1,0 +1,3 @@
+# Written by `knvm pin`: the Kira toolchain this directory tree uses.
+channel = "dev"
+version = "1.8.2"

@@ -1,0 +1,36 @@
+import Foundation
+
+// What is installed on this machine.
+//
+// A component is installed by putting its executable BESIDE THE SHELL, and
+// uninstalled by removing it. There is no registry key, no settings file and no
+// manifest listing what is present, because every one of those can disagree with
+// the disk -- and the question "is the AI runtime installed" has to have one
+// true answer, not a cached one.
+//
+// So this is `fileExists` and nothing else, asked of a directory the platform
+// itself named.
+
+// The directory the running program sits in, which is where its siblings are.
+function harmonyInstallDirectory() -> String {
+    return harmony_executable_directory()
+}
+
+// Whether a component is on this machine at all.
+//
+// A shell asks this to decide what to offer. It is not the same question as
+// whether the component is RUNNING, and the two are answered separately on
+// purpose: "not installed" is something to tell a person about and perhaps offer
+// to fix, while "installed but not up yet" is something to wait a moment for.
+function harmonyComponentIsInstalled(component: borrow HarmonyComponent) -> Bool {
+    if harmonySupportsComponents() == false {
+        return false
+    }
+    return fileExists(harmonyComponentExecutable(harmonyInstallDirectory(), component))
+}
+
+// The three shipping arrangements fall out of `harmonyComponentIsInstalled` and
+// are not enumerated anywhere: Harmony Browser installs a shell and a browser,
+// the AI runtime installs a shell and an ai, and a machine with both ends up
+// with one shell and both components. Nothing has to be told which arrangement
+// it is in, and there is no summary value to fall out of step with the disk.

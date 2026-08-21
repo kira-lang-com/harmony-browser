@@ -1,0 +1,80 @@
+import KiraIpc
+
+// What the shell and the browser component say to each other.
+//
+// The shell draws the tab list and the address bar; the browser owns the engine
+// and every tab in it. So what crosses is the LIST and the COMMANDS, never the
+// engine's own objects: the shell has no handle on a page and cannot acquire
+// one, which is what stops a window from being able to hang itself on a page
+// that will not answer.
+
+function browserTabsMethod() -> String {
+    return "browser.tabs"
+}
+
+// An event: the tab list changed. Pages open themselves -- a `target=_blank`
+// link, a `window.open` -- so the registry is the truth and the shell draws
+// what it publishes rather than what it last asked for.
+function browserTabsChangedMethod() -> String {
+    return "browser.tabs.changed"
+}
+
+function browserOpenMethod() -> String {
+    return "browser.open"
+}
+
+function browserCloseMethod() -> String {
+    return "browser.close"
+}
+
+function browserSelectMethod() -> String {
+    return "browser.select"
+}
+
+function browserNavigateMethod() -> String {
+    return "browser.navigate"
+}
+
+// Where a tab stands. Everything the shell needs to draw one row.
+@Derive(IpcMessage)
+struct BrowserTab {
+    var id: Int
+    var title: String
+    var address: String
+    var loading: Bool
+    var pinned: Bool
+    var private: Bool
+}
+
+@Derive(IpcMessage)
+struct BrowserTabs {
+    var tabs: [BrowserTab]
+    var activeId: Int
+    // Whether the engine is there at all.
+    //
+    // A browser component with no engine behind it is a real arrangement, not a
+    // fault: the Windows WebKit port is built separately, and a build without it
+    // still attaches, still answers, and still says what it cannot do. A shell
+    // that assumed an attached browser had an engine would draw an address bar
+    // over nothing.
+    var engineReady: Bool
+    // Why there is no engine, when there is none. For a person.
+    var note: String
+}
+
+@Derive(IpcMessage)
+struct BrowserOpen {
+    var address: String
+    var foreground: Bool
+}
+
+@Derive(IpcMessage)
+struct BrowserTabRef {
+    var id: Int
+}
+
+@Derive(IpcMessage)
+struct BrowserNavigate {
+    var id: Int
+    var address: String
+}

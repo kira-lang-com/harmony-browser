@@ -1,0 +1,19 @@
+import KiraIpc
+
+// The name a shell publishes, and the argument a component is started with.
+//
+// Named after the shell's own process, because two shells at once is ordinary --
+// two windows, or a browser shell and a detached AI shell side by side -- and
+// two of them publishing one name would be one of them failing to start.
+//
+// A component receives this name as its single argument and connects back to it.
+// That is the whole of the rendezvous: no discovery, no broadcast, no well-known
+// port. A component talks to the shell that started it, and to nothing else.
+function harmonySessionName() -> String {
+    return "harmony-" + String(Int(harmony_process_self()))
+}
+
+// The endpoint a shell publishes for its components to connect to.
+function harmonyPublishSession() -> IpcEndpoint {
+    return ipcListen(harmonySessionName())
+}

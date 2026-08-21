@@ -1,0 +1,67 @@
+import KiraUI
+
+// The assistant's main area: the conversation, or what is missing instead.
+//
+// An assistant with no model installed is a real arrangement rather than a
+// fault -- the runtime is installed separately from the shell, exactly as the
+// web engine is -- so this says what is missing and what to do about it, in the
+// place a person is already looking.
+
+Widget AiContent() {
+    body {
+        ZStack(alignment = StackAlignment.Center) {
+            BackgroundFill(style = .Window)
+
+            if aiHasConversation() {
+                AiTranscript()
+            } else {
+                AiNothingAsked()
+            }
+        }
+        .fillWidth()
+        .fillHeight()
+    }
+}
+
+// The turn in flight: what was asked, and what has come back so far.
+Widget AiTranscript() {
+    body {
+        VStack(spacing = Spacing.Medium, alignment = HorizontalAlignment.Leading) {
+            Text(aiCurrentTitle())
+                .typography(.title3)
+
+            Text(aiCurrentAnswer())
+                .typography(.body)
+                .foregroundColor(.Secondary)
+        }
+        .fillWidth()
+    }
+}
+
+// What the area says when nothing has been asked.
+//
+// One mark, one sentence, one instruction -- the same three the browser's empty
+// page area has, because they answer the same question: a person looking at an
+// empty region needs to know what to DO, not to be told again what they can
+// already see.
+Widget AiNothingAsked() {
+    body {
+        VStack(spacing = Spacing.Medium, alignment = HorizontalAlignment.Center) {
+            Icon(.Sparkle)
+                .typography(.title1)
+                .imageScale(.ExtraLarge)
+                .foregroundColor(.Quaternary)
+
+            FixedGap(width = 1.0, height = 2.0)
+
+            Text(aiHeadline())
+                .typography(.title2)
+
+            Text(aiExplanation())
+                .typography(.subheadline)
+                .foregroundColor(.Secondary)
+        }
+        .hugWidth()
+        .hugHeight()
+    }
+}

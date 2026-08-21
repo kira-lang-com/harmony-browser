@@ -1,0 +1,70 @@
+import HarmonyCore
+import KiraUI
+
+// The window.
+//
+// Two columns and a bar, and the split view owns all three: the columns are its
+// slots, and the bar is assembled from what the columns declare with
+// `.toolbar(...)`. That is what keeps a sidebar item and a document item on one
+// baseline without either column knowing the other exists -- and it is why
+// nothing here states a sidebar width or a toolbar height.
+//
+// Placement is by ROLE, and the roles are what decide where things land:
+//
+//   Navigation     over the sidebar, against the boundary with the document
+//   Principal      the leading run of the document's own section
+//   PrimaryAction  the trailing end of the bar
+//
+// The page's own controls are Principal rather than Navigation, because a
+// Navigation item sits over the SIDEBAR whichever column declared it: back and
+// forward filed there would be back and forward for the tab list.
+Widget HarmonyWindow() {
+    @State var path: NavigationPath = NavigationPath {}
+
+    body {
+        // Band 2 over bands 0 and 1: every component's content, then the
+        // window's own, then whichever component overlay was raised last.
+        //
+        // The window's OWN overlay is not in this stack and does not need to be.
+        // A menu KiraUI presents is drawn from a later stream than anything in
+        // the tree, so the shell is above this by construction rather than by
+        // an ordering somebody has to maintain -- which is the only way "the
+        // shell is always on top" survives somebody editing this file.
+        ZStack(alignment = StackAlignment.TopLeading) {
+            NavigationSplitView(columnVisibility = harmonyShellColumns(), path = path) {
+                SidebarView()
+                    .toolbar(ToolbarItemGroup(placement = .Navigation) {
+                        // Both DO something. A bar of glyphs that only look like
+                        // controls is worse than a bar with fewer of them: a
+                        // person presses one, nothing happens, and what they
+                        // learn is that the window is broken.
+                        ToolbarGlyph(symbol = .SidebarSimple, enabled = true)
+                            .onClick(harmonyShellToggleSidebar)
+
+                        ToolbarGlyph(symbol = .Plus, enabled = harmonyLinkIsWell(harmonyShellBrowser()))
+                            .onClick(harmonyShellNewTab)
+                    })
+            } detail: {
+                DetailView()
+                    .toolbar(ToolbarItemGroup(placement = .Principal) {
+                        ToolbarGlyph(symbol = .ArrowLeft, enabled = false)
+
+                        ToolbarGlyph(symbol = .ArrowRight, enabled = false)
+
+                        ToolbarGlyph(symbol = .ArrowClockwise, enabled = harmonyLinkIsWell(harmonyShellBrowser()))
+
+                        AddressField(text = addressFieldPlaceholder(), secure = false)
+                    })
+                    .toolbar(ToolbarItem(placement = .PrimaryAction) {
+                        AiToolbarButton(link = harmonyShellAi())
+                    })
+            }
+
+            if harmonyShellOverlayTexture() > 0 {
+                TextureViewport(texture = harmonyShellOverlayTexture())
+                    .width(harmonyShellOverlayWidth())
+                    .height(harmonyShellOverlayHeight())
+            }
+        }
+    }
+}

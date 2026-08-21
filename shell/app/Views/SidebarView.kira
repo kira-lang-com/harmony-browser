@@ -1,0 +1,156 @@
+import HarmonyCore
+import KiraUI
+
+// The window's leading column.
+//
+// It is `NavigationSplitView`'s `sidebar` and not a panel dropped into a row of
+// its own, which is what gives it the window's full height, its width from the
+// split view's metrics, and the collapse to a stack on a narrow window. What
+// goes IN it is an ordinary list.
+// The leading column.
+//
+// Its CONTENT belongs to a component, not to the window: the tab list is about
+// tabs and tabs belong to the engine, so the browser draws it and hands the
+// window a texture. What the window keeps is the column -- its width, its full
+// height, its collapse on a narrow window -- and the choice of whose sidebar is
+// in it.
+//
+// Both components' sidebars are held at once, which is what makes moving
+// between them a crossfade on the GPU rather than a component being asked to
+// redraw: the tab list swipes aside and the assistant is already there.
+Widget SidebarView() {
+    body {
+        if harmonyShellSidebarTexture() > 0 {
+            // The swipe between the two components' sidebars, done on the GPU.
+            //
+            // The window already holds BOTH textures -- each component drew its
+            // own -- so moving between them costs one number rather than asking
+            // either of them to redraw. That is the whole reason a sidebar is
+            // its own surface: a tab list that the shell drew could not slide
+            // aside to reveal something another process is painting.
+            DragRegion(
+                key = harmonyShellSwipeKey(),
+                onDragStart = harmonyShellSwipeBegan,
+                onDragMove = harmonyShellSwipeMoved,
+                onDragEnd = harmonyShellSwipeEnded
+            ) {
+                // FILLS the column rather than stating the texture's own size.
+                //
+                // The two are not the same number and must not be assumed to be:
+                // the bar above these columns hugs its content over a MINIMUM
+                // height, so a window that predicted the minimum sized its
+                // textures for a bar 4pt shorter than the one that laid out --
+                // and the columns, one centring that overhang and one aligning
+                // it to the top, then began 2pt apart under a bar that is
+                // straight. Drawn into the box the layout actually gave it, a
+                // surface cannot be 2pt out however wrong the prediction was.
+                TextureViewport(
+                    texture = harmonyShellSidebarTexture(),
+                    secondary = harmonyShellSidebarDuring(),
+                    transition = harmonyShellSwipe()
+                )
+            }
+        } else {
+            ShellDrawnSidebar()
+        }
+    }
+}
+
+// What the window draws in the column while no component has given it one.
+//
+// Not a placeholder for the real thing: it is what a shell with no components
+// installed shows, and it has to be a real answer rather than an empty column.
+Widget ShellDrawnSidebar() {
+    body {
+        Panel(radius = CornerRadius.None) {
+            VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+                SidebarSectionLabel(title = "Tabs")
+
+                TabListView()
+
+                Spacer()
+
+                // The components sit at the FOOT of the column, under everything
+                // about the document. They are about the application rather than
+                // about what is open in it, and a person only looks at them when
+                // something is missing.
+                Divider()
+                    .themeBorder(.Subtle)
+
+                SidebarSectionLabel(title = "Components")
+
+                ComponentRow(link = harmonyShellBrowser())
+
+                ComponentRow(link = harmonyShellAi())
+
+                // The column's own bottom margin. A row that ended flush with
+                // the window edge would read as a list that had been cut off
+                // rather than one that had finished.
+                FixedGap(width = 1.0, height = 12.0)
+            }
+            .fillHeight()
+        }
+        .backgroundStyle(.Surface)
+        .material(.Frosted)
+        .fillHeight()
+    }
+}
+
+// The tabs, when there are any, and what to do when there are not.
+//
+// With no browser attached there is nothing to list, and the column says so in
+// one short line. Short because the column is narrow and a sentence that runs
+// past its edge is a sentence nobody finishes reading.
+Widget TabListView() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            if harmonyLinkIsWell(harmonyShellBrowser()) {
+                ListRow() {
+                    Icon(.Plus)
+                        .imageScale(.Small)
+                        .foregroundColor(.Secondary)
+
+                    Text("New Tab")
+                        .typography(.subheadline)
+                        .foregroundColor(.Secondary)
+                }
+            } else {
+                ListRow() {
+                    Icon(.CircleDashed)
+                        .imageScale(.Small)
+                        .foregroundColor(.Quaternary)
+
+                    Text("No tabs")
+                        .typography(.subheadline)
+                        .foregroundColor(.Tertiary)
+                }
+            }
+        }
+    }
+}
+
+// --- The swipe -------------------------------------------------------------
+
+// A stable, nonzero key. Stable across frames because a hit region is
+// identified by it: a key that changed would be a new region every frame, and
+// a drag in progress would be a drag on something that no longer exists.
+function harmonyShellSwipeKey() -> Int {
+    return 90201
+}
+
+// Nothing to do on press. The gesture is a POSITION -- every callback carries
+// the cumulative distance from here -- so there is no origin to record.
+function harmonyShellSwipeBegan(x: Float, y: Float) {
+    return
+}
+
+function harmonyShellSwipeMoved(x: Float, y: Float) {
+    harmonyShellSwipeTo(x)
+    return
+}
+
+function harmonyShellSwipeEnded(x: Float, y: Float) {
+    harmonyShellSwipeTo(x)
+    harmonyShellSwipeSettle()
+    return
+}

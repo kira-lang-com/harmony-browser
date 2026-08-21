@@ -1,0 +1,30 @@
+import HarmonyCore
+import KiraUI
+
+// One component, and what it is doing.
+//
+// A row rather than a line of status text, because a person acts on these: a
+// component that is not installed is the thing to install, and one that stopped
+// is the thing to start again. The state is said in WORDS as well as in colour
+// -- a green dot on its own asks somebody to remember what green meant.
+//
+// One line, not two. A row is a fixed height, and a second line inside it does
+// not make the row taller: it makes the row overlap the one beneath it.
+Widget ComponentRow(link: HarmonyLink) {
+    body {
+        ListRow() {
+            Icon(harmonyLinkSymbol(link))
+                .imageScale(.Small)
+                .foregroundColor(harmonyLinkInk(link))
+
+            Text(harmonyComponentTitle(link.component))
+                .typography(.subheadline)
+
+            Spacer()
+
+            Text(harmonyLinkSummary(link))
+                .typography(.caption)
+                .foregroundColor(.Tertiary)
+        }
+    }
+}

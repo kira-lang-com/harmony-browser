@@ -1,0 +1,44 @@
+import Foundation
+import HarmonyCore
+import KiraGraphics
+import KiraUI
+import OpacityUI
+
+// Harmony's shell: the window, and the components it hosts.
+//
+// It is the only process with a window. The browser and the AI runtime render
+// into textures and this composites them, which is what lets two programs from
+// two different releases share one window without either being able to draw over
+// the other by accident.
+//
+// A shell with no components is not an error state. It is what a person sees
+// before they have installed anything, and it says so.
+
+function harmonyShellVersion() -> String {
+    return "0.1.0"
+}
+
+@Main
+function entry() {
+    RunHarmonyShellApp(
+        title = "Harmony",
+        width = 1280,
+        height = 820,
+        rootBuilder = { in
+            return KiraUIApp(
+                name: "Harmony",
+                content: HarmonyWindow()
+                    .theme(Opacity())
+            )
+        },
+        // Nothing given, so KiraGraphics resolves the harness from the
+        // environment -- which is what lets `ui shot --app harmony-shell`
+        // capture this window without the shell knowing it is being captured.
+        harness = KiraGraphics.HarnessConfig {}
+    )
+
+    // The window has gone. The components it started have not, and their
+    // channels closing is how each is told to shut down in its own order.
+    HarmonyShell().shutdown()
+    return
+}

@@ -55,8 +55,23 @@ Widget HarmonyBrowserSidebar() {
             }
         }
         .backgroundStyle(.Surface)
-        .material(.Frosted)
-        .width(harmonyBrowserSidebarWidth())
+        // FLAT, not frosted.
+        //
+        // Glass photographs what is behind it, and behind a component's surface
+        // there is nothing: the window composites this texture over its own
+        // content, and that content belongs to another process. A frosted panel
+        // rendered into a texture with no capture behind it comes out as a flat
+        // wash over everything the column was going to show.
+        .material(.Flat)
+        // FILLS its box rather than stating a width.
+        //
+        // Whoever places this column decides how wide it is: the standalone
+        // window states it beside the inset it lays the page out with, and a
+        // shell states it by the extent of the texture this is painted into.
+        // A width stated HERE as well is a second opinion, and the two drifted
+        // -- a 300-wide tree in a 320-wide surface, with the difference showing
+        // as a band of the colour the texture was cleared to.
+        .fillWidth()
         .fillHeight()
     }
 }

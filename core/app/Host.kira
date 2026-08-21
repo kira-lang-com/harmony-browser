@@ -1,0 +1,199 @@
+import KiraIpc
+
+// The shell's side of the whole arrangement: the endpoint it publishes, and one
+// link per component.
+//
+// One endpoint serves every component, so a channel arrives before anyone knows
+// whose it is. That is what `greeting` is for: a channel that has connected and
+// not yet said which component it belongs to. It stays there until its hello
+// arrives, and then it becomes that component's port.
+//
+// Nothing here blocks. `advance` is called once a frame beside the window, and
+// every step of it -- accepting, greeting, noticing a component has gone -- is a
+// question asked rather than waited on.
+struct HarmonyHost {
+    var endpoint: IpcEndpoint
+    var browser: HarmonyLink
+    var ai: HarmonyLink
+    // Connected, and not yet identified.
+    var greeting: [IpcPort]
+
+    // Move the arrangement forward by one frame.
+    //
+    // Order matters: accept first so a component that connected this frame can
+    // also be greeted this frame, and check for losses last so a component that
+    // said hello and immediately died is seen as Lost rather than as Ready.
+    function advance() {
+        self.acceptWaiting()
+        self.greetWaiting()
+        self.noticeLosses()
+        return
+    }
+
+    // Tell every component that is listening the room the window has for it.
+    //
+    // Called once a frame with the window's current division of itself; each
+    // link drops any role whose allotment is the one that component already has.
+    function publishAllotments(allotments: borrow [HarmonyAllotment]) {
+        var index = 0
+        while index < allotments.count {
+            self.browser.publishAllotment(allotments[index])
+            self.ai.publishAllotment(allotments[index])
+            index = index + 1
+        }
+        return
+    }
+
+    function acceptWaiting() {
+        // One accept per frame. A shell has at most two components, so a queue
+        // of them is not a thing that happens; taking one keeps the frame's work
+        // bounded by something other than the peer's behaviour.
+        let channel = endpoint.accept()
+        if channel.isOpen() {
+            self.greeting.append(ipcPort(move channel))
+        }
+        return
+    }
+
+    // Read the hello off every channel that has not identified itself, and give
+    // each one to the component it names.
+    function greetWaiting() {
+        var waiting: [IpcPort] = []
+        var index = 0
+        while index < greeting.count {
+            var port = greeting[index]
+            let delivery = port.pump()
+            if delivery.arrived() == false {
+                // Still silent. It keeps its place in the queue.
+                waiting.append(move port)
+            } else {
+                if delivery.sound() && delivery.envelope.method == harmonyHelloMethod() {
+                    self.admit(move port, delivery.envelope)
+                } else {
+                    // Something connected to this endpoint and did not say hello.
+                    // It is not a component, and there is nothing to be done with
+                    // it but let it go.
+                    port.close()
+                }
+            }
+            index = index + 1
+        }
+        self.greeting = move waiting
+        return
+    }
+
+    // Take an identified channel into its link, or refuse it.
+    function admit(port: IpcPort, envelope: borrow IpcEnvelope) {
+        var reader = ipcPayloadReader(envelope)
+        let hello = decode_HarmonyHello(reader)
+        var accepted = reader.ok()
+        var reason = ""
+        if accepted && harmonyProtocolAccepts(hello.protocol) == false {
+            accepted = false
+            reason = harmonyProtocolRefusal(hello.component, hello.protocol)
+        }
+
+        // The welcome goes out before the link is filed, so a refused component
+        // learns why rather than seeing its channel close under it.
+        var answer = IpcWriter {}
+        encode_HarmonyWelcome(HarmonyWelcome {
+            protocol: harmonyProtocolVersion()
+            accepted: accepted
+            reason: reason
+        }, answer)
+        var carrier = move port
+        let ignored = carrier.respond(
+            envelope.call,
+            harmonyComponentService(HarmonyComponent.Shell),
+            harmonyWelcomeMethod(),
+            answer.bytes
+        )
+
+        var state = HarmonyLinkState.Ready
+        if accepted == false {
+            state = HarmonyLinkState.Refused
+        }
+        match hello.component {
+            Shell -> {
+                // A shell does not connect to a shell. Whatever this is, it is
+                // not part of this arrangement.
+                carrier.close()
+            }
+            Browser -> {
+                self.browser.port = move carrier
+                self.browser.state = move state
+                self.browser.version = hello.version
+                self.browser.note = move reason
+            }
+            Ai -> {
+                self.ai.port = move carrier
+                self.ai.state = move state
+                self.ai.version = hello.version
+                self.ai.note = move reason
+            }
+        }
+        return
+    }
+
+    // A component that was talking and has stopped.
+    //
+    // Its channel going is what says so, not its process: a component may still
+    // be winding down after it has closed its port, and it may be a debugger's
+    // child rather than one this shell started.
+    function noticeLosses() {
+        if self.browser.state == HarmonyLinkState.Ready && self.browser.port.isOpen() == false {
+            self.browser.state = HarmonyLinkState.Lost
+            self.browser.note = harmonyComponentTitle(HarmonyComponent.Browser) + " stopped."
+        }
+        if self.ai.state == HarmonyLinkState.Ready && self.ai.port.isOpen() == false {
+            self.ai.state = HarmonyLinkState.Lost
+            self.ai.note = harmonyComponentTitle(HarmonyComponent.Ai) + " stopped."
+        }
+        return
+    }
+
+    // Start whatever is installed and not yet running.
+    //
+    // Called every frame rather than once at launch, so a runtime installed
+    // while the shell is open is picked up without a restart -- which is exactly
+    // what installing the AI runtime beside a running Harmony Browser looks
+    // like.
+    function startInstalled() {
+        let name = harmonySessionName()
+        if self.browser.state == HarmonyLinkState.Absent || self.browser.state == HarmonyLinkState.Idle {
+            self.browser.start(name)
+        }
+        if self.ai.state == HarmonyLinkState.Absent || self.ai.state == HarmonyLinkState.Idle {
+            self.ai.start(name)
+        }
+        return
+    }
+
+    function shutdown() {
+        self.browser.stop()
+        self.ai.stop()
+        var index = 0
+        while index < greeting.count {
+            var port = greeting[index]
+            port.close()
+            index = index + 1
+        }
+        self.greeting = []
+        self.endpoint.close()
+        return
+    }
+}
+
+// Publish this shell's endpoint and prepare a link for each component.
+//
+// Nothing is started. A shell decides when to start what -- a browser shell
+// starts the browser at once, while an AI panel that has never been opened has
+// no reason to have a runtime running behind it.
+function harmonyHost() -> HarmonyHost {
+    return HarmonyHost {
+        endpoint: harmonyPublishSession()
+        browser: harmonyLink(HarmonyComponent.Browser)
+        ai: harmonyLink(HarmonyComponent.Ai)
+        greeting: []
+    }
+}

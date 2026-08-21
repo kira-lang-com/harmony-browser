@@ -5,9 +5,10 @@ Package HarmonyBrowser {
     let defaults = Defaults { executionMode: Backend.Hybrid, buildTarget: BuildTarget.Host }
     let allowThinFfiShim = true
     let dependencies = [
-        Dependency { name: "KiraUI", path: "../kira-ui" },
-        Dependency { name: "OpacityUI", path: "../opacity-ui" },
-        Dependency { name: "KiraGraphics", path: "../kira-graphics" }
+        Dependency { name: "KiraUI", path: "../../kira-ui" },
+        Dependency { name: "OpacityUI", path: "../../opacity-ui" },
+        Dependency { name: "KiraGraphics", path: "../../kira-graphics" },
+        Dependency { name: "HarmonyCore", path: "../core" }
     ]
     // One archive, because this is one program.
     //

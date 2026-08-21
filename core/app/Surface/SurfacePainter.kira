@@ -1,0 +1,204 @@
+import Foundation
+import KiraGraphics
+import KiraLayout
+import KiraUI
+import KiraUIFoundation
+
+// Drawing a widget tree into a shared texture.
+//
+// This is the whole point of a component: it is a KiraUI application that
+// happens to have no window. The tree is built, laid out and rendered exactly as
+// a window's is -- same widgets, same layout pass, same batch -- and the only
+// thing that differs is the image the final pass names. A view cannot tell, and
+// that is the property worth having: a sidebar written for a window is the same
+// sidebar written for a compositor.
+//
+// The batch is kept BETWEEN frames, not built per frame. It owns the glyph
+// atlas, the pipelines and the vertex streams; rebuilding it every frame would
+// rasterize every glyph again and hand the device a new buffer per frame.
+struct HarmonySurfacePainter {
+    var batch: UiBatch = UiBatch { storage: nullPointer() }
+    var frames: Int = 0
+    var ready: Bool = false
+    // What the window's pointer has done to this component's tree.
+    //
+    // KEPT between frames, because that is what hover and press ARE: a pointer
+    // resting on a row is a fact about the last event, not about this frame, and
+    // a context rebuilt empty every paint is a component whose rows can never
+    // look pressed however hard somebody presses them.
+    var ui: FoundationUiContext = FoundationUiContext {}
+    // The regions that tree registered, kept so an event arriving between paints
+    // has something to hit.
+    var hitRegions: [FoundationHitRegionRecord] = []
+}
+
+function harmonyOpenPainter(device: borrow GraphicsHeadless) -> HarmonySurfacePainter {
+    if device.ready == false {
+        return HarmonySurfacePainter {}
+    }
+    var batch = UiBatch { storage: createBatch(device.graphics) }
+    // A component has no window background to promote. Said once, here, because
+    // it is a property of what this batch is FOR rather than of any frame.
+    batch.setBackgroundPromotable(false)
+    return HarmonySurfacePainter {
+        batch: move batch
+        frames: 0
+        ready: true
+    }
+}
+
+// The context a widget lowers against.
+//
+// A component has no pointer and no keyboard of its own: input belongs to the
+// window, which owns the only real one, and reaches a component as messages
+// about what was pressed rather than as coordinates. So everything here but the
+// viewport and the frame count is zero, and honestly so.
+function harmonyPaintContext(painter: borrow HarmonySurfacePainter, width: Int, height: Int) -> FoundationUiContext {
+    return FoundationUiContext {
+        frameCount: painter.frames
+        viewport: Size {
+            width: Float(width)
+            height: Float(height)
+        }
+        // Everything the pointer has established, carried in. A component has no
+        // pointer of its own -- the window owns the only real one and forwards
+        // where it is in THIS surface's coordinates -- but from the tree's side
+        // that is indistinguishable from having one, which is the property that
+        // lets the same widgets serve a window and a compositor.
+        pointerX: painter.ui.pointerX
+        pointerY: painter.ui.pointerY
+        hoveredKey: painter.ui.hoveredKey
+        pressedKey: painter.ui.pressedKey
+        clickedKey: painter.ui.clickedKey
+        focusedKey: painter.ui.focusedKey
+        eventCount: painter.ui.eventCount
+    }
+}
+
+// --- The window's pointer, in this surface's coordinates ---------------------
+//
+// A component is told WHERE, never what it means. The window owns the pointer
+// and decides which surface it is over; this decides what is under it, using
+// the regions the last paint registered and the same three functions a window
+// uses on its own. Nothing here knows the event crossed a process boundary.
+
+function harmonyPointerMoved(painter: borrow mut HarmonySurfacePainter, x: Float, y: Float) {
+    let ignored = foundationUpdatePointer(painter.ui, painter.hitRegions, x, y)
+    harmonyPublishPointer(painter)
+    return
+}
+
+// Put what the pointer established where the WIDGETS look for it.
+//
+// A widget asks `kiraUiHovered(key)`, which reads a process-wide snapshot rather
+// than the context it was lowered against -- so a component that kept its
+// pointer state to itself hit-tested correctly, set the right hovered key, and
+// drew every row exactly as it would have with no pointer at all. The window's
+// own runner writes this snapshot on every event; a component has to do the same
+// thing, for the same reason, and then its widgets cannot tell the difference.
+function harmonyPublishPointer(painter: borrow HarmonySurfacePainter) {
+    foundationWriteInputSnapshot(painter.ui)
+    return
+}
+
+function harmonyPointerPressed(painter: borrow mut HarmonySurfacePainter, x: Float, y: Float) {
+    let index = foundationUpdatePointer(painter.ui, painter.hitRegions, x, y)
+    foundationBeginPress(painter.ui, painter.hitRegions, index, true)
+    harmonyPublishPointer(painter)
+    return
+}
+
+function harmonyPointerReleased(painter: borrow mut HarmonySurfacePainter, x: Float, y: Float) {
+    let index = foundationUpdatePointer(painter.ui, painter.hitRegions, x, y)
+    foundationEndPress(painter.ui, painter.hitRegions, index)
+    harmonyPublishPointer(painter)
+    return
+}
+
+// The pointer went somewhere else. Said explicitly rather than inferred from a
+// move that never comes: a row left looking hovered after the pointer moved to
+// the other component is a row that stays lit until something else happens.
+function harmonyPointerLeft(painter: borrow mut HarmonySurfacePainter) {
+    foundationClearHover(painter.ui, painter.hitRegions)
+    harmonyPublishPointer(painter)
+    return
+}
+
+// Build, lay out, render, and present into the surface.
+//
+// The access bracket is the same one a flat fill needs: ending it exports the
+// fence that tells the shell the writing finished, and without it the compositor
+// samples a half-drawn frame.
+function harmonyPaintSurface(
+    device: borrow GraphicsHeadless,
+    painter: borrow mut HarmonySurfacePainter,
+    surface: borrow mut HarmonyComponentSurface,
+    root: FoundationView,
+    background: borrow Color,
+) -> Bool {
+    if painter.ready == false || surface.isReady() == false {
+        return false
+    }
+    let width = surface.shared.surface.width
+    let height = surface.shared.surface.height
+    if surface.shared.beginWrite() == false {
+        return false
+    }
+    var backend = KiraGraphicsFoundationBackend {
+        graphics: device.graphics
+        batch: painter.batch
+        windowTransparent: false
+    }
+    let viewport = Size {
+        width: Float(width)
+        height: Float(height)
+    }
+    // A full layout every frame rather than the incremental pass. A component's
+    // surface is small and its tree is one column; the incremental engine's
+    // offer-based skip is worth its complexity to a window redrawing a whole
+    // desktop, and not to this.
+    let laidOut = FoundationLayoutPass().run(root: root, available: viewport)
+    backend.beginFrame(width, height)
+    let drawn = foundationRender(root, laidOut, backend)
+    // The regions this tree registered, kept for the events that arrive before
+    // the next paint.
+    painter.hitRegions = backend.hitRegions
+    var frame = device.frame()
+    painter.batch.presentBatchIntoTexture(
+        frame,
+        device.graphics,
+        surface.shared.texture,
+        background.r,
+        background.g,
+        background.b,
+        background.a
+    )
+    device.submit()
+    let ended = surface.shared.endAccess()
+    device.tick()
+    painter.frames = painter.frames + 1
+    return ended && drawn > 0
+}
+
+// Lower a widget to the view the layout pass takes.
+//
+// Every component does this the same way, and none of them should have to know
+// that a widget is lowered against a context and a modifier set: what a
+// component has is a widget and a size.
+function harmonyLowerWidget(
+    painter: borrow HarmonySurfacePainter,
+    widget: borrow Any Widget,
+    modifiers: borrow ModifierContext,
+    width: Int,
+    height: Int,
+) -> FoundationView {
+    kiraUiTapSeqReset()
+    let context = harmonyPaintContext(painter, width, height)
+    // The context arrives BUILT. A theme is a construct-family value, and this
+    // takes one already applied rather than an `Any Theme` to apply here --
+    // carrying a family value across a function boundary is the one thing every
+    // other dispatch fault in this codebase has had in common, and a theme that
+    // silently arrived as the default painted whole surfaces in the wrong
+    // palette with nothing to show for it.
+    return widget.lower(context, modifiers)
+}

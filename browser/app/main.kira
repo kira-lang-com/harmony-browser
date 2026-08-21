@@ -1,3 +1,4 @@
+import HarmonyCore
 import KiraUI
 import OpacityUI
 
@@ -16,6 +17,19 @@ import OpacityUI
 // user's.
 @Main
 function entry() {
+    // Started BY a shell, or by hand?
+    //
+    // A shell passes the endpoint it published, and a browser that has one has
+    // no window to open: the shell owns the window and this owns the engine.
+    // Started with no endpoint it runs as it always did, with a window of its
+    // own -- which is the development path, and worth keeping, because the
+    // component and the standalone browser are the same program and being able
+    // to run it alone is what makes it debuggable without a shell in the way.
+    if harmonyEndpointArgument().count > 0 {
+        harmonyBrowserServeShell()
+        return
+    }
+
     RunHarmonyBrowserApp(
         title: "Harmony Browser",
         width: 1280,

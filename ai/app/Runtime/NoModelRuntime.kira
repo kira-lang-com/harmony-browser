@@ -1,0 +1,65 @@
+import HarmonyCore
+
+// The runtime that is here when no model is.
+//
+// Not a placeholder for testing: it is what Harmony AI runs when it has been
+// installed and has no weights to load. It exists so that case is a runtime like
+// any other rather than a special path threaded through the harness and the
+// shell -- the component attaches, reports `runtimeReady` false with a reason,
+// and answers every turn by saying so.
+//
+// The moment a real runtime is written, this stops being reached. Nothing about
+// the harness or the protocol changes when it does, which is the point of the
+// family it is backed by.
+AiRuntime AiNoModelRuntime() {
+    function capabilities() -> AiCapabilities {
+        return AiCapabilities {
+            runtimeReady: false
+            model: ""
+            streaming: false
+            note: "No model runtime is installed beside Harmony AI."
+        }
+    }
+
+    function begin(session: AiSession, conversation: Int, text: borrow String) -> AiSession {
+        return AiSession {
+            conversation: conversation
+            prompt: text
+            produced: 0
+            running: true
+        }
+    }
+
+    function advance(session: AiSession) -> AiStep {
+        if session.running == false {
+            return AiStep { session: session, delta: aiNoDelta() }
+        }
+        // One delta and done. A streaming runtime answers here many times and
+        // sets `done` on the last; the harness relays both the same way.
+        return AiStep {
+            session: AiSession {
+                conversation: session.conversation
+                prompt: session.prompt
+                produced: session.produced + 1
+                running: false
+            }
+            delta: AiDelta {
+                conversation: session.conversation
+                text: "There is no model runtime installed, so nothing can answer yet."
+                kind: AiDeltaKind.Failed
+            }
+        }
+    }
+
+    function cancel(session: AiSession, conversation: Int) -> AiSession {
+        if session.conversation != conversation {
+            return session
+        }
+        return AiSession {
+            conversation: session.conversation
+            prompt: session.prompt
+            produced: session.produced
+            running: false
+        }
+    }
+}

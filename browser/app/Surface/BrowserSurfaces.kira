@@ -1,0 +1,267 @@
+import Foundation
+import HarmonyCore
+import KiraGraphics
+import KiraUI
+import KiraIpc
+import KiraUIFoundation
+import OpacityUI
+
+// What Harmony Browser paints, and where.
+//
+// The SIDEBAR is the browser's own, not the shell's. That is a deliberate move
+// of a boundary: the tab list is about tabs, tabs belong to the engine, and a
+// shell drawing them was a shell that had to be told about every one of them.
+//
+// It also buys the thing a shared texture is for. Two components each publishing
+// a sidebar means the window holds both, and a window holding both can slide
+// from one to the other -- the tab list swiping aside to reveal the assistant.
+// Neither component knows that is happening, and neither has to.
+
+struct BrowserSurfaces {
+    var device: GraphicsHeadless = GraphicsHeadless {}
+    var painter: HarmonySurfacePainter = HarmonySurfacePainter {}
+    var sidebar: HarmonyComponentSurface = harmonyNoSurface(HarmonySurfaceRole.Sidebar, "")
+    var page: HarmonyComponentSurface = harmonyNoSurface(HarmonySurfaceRole.Document, "")
+    // Everything the browser floats -- menus, dialogs, the site panel -- in ONE
+    // canvas-sized texture rather than in the surface each was opened from.
+    var overlay: HarmonyComponentSurface = harmonyNoSurface(HarmonySurfaceRole.Floating, "")
+    // The room the shell gave each of them, kept so a repeated allotment costs
+    // nothing and a changed one reopens exactly the texture that moved.
+    var sidebarRoom: HarmonyAllotment = HarmonyAllotment {}
+    var pageRoom: HarmonyAllotment = HarmonyAllotment {}
+    var overlayRoom: HarmonyAllotment = HarmonyAllotment {}
+
+    function isReady() -> Bool {
+        return device.ready && sidebar.isReady() && page.isReady()
+    }
+
+    function note() -> String {
+        if device.ready == false {
+            return "No headless graphics device is available on this machine."
+        }
+        if sidebar.note.count > 0 {
+            return sidebar.note
+        }
+        return page.note
+    }
+}
+
+// Take one role's allotment: open the texture the window asked for, at the size
+// it asked for, and only when that is not the size it already has.
+//
+// Per ROLE rather than all at once. The shell allots each one separately, a
+// window can move one without moving the others, and reopening the document
+// because the sidebar changed would throw away a page in order to redraw a
+// column.
+//
+// The extents are the shell's, never this component's. A component that chose
+// its own chose a sidebar 20 points short of the column it was composited into,
+// and the window drew that band in the colour the texture was cleared to -- a
+// defect no amount of reading the sidebar's own code would explain, because the
+// sidebar was correct and the size was somebody else's to decide.
+function browserAllot(surfaces: borrow mut BrowserSurfaces, allotment: borrow HarmonyAllotment) -> Bool {
+    if harmonyAllotmentIsUsable(allotment) == false {
+        return false
+    }
+    if surfaces.device.ready == false {
+        surfaces.device = openHeadlessGraphics()
+        if surfaces.device.ready == false {
+            return false
+        }
+        surfaces.painter = harmonyOpenPainter(surfaces.device)
+    }
+    let width = harmonyAllotmentWidth(allotment)
+    let height = harmonyAllotmentHeight(allotment)
+    match allotment.role {
+        Sidebar -> {
+            if harmonyAllotmentSame(surfaces.sidebarRoom, allotment) {
+                return false
+            }
+            harmonyReleaseComponentSurface(surfaces.sidebar)
+            surfaces.sidebar = harmonyOpenComponentSurface(surfaces.device, HarmonySurfaceRole.Sidebar, width, height)
+            surfaces.sidebarRoom = harmonyAllotmentCopy(allotment)
+            return true
+        }
+        Document -> {
+            if harmonyAllotmentSame(surfaces.pageRoom, allotment) {
+                return false
+            }
+            harmonyReleaseComponentSurface(surfaces.page)
+            surfaces.page = harmonyOpenComponentSurface(surfaces.device, HarmonySurfaceRole.Document, width, height)
+            surfaces.pageRoom = harmonyAllotmentCopy(allotment)
+            return true
+        }
+        Inspector -> {
+            // The browser has no trailing column. Being allotted one is not an
+            // error: the shell allots every role it has room for, and a
+            // component renders only the ones it fills.
+            return false
+        }
+        Floating -> {
+            if harmonyAllotmentSame(surfaces.overlayRoom, allotment) {
+                return false
+            }
+            harmonyReleaseComponentSurface(surfaces.overlay)
+            surfaces.overlay = harmonyOpenComponentSurface(surfaces.device, HarmonySurfaceRole.Floating, width, height)
+            surfaces.overlayRoom = harmonyAllotmentCopy(allotment)
+            return true
+        }
+    }
+    return false
+}
+
+// The browser's own colours, so which component painted a region is visible at
+// a glance while these are still flat fills.
+function browserSidebarColour() -> Color {
+    return Color { r: 0.13, g: 0.16, b: 0.20, a: 1.0 }
+}
+
+// The page area, while there is no engine to draw one.
+//
+// The Windows WebKit port is built separately, so a browser on a machine without
+// it attaches, answers, and paints an empty page area rather than nothing at
+// all -- which is the difference between a component that is working and one
+// that is not there.
+function browserPageColour() -> Color {
+    return Color { r: 0.10, g: 0.11, b: 0.13, a: 1.0 }
+}
+
+// The tab list, drawn by the browser into its own texture.
+//
+// The SAME widget the browser used when it had a window of its own: a tree of
+// KiraUI rows over the tab registry, lowered and laid out exactly as a window
+// lays one out. Nothing in it knows it is being drawn for another process, which
+// is the property that made moving the sidebar across a process boundary a
+// change of who calls it rather than a rewrite.
+
+function browserSidebarTree(surfaces: borrow BrowserSurfaces) -> FoundationView {
+    let sidebar = HarmonyBrowserSidebar()
+    // Built HERE, where Opacity() is constructed, and handed over already
+    // applied. Nothing carries the theme across a call.
+    let themed = modifierContextApply(ModifierContext {}, modifierDeltaTheme(Opacity()))
+    return harmonyLowerWidget(
+        surfaces.painter,
+        sidebar,
+        themed,
+        harmonyAllotmentWidth(surfaces.sidebarRoom),
+        harmonyAllotmentHeight(surfaces.sidebarRoom)
+    )
+}
+
+// What the overlay layer is cleared to.
+//
+// TRANSPARENT, and that is the whole point of it: the overlay covers the entire
+// canvas and almost all of it is nothing. A scrim dims the page by drawing over
+// it at an alpha, so the pixels underneath have to survive the composite.
+function browserOverlayColour() -> Color {
+    return Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }
+}
+
+// Everything the browser floats, in the ONE canvas-sized texture.
+//
+// Painted only while something is actually on it. A canvas-sized texture redrawn
+// every frame to hold nothing is the cost of the whole window paid for an empty
+// layer, and the shell composites nothing for a component that has dropped its
+// overlay -- so an idle browser costs the overlay pass nothing at all.
+function browserOverlayTree(surfaces: borrow BrowserSurfaces) -> FoundationView {
+    let overlay = HarmonyBrowserOverlay()
+    let themed = modifierContextApply(ModifierContext {}, modifierDeltaTheme(Opacity()))
+    return harmonyLowerWidget(
+        surfaces.painter,
+        overlay,
+        themed,
+        harmonyAllotmentWidth(surfaces.overlayRoom),
+        harmonyAllotmentHeight(surfaces.overlayRoom)
+    )
+}
+
+// Where the window says its pointer is, over whichever surface it names.
+//
+// One painter serves every surface this component has, so the role decides
+// nothing here but which tree the coordinates belong to -- and since only one
+// surface can be under the pointer at a time, the painter's state is the right
+// place for it. A pointer that moves from the sidebar to the page arrives as a
+// Leave and then a Move, so the tree it left stops looking hovered.
+function browserPointer(surfaces: borrow mut BrowserSurfaces, delivery: borrow IpcDelivery) -> Bool {
+    if delivery.sound() == false || delivery.envelope.method != harmonyPointerMethod() {
+        return false
+    }
+    if surfaces.painter.ready == false {
+        return false
+    }
+    var reader = ipcPayloadReader(delivery.envelope)
+    let event = decode_HarmonyPointer(reader)
+    if reader.ok() == false {
+        return false
+    }
+    match event.phase {
+        Move -> harmonyPointerMoved(surfaces.painter, event.x, event.y);
+        Press -> harmonyPointerPressed(surfaces.painter, event.x, event.y);
+        Release -> harmonyPointerReleased(surfaces.painter, event.x, event.y);
+        Leave -> harmonyPointerLeft(surfaces.painter);
+    }
+    return true
+}
+
+function browserDrawSurfaces(surfaces: borrow mut BrowserSurfaces) -> Bool {
+    if surfaces.isReady() == false {
+        return false
+    }
+    let tree = browserSidebarTree(surfaces)
+    let sidebar = harmonyPaintSurface(
+        surfaces.device,
+        surfaces.painter,
+        surfaces.sidebar,
+        move tree,
+        browserSidebarColour()
+    )
+    // The page area stays a fill until there is an engine to draw one: the
+    // Windows WebKit port is built separately, and a browser without it has a
+    // page area with nothing in it rather than no page area at all.
+    let page = harmonyFillComponentSurface(surfaces.device, surfaces.page, browserPageColour())
+    return sidebar && page
+}
+
+// Paint the overlay, when there is one to paint. Answers whether the shell
+// should be compositing it.
+function browserDrawOverlay(surfaces: borrow mut BrowserSurfaces) -> Bool {
+    if surfaces.overlay.isReady() == false || harmonyBrowserOverlayActive() == false {
+        return false
+    }
+    let tree = browserOverlayTree(surfaces)
+    return harmonyPaintSurface(
+        surfaces.device,
+        surfaces.painter,
+        surfaces.overlay,
+        move tree,
+        browserOverlayColour()
+    )
+}
+
+function browserAnnounceSurfaces(attachment: borrow mut HarmonyAttachment, surfaces: borrow mut BrowserSurfaces) {
+    harmonyAnnounceComponentSurface(attachment, surfaces.sidebar, 1)
+    harmonyAnnounceComponentSurface(attachment, surfaces.page, 2)
+    return
+}
+
+// The overlay is announced and DROPPED, rather than announced once and left.
+//
+// A component with nothing floating has no overlay, and a window still holding
+// the last one would be compositing a menu that has been closed. Dropping it is
+// how the layer goes away.
+function browserAnnounceOverlay(attachment: borrow mut HarmonyAttachment, surfaces: borrow mut BrowserSurfaces, drawn: Bool) -> Bool {
+    if drawn == false {
+        harmonyDropComponentSurface(attachment, surfaces.overlay, 3)
+        return false
+    }
+    // Raised on the way UP only. `announced` is false exactly when this layer
+    // was empty a moment ago, which is the transition the raise order is about:
+    // the component whose overlay went up last composites over the others, and
+    // one raised per frame it stays open would give the top to whoever redrew.
+    let rising = surfaces.overlay.announced == false
+    harmonyAnnounceComponentSurface(attachment, surfaces.overlay, 3)
+    if rising && surfaces.overlay.announced {
+        harmonyRaiseComponentOverlay(attachment, surfaces.overlay, 3)
+    }
+    return surfaces.overlay.announced
+}

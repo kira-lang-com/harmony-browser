@@ -1,0 +1,86 @@
+import KiraUI
+
+// The assistant's leading column: the conversations, and what it can answer with.
+//
+// The same shape as the browser's tab list on purpose. Both are a component's
+// leading column rendered into its own texture, and the window slides between
+// them -- a swipe that reads as one column moving only if the two are built the
+// same way.
+
+Widget AiSidebarHeader() {
+    body {
+        HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            Text("Conversations")
+                .typography(.footnote)
+                .foregroundColor(.Secondary)
+
+            Spacer()
+
+            Text(aiConversationCountLabel())
+                .typography(.footnote)
+                .foregroundColor(.Tertiary)
+        }
+        .height(28.0)
+    }
+}
+
+Widget AiSidebar() {
+    body {
+        Panel(radius = CornerRadius.None) {
+            Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
+                VStack(spacing = Spacing.None) {
+                    AiSidebarHeader()
+
+                    Divider()
+                        .themeBorder(.Subtle)
+
+                    // The turn in flight, when there is one. There is at most one
+                    // -- the harness owns which conversation is answering -- so
+                    // this is a row rather than a list.
+                    if aiHasConversation() {
+                        AiConversationRow(
+                            conversation = aiCurrentConversation(),
+                            title = aiCurrentTitle(),
+                            active = true
+                        )
+                    }
+
+                    AiNewConversationRow()
+
+                    Spacer()
+
+                    // What is answering, at the foot of the column. Not over the
+                    // content: the content is the conversation, and which model
+                    // is behind it is about the assistant rather than about what
+                    // it said.
+                    AiRuntimeNote()
+                }
+                .fillHeight()
+            }
+        }
+        .backgroundStyle(.Surface)
+        // FLAT, not frosted, for the same reason the browser's column is: glass
+        // photographs what is behind it, and behind a component's surface there
+        // is nothing -- the window composites this texture over content that
+        // belongs to another process.
+        .material(.Flat)
+        .fillWidth()
+        .fillHeight()
+    }
+}
+
+// What is answering, in one line a person can act on.
+Widget AiRuntimeNote() {
+    body {
+        VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
+            Divider()
+                .themeBorder(.Subtle)
+
+            Inset(horizontal = Spacing.None, vertical = Spacing.ExtraSmall) {
+                Text(aiRuntimeLabel())
+                    .typography(.caption)
+                    .foregroundColor(.Tertiary)
+            }
+        }
+    }
+}

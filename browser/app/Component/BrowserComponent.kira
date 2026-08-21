@@ -1,0 +1,211 @@
+import Foundation
+import HarmonyCore
+import KiraIpc
+
+// The browser as a COMPONENT: no window of its own, answering the shell.
+//
+// The shell owns the window and draws the tab list and the address bar; this
+// owns the engine and every page in it. So what crosses is the LIST and the
+// COMMANDS -- never the engine's own objects. A shell that held a handle on a
+// page could hang itself on a page that will not answer, and the whole reason
+// these are two processes is that it cannot.
+//
+// A browser started by hand, with no shell to attach to, keeps its own window
+// instead. That is the development path and it is worth keeping: the component
+// is the same program, and being able to run it alone is what makes it
+// debuggable without a shell in the way.
+
+function harmonyBrowserVersion() -> String {
+    return "0.1.0"
+}
+
+// How long the loop waits when there is nothing to do. A frame, because that is
+// as often as anything the shell draws could show a change.
+function harmonyBrowserIdleMilliseconds() -> Int {
+    return 16
+}
+
+// Everything the shell needs to draw the tab list, read fresh.
+//
+// Built from the registry every time it is asked rather than cached, because the
+// registry is the truth: pages open themselves through `window.open` and
+// `target=_blank`, and a cached list would be a second copy that disagrees with
+// the engine the moment a page does anything.
+function harmonyBrowserTabs() -> BrowserTabs {
+    var tabs: [BrowserTab] = []
+    var index = 0
+    while index < harmonyTabsCount() {
+        let id = harmonyTabsIdAt(index)
+        let page = harmonyNavigationPage(id)
+        tabs.append(BrowserTab {
+            id: id
+            title: harmonyTabLabelFor(id)
+            address: page.url
+            loading: page.isLoading
+            pinned: false
+            private: false
+        })
+        index = index + 1
+    }
+    return BrowserTabs {
+        tabs: move tabs
+        activeId: harmonyTabsActiveId()
+        engineReady: harmonyBrowserEngineAvailable() && harmonyBrowserReady()
+        note: harmonyBrowserEngineNote()
+    }
+}
+
+// Why there is no engine, when there is none.
+//
+// A build without the WebKit port is a real arrangement rather than a fault: the
+// engine is built separately, and a browser without one still attaches, still
+// answers, and still says what it cannot do.
+function harmonyBrowserEngineNote() -> String {
+    if harmonyBrowserEngineAvailable() == false {
+        return "This build has no web engine linked into it."
+    }
+    let diagnostic = harmonyBrowserDiagnostic()
+    if diagnostic.count > 0 {
+        return diagnostic
+    }
+    return ""
+}
+
+// Take the room the shell just gave one of this component's roles.
+//
+// Handled beside the surfaces rather than among the answers about tabs, because
+// acting on it REOPENS a texture: an allocation and a fresh announcement, which
+// is not the same kind of thing as answering a question.
+function harmonyBrowserAllot(surfaces: borrow mut BrowserSurfaces, delivery: borrow IpcDelivery) -> Bool {
+    if delivery.sound() == false || delivery.envelope.method != harmonyAllotMethod() {
+        return false
+    }
+    var reader = ipcPayloadReader(delivery.envelope)
+    let allotment = decode_HarmonyAllotment(reader)
+    if reader.ok() == false {
+        return false
+    }
+    return browserAllot(surfaces, allotment)
+}
+
+// Answer one thing the shell asked.
+function harmonyBrowserServe(attachment: borrow mut HarmonyAttachment, delivery: borrow IpcDelivery) {
+    if delivery.sound() == false {
+        return
+    }
+    let method = delivery.envelope.method
+    if method == browserTabsMethod() {
+        var answer = IpcWriter {}
+        encode_BrowserTabs(harmonyBrowserTabs(), answer)
+        let ignored = attachment.respond(delivery.envelope.call, browserTabsMethod(), answer.bytes)
+        return
+    }
+    if method == browserOpenMethod() {
+        var reader = ipcPayloadReader(delivery.envelope)
+        let ask = decode_BrowserOpen(reader)
+        if reader.ok() {
+            let opened = nativeTabsOpen(ask.address, harmonyTabsFlag(ask.foreground))
+        }
+        return
+    }
+    if method == browserCloseMethod() {
+        var reader = ipcPayloadReader(delivery.envelope)
+        let ask = decode_BrowserTabRef(reader)
+        if reader.ok() {
+            nativeTabsClose(I32(ask.id))
+        }
+        return
+    }
+    if method == browserSelectMethod() {
+        var reader = ipcPayloadReader(delivery.envelope)
+        let ask = decode_BrowserTabRef(reader)
+        if reader.ok() {
+            nativeTabsSelect(I32(ask.id))
+        }
+        return
+    }
+    if method == browserNavigateMethod() {
+        var reader = ipcPayloadReader(delivery.envelope)
+        let ask = decode_BrowserNavigate(reader)
+        if reader.ok() {
+            nativeTabsLoad(I32(ask.id), ask.address)
+        }
+        return
+    }
+    return
+}
+
+// Tell the shell the list moved, when it has.
+//
+// The registry keeps a revision that changes whenever anything about the list
+// does, so this is one comparison rather than a diff of the list against a copy
+// of itself -- and it is the same number the window's own rebuild predicate
+// reads, so the two can never disagree about whether something happened.
+function harmonyBrowserAnnounce(attachment: borrow mut HarmonyAttachment, seen: Int) -> Int {
+    let revision = harmonyTabsRevision()
+    if revision == seen {
+        return seen
+    }
+    var out = IpcWriter {}
+    encode_BrowserTabs(harmonyBrowserTabs(), out)
+    let ignored = attachment.emit(browserTabsChangedMethod(), out.bytes)
+    return revision
+}
+
+// The component's whole life: attach, serve, and stop when the shell goes.
+function harmonyBrowserServeShell() {
+    var attachment = harmonyAttach(HarmonyComponent.Browser, harmonyBrowserVersion())
+    var announced = 0 - 1
+    // The pixels, once the window has said how big they are.
+    //
+    // Not at startup: a texture is opened at an extent, the extent is the
+    // window's to decide, and a component that opened one before being told
+    // would be opening it at a guess. The wait is a frame or two -- the shell
+    // allots every role on the frame it welcomes a component.
+    var surfaces = BrowserSurfaces {}
+    var reported = false
+
+    while attachment.shouldRun() {
+        attachment.settle()
+        var worked = false
+        let delivery = attachment.pump()
+        if delivery.arrived() {
+            let moved = browserPointer(surfaces, delivery)
+            if harmonyBrowserAllot(surfaces, delivery) {
+                if surfaces.isReady() == false && surfaces.note().count > 0 && reported == false {
+                    print("harmony-browser: " + surfaces.note())
+                    reported = true
+                }
+            }
+            harmonyBrowserServe(attachment, delivery)
+            worked = true
+        }
+        if attachment.isAttached() {
+            // Drawn before it is announced, so the first frame the shell
+            // composites is one that has been written.
+            if browserDrawSurfaces(surfaces) {
+                browserAnnounceSurfaces(attachment, surfaces)
+            }
+            // The overlay is a layer that comes and goes, so it is drawn and
+            // announced on its own terms: painted only while something is on
+            // it, dropped the frame it empties.
+            let floating = browserDrawOverlay(surfaces)
+            let ignored = browserAnnounceOverlay(attachment, surfaces, floating)
+            let now = harmonyBrowserAnnounce(attachment, announced)
+            if now != announced {
+                announced = now
+                worked = true
+            }
+        }
+        if worked == false {
+            sleepMilliseconds(harmonyBrowserIdleMilliseconds())
+        }
+    }
+
+    attachment.detach()
+    // The window never opened, so nothing else has to be taken down in order --
+    // but the engine, its two processes and the pages waiting on an answer are
+    // still this process's to let go of.
+    harmonyBrowserShutdown()
+    return
+}

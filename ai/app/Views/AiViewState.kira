@@ -1,0 +1,138 @@
+import Foundation
+import HarmonyCore
+import KiraUI
+
+// What the assistant's views read.
+//
+// A component has no build pass of its own -- there is no window, so nothing
+// calls a rebuild predicate and `@State` has nowhere to live -- so the turn the
+// views draw is kept in a native slot beside the surfaces and written by the
+// loop that owns it. The views ask questions; this answers them, and neither
+// knows the other is in a process with no window in it.
+
+struct AiViewFacts {
+    var conversation: Int = 0
+    var prompt: String = ""
+    var answer: String = ""
+    var running: Bool = false
+    var runtimeReady: Bool = false
+    var model: String = ""
+    var note: String = ""
+}
+
+function aiViewSlotKey() -> String {
+    return "harmony.ai.views"
+}
+
+function aiViewFactsEnsure() {
+    if kiraUiStateSlotHas(aiViewSlotKey()) {
+        return
+    }
+    kiraUiStateSlotPut(aiViewSlotKey(), nativeUserData(nativeState(AiViewFacts {})))
+    return
+}
+
+function aiViewFacts() -> AiViewFacts {
+    aiViewFactsEnsure()
+    return nativeRecover<AiViewFacts>(kiraUiStateSlotGet(aiViewSlotKey()))
+}
+
+// Everything the views draw, written once a turn by the loop that owns it.
+//
+// The capabilities go in beside the session because they change: a runtime that
+// finishes loading its weights is a runtime whose note stops being the reason it
+// cannot answer, and a column still showing the old one is a column telling
+// somebody to install something they have just installed.
+function aiViewRecord(session: borrow AiSession, capabilities: borrow AiCapabilities, answer: borrow String) {
+    aiViewFactsEnsure()
+    var facts = nativeRecover<AiViewFacts>(kiraUiStateSlotGet(aiViewSlotKey()))
+    facts.conversation = session.conversation
+    facts.prompt = session.prompt
+    facts.answer = answer
+    facts.running = session.running
+    facts.runtimeReady = capabilities.runtimeReady
+    facts.model = capabilities.model
+    facts.note = capabilities.note
+    return
+}
+
+// --- What the views ask ------------------------------------------------------
+
+function aiHasConversation() -> Bool {
+    return aiViewFacts().conversation > 0
+}
+
+function aiCurrentConversation() -> Int {
+    return aiViewFacts().conversation
+}
+
+// A conversation is named by what was asked in it. Nothing else is available to
+// name one by until a runtime can answer, and a list of "Conversation 1" is a
+// list that tells a person nothing they did not already know.
+function aiCurrentTitle() -> String {
+    let facts = aiViewFacts()
+    if facts.prompt.count > 0 {
+        return facts.prompt
+    }
+    return "Untitled"
+}
+
+function aiCurrentAnswer() -> String {
+    let facts = aiViewFacts()
+    if facts.answer.count > 0 {
+        return facts.answer
+    }
+    if facts.running {
+        return "Answering…"
+    }
+    return facts.note
+}
+
+// The same shape the browser's tab count has, singular and all.
+//
+// These two columns are not merely similar screens: the window crossfades one
+// into the other, so a count that read "0 tabs" on one side and "None" on the
+// other would change its own idiom halfway through a swipe.
+function aiConversationCountLabel() -> String {
+    if aiHasConversation() {
+        return "1 conversation"
+    }
+    return "0 conversations"
+}
+
+// What is answering, or why nothing is.
+function aiRuntimeLabel() -> String {
+    let facts = aiViewFacts()
+    if facts.runtimeReady && facts.model.count > 0 {
+        return facts.model
+    }
+    return "No model loaded"
+}
+
+// What is missing, in three or four words -- the same shape the browser's empty
+// page area uses, because it answers the same question.
+function aiHeadline() -> String {
+    let facts = aiViewFacts()
+    if facts.runtimeReady {
+        return "Ask anything"
+    }
+    return "No model installed"
+}
+
+function aiExplanation() -> String {
+    let facts = aiViewFacts()
+    if facts.runtimeReady {
+        return "Start a conversation from the column beside this one."
+    }
+    if facts.note.count > 0 {
+        return facts.note
+    }
+    return "Install a model runtime beside Harmony AI to ask anything."
+}
+
+function aiInspectorPrompt() -> String {
+    if aiHasConversation() {
+        return aiCurrentTitle()
+    }
+    return "Select something and ask about it."
+}

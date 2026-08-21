@@ -1,0 +1,200 @@
+import KiraIpc
+
+// The shell's side of one component: what state it is in, and the port to it.
+//
+// Six states, and they are not a formality. Each one is a different thing to
+// tell a person and a different thing for the interface to do, and collapsing
+// any two of them loses something a shell has to say:
+//
+//   Absent    the component is not installed. Offer to install it.
+//   Idle      installed and not started. Nothing is wrong.
+//   Starting  started, and has not said hello yet. Wait.
+//   Ready     talking. Everything it does is available.
+//   Refused   it connected and the two do not agree. Say which is out of date.
+//   Lost      it was Ready and has gone. Say so, and offer to start it again.
+//
+// "Not installed" and "installed but not up yet" are the two a browser most
+// often gets wrong, and they are the two whose fixes differ most.
+enum HarmonyLinkState {
+    Absent
+    Idle
+    Starting
+    Ready
+    Refused
+    Lost
+}
+
+struct HarmonyLink {
+    var component: HarmonyComponent
+    var state: HarmonyLinkState
+    // The launched process, or 0 when nothing was launched.
+    var process: Int
+    var port: IpcPort
+    // What the component calls its release, once it has said. For a person.
+    var version: String
+    // Why it is Refused or Lost, in words, for a person to read.
+    var note: String
+    // The allotments this component was last told about, one per role it can
+    // fill. Kept so the shell sends on CHANGE: a component reopens the texture
+    // for a role when its allotment arrives, and a window redrawing at the same
+    // size must not make it do that every frame.
+    var allotted: [HarmonyAllotment] = []
+
+    function isReady() -> Bool {
+        return state == HarmonyLinkState.Ready
+    }
+
+    // Ask the component for something. Zero means the request did not go, which
+    // a caller must not treat as a call it can wait for.
+    function request(method: borrow String, payload: borrow [U8]) -> Int {
+        if isReady() == false {
+            return 0
+        }
+        return self.port.request(harmonyComponentService(component), method, payload)
+    }
+
+    function emit(method: borrow String, payload: borrow [U8]) -> Bool {
+        if isReady() == false {
+            return false
+        }
+        return self.port.emit(harmonyComponentService(component), method, payload)
+    }
+
+    // Tell this component the room it has, one role at a time, and only for the
+    // roles whose allotment is not the one it was already told.
+    //
+    // Recorded only when the send SUCCEEDED, so a component that was not
+    // listening is told again rather than assumed to know.
+    function publishAllotment(allotment: borrow HarmonyAllotment) {
+        if isReady() == false || harmonyAllotmentIsUsable(allotment) == false {
+            return
+        }
+        var index = 0
+        while index < self.allotted.count {
+            if self.allotted[index].role == allotment.role {
+                if harmonyAllotmentSame(self.allotted[index], allotment) {
+                    return
+                }
+                index = self.allotted.count
+            } else {
+                index = index + 1
+            }
+        }
+        var out = IpcWriter {}
+        encode_HarmonyAllotment(allotment, out)
+        if self.port.emit(harmonyComponentService(component), harmonyAllotMethod(), out.bytes) == false {
+            return
+        }
+        self.rememberAllotment(allotment)
+        return
+    }
+
+    // Tell this component where the pointer is over one of its surfaces.
+    //
+    // Dropped when the component is not Ready, like everything else sent to one:
+    // a pointer event to a component that is starting is an event about a tree
+    // that has not been drawn.
+    function sendPointer(role: borrow HarmonySurfaceRole, phase: borrow HarmonyPointerPhase, x: Float, y: Float) {
+        if isReady() == false {
+            return
+        }
+        var out = IpcWriter {}
+        encode_HarmonyPointer(HarmonyPointer {
+            role: role
+            phase: phase
+            x: x
+            y: y
+        }, out)
+        let ignored = self.port.emit(harmonyComponentService(component), harmonyPointerMethod(), out.bytes)
+        return
+    }
+
+    function rememberAllotment(allotment: borrow HarmonyAllotment) {
+        var kept: [HarmonyAllotment] = []
+        var index = 0
+        while index < self.allotted.count {
+            if self.allotted[index].role != allotment.role {
+                kept.append(self.allotted[index])
+            }
+            index = index + 1
+        }
+        kept.append(harmonyAllotmentCopy(allotment))
+        self.allotted = move kept
+        return
+    }
+
+    // One frame from the component, if one is there.
+    function pump() -> IpcDelivery {
+        if isReady() == false {
+            return IpcDelivery {}
+        }
+        return self.port.pump()
+    }
+
+    // Start the component, if it is installed and not already up.
+    //
+    // Starting is separate from connecting: this launches a process and returns.
+    // The component connects back to the endpoint it was given, says hello, and
+    // the host moves this link to Ready when it does.
+    function start(endpoint: borrow String) {
+        if state == HarmonyLinkState.Ready || state == HarmonyLinkState.Starting {
+            return
+        }
+        if harmonyComponentIsInstalled(component) == false {
+            self.state = HarmonyLinkState.Absent
+            return
+        }
+        // Every component draws in the appearance the SHELL is drawing in.
+        //
+        // Told, not asked. Two processes each querying the desktop can disagree
+        // -- they read different sources, at different moments -- and a sidebar
+        // in a different scheme from the window it sits in is the visible
+        // result. The window is the one that has to be right, so it decides.
+        harmony_process_setenv("KIRA_UI_APPEARANCE", harmonyShellAppearanceName())
+        let executable = harmonyComponentExecutable(harmonyInstallDirectory(), component)
+        let started = Int(harmony_process_start(executable, endpoint))
+        if started == 0 {
+            self.state = HarmonyLinkState.Lost
+            self.note = harmonyComponentTitle(component) + " would not start."
+            return
+        }
+        self.process = started
+        self.state = HarmonyLinkState.Starting
+        self.note = ""
+        return
+    }
+
+    // Let the component go.
+    //
+    // The channel is closed first and the process is only asked to stop after,
+    // because closing the channel is how a component is TOLD to exit: it sees
+    // its port go and shuts down whatever it owns in its own order. A browser
+    // has two engine processes and a profile mid-write, and the shell is not the
+    // thing that knows how long that takes.
+    function stop() {
+        self.port.close()
+        if process > 0 {
+            harmony_process_stop(I32(process))
+            harmony_process_release(I32(process))
+        }
+        self.process = 0
+        self.state = HarmonyLinkState.Idle
+        return
+    }
+}
+
+// A link to a component that has not been started.
+function harmonyLink(component: HarmonyComponent) -> HarmonyLink {
+    var state = HarmonyLinkState.Idle
+    if harmonyComponentIsInstalled(component) == false {
+        state = HarmonyLinkState.Absent
+    }
+    return HarmonyLink {
+        component: move component
+        state: move state
+        process: 0
+        port: IpcPort {}
+        version: ""
+        note: ""
+    }
+}

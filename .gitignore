@@ -14,3 +14,8 @@ WebKitBuild/
 # Windows
 Thumbs.db
 desktop.ini
+app/bindings/
+*/app/bindings/
+*/.kira-build/
+*/app/**/native/
+kira.lock

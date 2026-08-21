@@ -1,0 +1,351 @@
+import KiraIpc
+
+// What a component paints, and where the shell puts it.
+//
+// A component does not draw into the window. It renders into TEXTURES and tells
+// the shell where they go; the shell composites them into the one window it
+// owns. That is what lets a browser and an AI runtime from different releases
+// share a window without either one being able to draw over the other by
+// accident.
+//
+// # Several surfaces, not one
+//
+// A component paints as many surfaces as it has regions -- Harmony AI has a
+// sidebar, a main content area and an Ask-AI inspector, and each is its own
+// texture. One texture per component would repaint the sidebar every time the
+// content scrolled, and would stop the shell moving or resizing one region
+// without disturbing the others.
+//
+// # Except the overlay, which is one and covers everything
+//
+// Everything a component floats -- a menu, a dialog, a panel -- goes into a
+// SINGLE full-canvas overlay texture rather than into the surface it belongs
+// to. A menu opened from the sidebar runs across the main content beside it, and
+// a menu clipped to its own region's rectangle is a menu with its bottom half
+// missing.
+
+// Which part of the window a surface is.
+//
+// The LAYER says how a surface stacks; the role says what it is FOR, and the
+// shell needs both. Two components can each publish a sidebar, and knowing they
+// are both sidebars is what lets the window slide from one to the other -- a
+// swipe that reveals the assistant where the tab list was. Told apart only by
+// rectangle, two sidebars at the same rectangle are just a collision.
+@Derive(IpcMessage)
+enum HarmonySurfaceRole {
+    // The leading column: a tab list, a conversation list.
+    Sidebar
+    // The main area: a page, a conversation.
+    Document
+    // The trailing column, where one is open.
+    Inspector
+    // Everything the component floats. Always paired with the Overlay layer.
+    Floating
+}
+
+// Where a surface sits in the stack.
+@Derive(IpcMessage)
+enum HarmonySurfaceLayer {
+    // Z0. Its own rectangle on the canvas, painted underneath every overlay.
+    Content
+    // Z1 and above, gathered into one texture the size of the whole canvas.
+    Overlay
+}
+
+// A rectangle in CANVAS points -- the shell's coordinate space, shared by every
+// component, at the scale the canvas states. Points rather than pixels: a
+// component and the shell may disagree about the backing scale for a frame
+// after a monitor change, and a rectangle in pixels is then a rectangle in the
+// wrong place.
+@Derive(IpcMessage)
+struct HarmonyRect {
+    var x: Float = 0.0
+    var y: Float = 0.0
+    var width: Float = 0.0
+    var height: Float = 0.0
+}
+
+// The room a component has been given, and the scale to render at.
+//
+// The shell sends this; the component lays out inside it and answers with the
+// surfaces it placed. Geometry is a CONVERSATION rather than a broadcast,
+// because neither side can answer it alone: only the shell knows how big the
+// window is and what else is in it, and only the component knows how its own
+// content wants to divide the room it was given.
+@Derive(IpcMessage)
+struct HarmonyAllotment {
+    // Which part of the window this allotment is for. A component is allotted
+    // each role it can fill, and renders only the ones it was given.
+    var role: HarmonySurfaceRole = HarmonySurfaceRole.Document
+    // The region of the canvas this role occupies.
+    var region: HarmonyRect = HarmonyRect {}
+    // The whole canvas, which is what an overlay texture covers.
+    var canvas: HarmonyRect = HarmonyRect {}
+    // Device pixels per point. A texture is allocated at the rounded product of
+    // this and its rectangle, and a component that rendered at a different scale
+    // shows as a soft or clipped surface rather than a wrong one.
+    //
+    // Zero by default, which is what makes a DEFAULT allotment unusable: a
+    // component holds one per role before the window has said anything, and a
+    // scale of zero is the honest way to say it has not been told yet.
+    var scale: Float = 0.0
+}
+
+// Whether an allotment describes a region there is anything to render into.
+//
+// A window mid-resize reports a zero extent for a frame or two, and a texture
+// allocated at nothing is an allocation that fails.
+function harmonyAllotmentIsUsable(allotment: borrow HarmonyAllotment) -> Bool {
+    if allotment.scale <= 0.0 {
+        return false
+    }
+    return harmonyAllotmentWidth(allotment) > 0 && harmonyAllotmentHeight(allotment) > 0
+}
+
+// The texture extent an allotment asks for, in DEVICE pixels.
+//
+// The rounded product of the region and the scale, computed in one place so the
+// two sides cannot round it differently -- a texture one pixel short of the
+// rectangle it is composited into shows the difference as a seam.
+function harmonyAllotmentWidth(allotment: borrow HarmonyAllotment) -> Int {
+    return Int(allotment.region.width * allotment.scale + 0.5)
+}
+
+function harmonyAllotmentHeight(allotment: borrow HarmonyAllotment) -> Int {
+    return Int(allotment.region.height * allotment.scale + 0.5)
+}
+
+// Whether two allotments ask for the same thing.
+//
+// Compared rather than versioned because acting on one REOPENS a texture: that
+// is an allocation and a fresh announcement, and a window redrawing at the same
+// size must not pay either.
+function harmonyAllotmentSame(left: borrow HarmonyAllotment, right: borrow HarmonyAllotment) -> Bool {
+    if left.role != right.role || left.scale != right.scale {
+        return false
+    }
+    if harmonyRectSame(left.region, right.region) == false {
+        return false
+    }
+    return harmonyRectSame(left.canvas, right.canvas)
+}
+
+// A value copy, for a side that keeps what it was told.
+function harmonyAllotmentCopy(allotment: borrow HarmonyAllotment) -> HarmonyAllotment {
+    return HarmonyAllotment {
+        role: allotment.role
+        region: harmonyRectCopy(allotment.region)
+        canvas: harmonyRectCopy(allotment.canvas)
+        scale: allotment.scale
+    }
+}
+
+function harmonyRectCopy(rect: borrow HarmonyRect) -> HarmonyRect {
+    return HarmonyRect {
+        x: rect.x
+        y: rect.y
+        width: rect.width
+        height: rect.height
+    }
+}
+
+function harmonyRectSame(left: borrow HarmonyRect, right: borrow HarmonyRect) -> Bool {
+    if left.x != right.x || left.y != right.y {
+        return false
+    }
+    return left.width == right.width && left.height == right.height
+}
+
+// One surface a component is publishing.
+@Derive(IpcMessage)
+struct HarmonySurface {
+    var role: HarmonySurfaceRole
+    // Names the surface within its component. The shell keys off the pair, so a
+    // component never has to know what ids anything else is using.
+    var id: Int
+    var layer: HarmonySurfaceLayer
+    // Where it goes on the canvas. An overlay's rectangle is the whole canvas
+    // and is sent anyway, so the shell composites both layers by one rule.
+    var rect: HarmonyRect
+    var scale: Float
+    // Bumped whenever the TEXTURE ITSELF is replaced -- a resize, a format
+    // change, a device loss. The shell drops the handle it holds for any earlier
+    // generation, which is what stops it compositing a texture whose memory has
+    // been freed underneath it.
+    var generation: Int
+    // What an importer needs and cannot infer.
+    //
+    // A driver is free to pad rows out to its own alignment, and the layout of
+    // the memory is described by a modifier the allocator chose -- so both cross
+    // beside the handle. Appended after the fact, which cost nothing: a keyed
+    // field is skipped by a peer that predates it, and a peer that predates it
+    // was not importing surfaces anyway.
+    var stride: Int
+    var modifier: Int
+}
+
+// --- What the two sides say to each other -----------------------------------
+
+// Shell to component: here is your room. Sent when a component becomes ready and
+// whenever the window changes shape.
+function harmonyAllotMethod() -> String {
+    return "surface.allot"
+}
+
+// Component to shell: a texture for this surface, handed over with the frame.
+//
+// The handle travels on the CHANNEL rather than inside the message, because a
+// handle naming GPU memory means nothing outside the process that owns it. The
+// message says which surface the handle that arrived with it belongs to.
+function harmonySurfaceAttachMethod() -> String {
+    return "surface.attach"
+}
+
+// Component to shell: the surface moved or resized, and the texture it already
+// has is still the right one.
+function harmonySurfaceMoveMethod() -> String {
+    return "surface.move"
+}
+
+// Component to shell: there is a new frame in the texture you already hold.
+//
+// Separate from attaching because it is the common case by far -- a page
+// scrolls, a caret blinks -- and re-handing a handle for every frame would be a
+// descriptor transfer per frame for memory the shell has not let go of.
+function harmonySurfacePresentMethod() -> String {
+    return "surface.present"
+}
+
+// Component to shell: this surface is gone.
+function harmonySurfaceDropMethod() -> String {
+    return "surface.drop"
+}
+
+// Component to shell: something was just opened into my overlay.
+//
+// This is what orders overlays BETWEEN components: the most recently raised one
+// composites above the others. It is sent when an overlay goes from empty to
+// occupied, not on every frame it stays up -- otherwise whichever component
+// redrew last would take the top, which is not the same thing as whichever the
+// person opened last.
+function harmonyOverlayRaiseMethod() -> String {
+    return "overlay.raise"
+}
+
+@Derive(IpcMessage)
+struct HarmonySurfaceNote {
+    var surface: HarmonySurface
+}
+
+// Which layer a role belongs to.
+//
+// The Floating role IS the overlay layer -- they are two names for one thing,
+// and a surface that said Floating in one field and Content in the other would
+// be a surface the shell composited underneath the page it is floating over.
+function harmonyLayerForRole(role: borrow HarmonySurfaceRole) -> HarmonySurfaceLayer {
+    match role {
+        Floating -> return HarmonySurfaceLayer.Overlay;
+        Sidebar -> return HarmonySurfaceLayer.Content;
+        Document -> return HarmonySurfaceLayer.Content;
+        Inspector -> return HarmonySurfaceLayer.Content;
+    }
+}
+
+// --- The window's pointer ----------------------------------------------------
+
+// What the pointer just did, over which of a component's surfaces.
+//
+// The window owns the only real pointer. It decides which surface the pointer is
+// over and sends the position in THAT surface's coordinates; the component
+// decides what is under it. Neither half works alone: only the window knows
+// where its regions are on screen, and only the component knows what it drew.
+//
+// Sent rather than asked, because input is a fact that has already happened. A
+// component that had to answer a question about a click would be a component
+// the window waits for, and a window that waits for a component is a window a
+// component can hang.
+@Derive(IpcMessage)
+enum HarmonyPointerPhase {
+    // Where it is now. Sent when it MOVES, which is what hover is made of.
+    Move
+    Press
+    Release
+    // It is over something else now -- another component, or nothing. Said
+    // rather than inferred from a move that never comes, because a row left
+    // looking hovered stays lit until something else happens to it.
+    Leave
+}
+
+@Derive(IpcMessage)
+struct HarmonyPointer {
+    var role: HarmonySurfaceRole = HarmonySurfaceRole.Document
+    var phase: HarmonyPointerPhase = HarmonyPointerPhase.Move
+    // Surface-local POINTS, with the surface's own origin at zero. Not canvas
+    // coordinates: a component does not know where the window put it, and a
+    // component that had to be told would have to be told again on every resize.
+    var x: Float = 0.0
+    var y: Float = 0.0
+}
+
+function harmonyPointerMethod() -> String {
+    return "surface.pointer"
+}
+
+// --- The order everything is drawn in ---------------------------------------
+
+// Where one surface stands in the composite, low numbers first.
+//
+// Stated here, once, because the order is the whole agreement: a component that
+// decided its own depth could put itself over another component's dialog, and
+// the shell would have no way to say otherwise.
+//
+// Four bands:
+//
+//   0  every component's Content surface, at its rectangle
+//   1  the shell's own Content -- what it draws around and between components
+//   2  component Overlays, most recently raised last
+//   3  the shell's own Overlay, over everything
+//
+// The shell is TOP no matter what. Its menus, its dialogs and its address bar
+// belong to the window, and a component able to cover them would be a component
+// able to take the window away from the person using it.
+function harmonySurfaceBand(component: borrow HarmonyComponent, layer: borrow HarmonySurfaceLayer) -> Int {
+    let shell = component == HarmonyComponent.Shell
+    match layer {
+        Content -> {
+            if shell {
+                return 1
+            }
+            return 0
+        }
+        Overlay -> {
+            if shell {
+                return 3
+            }
+            return 2
+        }
+    }
+}
+
+// Whether `a` composites under `b`.
+//
+// Within the component-overlay band the tie is broken by WHEN each was raised,
+// so the overlay a person opened most recently is the one on top. Everywhere
+// else the band decides and the raise order is not consulted -- two content
+// surfaces do not overlap, and if they do it is a layout fault rather than
+// something to resolve by paint order.
+function harmonySurfaceDrawsUnder(
+    aComponent: borrow HarmonyComponent,
+    aLayer: borrow HarmonySurfaceLayer,
+    aRaised: Int,
+    bComponent: borrow HarmonyComponent,
+    bLayer: borrow HarmonySurfaceLayer,
+    bRaised: Int,
+) -> Bool {
+    let aBand = harmonySurfaceBand(aComponent, aLayer)
+    let bBand = harmonySurfaceBand(bComponent, bLayer)
+    if aBand != bBand {
+        return aBand < bBand
+    }
+    return aRaised < bRaised
+}

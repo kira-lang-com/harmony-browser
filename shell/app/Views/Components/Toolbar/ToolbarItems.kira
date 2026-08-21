@@ -1,0 +1,54 @@
+import HarmonyCore
+import KiraUI
+
+// A glyph on the window's bar.
+//
+// A control whose action is unavailable RECEDES rather than disappearing, so the
+// row keeps its shape from the first frame and nothing reflows under the
+// pointer as a page loads.
+Widget ToolbarGlyph(symbol: Symbol, enabled: Bool) {
+    body {
+        ControlSlot() {
+            Icon(symbol)
+                .imageScale(.Small)
+                .foregroundColor(toolbarGlyphInk(enabled))
+        }
+    }
+}
+
+function toolbarGlyphInk(enabled: Bool) -> PrimaryColor {
+    if enabled {
+        return PrimaryColor.Secondary
+    }
+    return PrimaryColor.Quaternary
+}
+
+// The AI control.
+//
+// Shown whether or not the runtime is installed, and lit only when it is
+// running. A control that appeared with the runtime would be a control nobody
+// could find in order to learn that the runtime is what it needs.
+// Ask AI: the button, and what it opens.
+//
+// The panel is a COLUMN the window opens, not something the assistant decides to
+// show. That is what makes it optional in the only sense that matters: the shell
+// allots the Inspector role while it is open and does not while it is not, and
+// the assistant renders the roles it was given -- so "is the panel open" is one
+// question with one answer instead of one per side.
+Widget AiToolbarButton(link: HarmonyLink) {
+    body {
+        ControlSlot(active = harmonyShellInspectorOpen()) {
+            Icon(.Sparkle)
+                .imageScale(.Small)
+                .foregroundColor(aiButtonInk(link))
+        }
+        .onClick(harmonyShellToggleInspector)
+    }
+}
+
+function aiButtonInk(link: borrow HarmonyLink) -> PrimaryColor {
+    if harmonyLinkIsWell(link) {
+        return PrimaryColor.Accent
+    }
+    return PrimaryColor.Quaternary
+}

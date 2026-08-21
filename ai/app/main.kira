@@ -1,0 +1,130 @@
+import Foundation
+import HarmonyCore
+import KiraIpc
+
+// Harmony AI: the model runtime and the harness around it, in its own process.
+//
+// It draws nothing. The shell owns the window and every pixel in it; this
+// answers what the shell asks and announces what it produces. That is what makes
+// the AI runtime installable on its own: a person who installs it beside Harmony
+// Browser gets AI in the browser they already have, and a person who installs it
+// alone gets a shell with a conversation in it and no web engine behind them.
+//
+// The loop is the whole program. It settles the attachment, serves what arrives
+// and lets the runtime produce whatever it has, once per turn, until the shell
+// goes.
+
+function harmonyAiVersion() -> String {
+    return "0.1.0"
+}
+
+// How long the loop waits when there is nothing to do.
+//
+// A component with no work must not spin: it is on the same machine as the
+// window, and a core spent asking an empty socket is a core the page is not
+// getting. Sixteen milliseconds is a frame, which is as often as anything the
+// shell draws could show a change anyway.
+function harmonyAiIdleMilliseconds() -> Int {
+    return 16
+}
+
+// Answer one thing the shell asked.
+function harmonyAiServe(attachment: borrow mut HarmonyAttachment, runtime: borrow Any AiRuntime, session: AiSession, delivery: borrow IpcDelivery) -> AiSession {
+    if delivery.sound() == false {
+        // A frame this build could not read. The shell is told nothing: it is
+        // not waiting on a call it did not successfully make, and answering a
+        // call number carved out of unreadable bytes would be worse than
+        // silence.
+        return session
+    }
+    let method = delivery.envelope.method
+    if method == aiCapabilitiesMethod() {
+        var answer = IpcWriter {}
+        encode_AiCapabilities(runtime.capabilities(), answer)
+        let ignored = attachment.respond(delivery.envelope.call, aiCapabilitiesMethod(), answer.bytes)
+        return session
+    }
+    if method == aiSendMethod() {
+        var reader = ipcPayloadReader(delivery.envelope)
+        let turn = decode_AiTurn(reader)
+        if reader.ok() {
+            return runtime.begin(move session, turn.conversation, turn.text)
+        }
+        return session
+    }
+    if method == aiCancelMethod() {
+        var reader = ipcPayloadReader(delivery.envelope)
+        let cancel = decode_AiCancel(reader)
+        if reader.ok() {
+            return runtime.cancel(move session, cancel.conversation)
+        }
+        return session
+    }
+    return session
+}
+
+// Send on whatever the runtime has produced since the last turn.
+function harmonyAiRelay(attachment: borrow mut HarmonyAttachment, runtime: borrow Any AiRuntime, session: AiSession) -> AiSession {
+    let step = runtime.advance(move session)
+    // Conversation zero is how a runtime says it has nothing, so it is never a
+    // conversation a shell can open.
+    if step.delta.conversation == 0 {
+        return step.session
+    }
+    var out = IpcWriter {}
+    encode_AiDelta(step.delta, out)
+    let ignored = attachment.emit(aiDeltaMethod(), out.bytes)
+    return step.session
+}
+
+@Main
+function entry() {
+    var attachment = harmonyAttach(HarmonyComponent.Ai, harmonyAiVersion())
+    let runtime = AiNoModelRuntime()
+    var session = AiSession {}
+    // The pixels, once the window has said how big they are.
+    //
+    // Not at startup: a texture is opened at an extent, the extent is the
+    // window's to decide, and a component that opened one before being told
+    // would be opening it at a guess.
+    var surfaces = AiSurfaces {}
+    var reported = false
+
+    while attachment.shouldRun() {
+        attachment.settle()
+        var worked = false
+        let delivery = attachment.pump()
+        if delivery.arrived() {
+            let moved = aiPointer(surfaces, delivery)
+            if harmonyAiAllot(surfaces, delivery) {
+                if surfaces.isReady() == false && surfaces.note().count > 0 && reported == false {
+                    print("harmony-ai: " + surfaces.note())
+                    reported = true
+                }
+            }
+            session = harmonyAiServe(attachment, runtime, move session, delivery)
+            worked = true
+        }
+        if attachment.isAttached() {
+            // Drawn before it is announced, so the first frame the shell
+            // composites is one that has been written: a surface handed over
+            // empty is a rectangle of whatever the allocator last had in it.
+            // What the views draw, refreshed before they are drawn. The turn is
+            // the harness's and the capabilities are the runtime's, and neither
+            // is a thing a widget should be reaching into.
+            aiViewRecord(session, runtime.capabilities(), session.prompt)
+            if aiDrawSurfaces(surfaces) {
+                aiAnnounceSurfaces(attachment, surfaces)
+            }
+            session = harmonyAiRelay(attachment, runtime, move session)
+        }
+        if worked == false {
+            sleepMilliseconds(harmonyAiIdleMilliseconds())
+        }
+    }
+
+    // The shell has gone, or would not have us. Either way there is nothing
+    // left to answer.
+    attachment.detach()
+    return
+}

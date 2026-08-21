@@ -1,0 +1,46 @@
+import KiraUI
+
+// One conversation in the assistant's column.
+//
+// The row form the browser's tab list uses, for the same reason: a conversation
+// is named by its first line, and a line needs the width of a column rather than
+// the width of a tab.
+
+Widget AiConversationRow(conversation: Int, title: String, active: Bool) {
+    body {
+        ListRow(selected = active) {
+            Icon(.ChatCircle)
+                .imageScale(.Small)
+                .foregroundColor(aiConversationInk(active))
+
+            Text(title)
+                .typography(.subheadline)
+        }
+    }
+}
+
+// A running turn is marked in the row it belongs to rather than over the whole
+// column: a person with several conversations open needs to see WHICH one is
+// still answering.
+function aiConversationInk(active: Bool) -> PrimaryColor {
+    if active {
+        return PrimaryColor.Accent
+    }
+    return PrimaryColor.Tertiary
+}
+
+// Starting one. Always present, and always the last row: a new conversation is
+// what a person does when nothing in the list is what they wanted, which is a
+// thing they discover at the bottom of it.
+Widget AiNewConversationRow() {
+    body {
+        ListRow(selected = false) {
+            Icon(.Plus)
+                .imageScale(.Small)
+                .foregroundColor(.Secondary)
+
+            Text("New Conversation")
+                .typography(.subheadline)
+        }
+    }
+}

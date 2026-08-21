@@ -1,0 +1,531 @@
+import Foundation
+import HarmonyCore
+import KiraGraphics
+import KiraIpc
+import KiraUI
+
+// The surfaces components have handed the window.
+//
+// Kept in NATIVE state rather than in a wrapped property, and that is not a
+// preference: a wrapped property is only addressable inside the widget build,
+// and importing a shared texture needs the frame -- which is the one place the
+// build is not. So the two halves meet here. The build records what arrived; the
+// frame turns it into a texture.
+//
+// Five slots, because that is what the two components between them publish: a
+// sidebar and a document each, and the assistant's optional inspector. Named
+// slots rather than a list keyed by role, because the window PLACES them and
+// placement is not uniform -- a sidebar goes in the leading column and a
+// document fills what is left, and a loop over roles would have to say so
+// anyway, one branch per role, with the names gone.
+
+// A surface that has arrived and not yet been imported.
+struct HarmonyPendingSurface {
+    var handle: Int = 0
+    var component: HarmonyComponent = HarmonyComponent.Shell
+    var role: HarmonySurfaceRole = HarmonySurfaceRole.Document
+    var width: Int = 0
+    var height: Int = 0
+    var stride: Int = 0
+    var modifier: Int = 0
+    var generation: Int = 0
+}
+
+struct HarmonyShellSurfaces {
+    // Arrived, not yet imported. A queue because several arrive together: a
+    // component announces every surface it has the moment it attaches, and a
+    // single slot would keep the last and drop the rest.
+    var pending: [HarmonyPendingSurface] = []
+
+    var browserSidebar: SharedTexture = SharedTexture {}
+    var browserDocument: SharedTexture = SharedTexture {}
+    var aiSidebar: SharedTexture = SharedTexture {}
+    var aiDocument: SharedTexture = SharedTexture {}
+    var aiInspector: SharedTexture = SharedTexture {}
+    // Each component's overlay, and when it was last raised.
+    //
+    // Both are held rather than one: two components can each have something
+    // floating, and which is on top is decided by WHEN each went up rather than
+    // by which of them the window happens to ask about first.
+    var browserOverlay: SharedTexture = SharedTexture {}
+    var aiOverlay: SharedTexture = SharedTexture {}
+    var browserRaised: Int = 0
+    var aiRaised: Int = 0
+    var raises: Int = 0
+    // What the window last allotted, kept so the pointer is routed against the
+    // same rectangles the components were told to render.
+    var allotted: [HarmonyAllotment] = []
+
+    // Whether the assistant's trailing column is open.
+    var inspectorOpen: Bool = false
+    // Whether the leading column is shown at all.
+    var sidebarShown: Bool = true
+    // Which component the window is showing. The other one's sidebar is still
+    // held, which is what makes moving between them a crossfade rather than a
+    // load.
+    var showingAi: Bool = false
+    // How far between the two sidebars the swipe stands, 0 at the showing one.
+    var swipe: Float = 0.0
+    var note: String = ""
+}
+
+function harmonyRoleCode(role: borrow HarmonySurfaceRole) -> Int {
+    match role {
+        Sidebar -> return 0;
+        Document -> return 1;
+        Inspector -> return 2;
+        Floating -> return 3;
+    }
+}
+
+function harmonyComponentCode(component: borrow HarmonyComponent) -> Int {
+    match component {
+        Shell -> return 0;
+        Browser -> return 1;
+        Ai -> return 2;
+    }
+}
+
+function harmonyShellSurfacesKey() -> String {
+    return "harmony.shell.surfaces"
+}
+
+function harmonyShellSurfacesEnsure() {
+    if kiraUiStateSlotHas(harmonyShellSurfacesKey()) == false {
+        kiraUiStateSlotPut(
+            harmonyShellSurfacesKey(),
+            nativeUserData(nativeState(HarmonyShellSurfaces {}))
+        )
+    }
+    return
+}
+
+// Record a surface a component just announced, with the handle that rode with
+// the message. Only recorded here: importing needs a frame, and this is the
+// build.
+function harmonyShellSurfaceArrived(component: borrow HarmonyComponent, delivery: borrow IpcDelivery) {
+    if delivery.sound() == false || delivery.handle == 0 {
+        return
+    }
+    if delivery.envelope.method != harmonySurfaceAttachMethod() {
+        return
+    }
+    var reader = ipcPayloadReader(delivery.envelope)
+    let note = decode_HarmonySurfaceNote(reader)
+    if reader.ok() == false {
+        return
+    }
+    harmonyShellSurfacesEnsure()
+    var surfaces = nativeRecover<HarmonyShellSurfaces>(kiraUiStateSlotGet(harmonyShellSurfacesKey()))
+    surfaces.pending.append(HarmonyPendingSurface {
+        handle: delivery.handle
+        component: component
+        role: note.surface.role
+        width: Int(note.surface.rect.width)
+        height: Int(note.surface.rect.height)
+        stride: note.surface.stride
+        modifier: note.surface.modifier
+        generation: note.surface.generation
+    })
+    return
+}
+
+// Keep what the window allotted, so the pointer is routed against the same
+// rectangles the components were told to render into.
+function harmonyShellRecordRegions(regions: borrow [HarmonyAllotment]) {
+    harmonyShellSurfacesEnsure()
+    var surfaces = nativeRecover<HarmonyShellSurfaces>(kiraUiStateSlotGet(harmonyShellSurfacesKey()))
+    var kept: [HarmonyAllotment] = []
+    var index = 0
+    while index < regions.count {
+        kept.append(harmonyAllotmentCopy(regions[index]))
+        index = index + 1
+    }
+    surfaces.allotted = move kept
+    return
+}
+
+// A component said its overlay went up, or came down.
+//
+// Neither carries a handle: raising names a texture the shell already holds, and
+// dropping names one it should stop compositing. Both are ordinary events, which
+// is why they are read here rather than in the arrival path.
+function harmonyShellOverlayMoved(component: borrow HarmonyComponent, delivery: borrow IpcDelivery) {
+    if delivery.sound() == false {
+        return
+    }
+    let method = delivery.envelope.method
+    let raised = method == harmonyOverlayRaiseMethod()
+    if raised == false && method != harmonySurfaceDropMethod() {
+        return
+    }
+    var reader = ipcPayloadReader(delivery.envelope)
+    let note = decode_HarmonySurfaceNote(reader)
+    if reader.ok() == false || note.surface.role != HarmonySurfaceRole.Floating {
+        return
+    }
+    harmonyShellSurfacesEnsure()
+    var surfaces = nativeRecover<HarmonyShellSurfaces>(kiraUiStateSlotGet(harmonyShellSurfacesKey()))
+    let isAi = component == HarmonyComponent.Ai
+    if raised == false {
+        // Down. The texture is kept -- the memory is still the component's and
+        // still valid -- and only the claim to be composited is given up.
+        if isAi {
+            surfaces.aiRaised = 0
+        } else {
+            surfaces.browserRaised = 0
+        }
+        return
+    }
+    // Up, and above whatever was up before it. A counter rather than a clock:
+    // what this orders is a sequence of raises, and two raises in one frame are
+    // still one after the other.
+    surfaces.raises = surfaces.raises + 1
+    if isAi {
+        surfaces.aiRaised = surfaces.raises
+    } else {
+        surfaces.browserRaised = surfaces.raises
+    }
+    return
+}
+
+// File an imported texture in the slot its component and role name.
+function harmonyShellFile(
+    surfaces: borrow mut HarmonyShellSurfaces,
+    component: borrow HarmonyComponent,
+    role: borrow HarmonySurfaceRole,
+    texture: SharedTexture,
+) {
+    let isAi = component == HarmonyComponent.Ai
+    // The slot's previous occupant, let go before the new one takes its place.
+    //
+    // A component that reopened a surface announced a NEW handle for the same
+    // role, and this side imported it: memory, a device texture and this
+    // process's own handle to the surface. Overwriting the slot without
+    // releasing keeps all three alive with nothing pointing at them, once per
+    // resize on the consumer side as well as the producer's.
+    match role {
+        Sidebar -> {
+            if isAi {
+                surfaces.aiSidebar.release()
+                surfaces.aiSidebar = move texture
+            } else {
+                surfaces.browserSidebar.release()
+                surfaces.browserSidebar = move texture
+            }
+        }
+        Document -> {
+            if isAi {
+                surfaces.aiDocument.release()
+                surfaces.aiDocument = move texture
+            } else {
+                surfaces.browserDocument.release()
+                surfaces.browserDocument = move texture
+            }
+        }
+        Inspector -> {
+            surfaces.aiInspector.release()
+            surfaces.aiInspector = move texture
+        }
+        Floating -> {
+            if isAi {
+                surfaces.aiOverlay.release()
+                surfaces.aiOverlay = move texture
+            } else {
+                surfaces.browserOverlay.release()
+                surfaces.browserOverlay = move texture
+            }
+        }
+    }
+    return
+}
+
+// Import everything waiting, on the frame, where a device is in hand.
+//
+// The handle is ADOPTED rather than opened: by the time it reaches here the
+// kernel has already installed this process's own descriptor for the same
+// memory, and adopting is what takes ownership of it.
+function harmonyShellImportPending(frame: borrow mut KiraGraphics.RenderFrame) {
+    harmonyShellSurfacesEnsure()
+    var surfaces = nativeRecover<HarmonyShellSurfaces>(kiraUiStateSlotGet(harmonyShellSurfacesKey()))
+    if surfaces.pending.count == 0 {
+        return
+    }
+    var waiting = surfaces.pending
+    var index = 0
+    while index < waiting.count {
+        let entry = waiting[index]
+        let adopted = adoptSharedSurface(entry.handle, entry.width, entry.height, entry.stride, entry.modifier)
+        if adopted.isValid() == false {
+            surfaces.note = "A component's surface could not be adopted."
+        } else {
+            var imported = importSharedTextureDuringFrame(frame, adopted)
+            if imported.isValid() == false {
+                surfaces.note = "A component's surface could not be imported as a texture."
+            } else {
+                // Access is BEGUN before anything samples it. Shared memory is
+                // not shared synchronisation: the producer exports a fence when
+                // it ends its access, and beginning here is what waits on it.
+                // Read, not write. The producer left a frame here and the
+                // window came to composite it; beginning as a writer would
+                // discard exactly the thing it came for.
+                if imported.beginRead() {
+                    harmonyShellFile(surfaces, entry.component, entry.role, move imported)
+                    surfaces.note = ""
+                } else {
+                    surfaces.note = "A component's surface could not be acquired for reading."
+                }
+            }
+        }
+        index = index + 1
+    }
+    surfaces.pending = []
+    return
+}
+
+// --- What the window draws -------------------------------------------------
+//
+// The VIEW id, not the image id. A `TextureViewport` carries one number across
+// the widget tree and that number is what a bind group binds through; the image
+// id is what an upload or a pass attachment takes, and on any backend that
+// separates the two they are different numbers.
+
+function harmonyShellSurfaceState() -> HarmonyShellSurfaces {
+    harmonyShellSurfacesEnsure()
+    return nativeRecover<HarmonyShellSurfaces>(kiraUiStateSlotGet(harmonyShellSurfacesKey()))
+}
+
+// The sidebar the window is showing, and the one behind it.
+//
+// Both are held, which is the whole point of the components each drawing their
+// own: moving between the tab list and the assistant is a crossfade between two
+// textures the window already has, not a component being asked to redraw.
+function harmonyShellSidebarTexture() -> Int {
+    let surfaces = harmonyShellSurfaceState()
+    if surfaces.showingAi {
+        return Int(surfaces.aiSidebar.texture.viewId)
+    }
+    return Int(surfaces.browserSidebar.texture.viewId)
+}
+
+// The extent a surface's PRODUCER published it at, which is where the window
+// places it.
+//
+// Read off the shared texture rather than kept beside it: the surface carries
+// the rectangle it was created with, and a second copy of that number is a
+// second thing to keep in step. The layout is not asked to work one out -- a
+// filling leaf in a fixed column is measured differently from one in a flexed
+// column, and a view that came out with no box drew nothing at all, which reads
+// as a missing surface rather than as a missing size.
+function harmonyShellSidebarWidth() -> Float {
+    let surfaces = harmonyShellSurfaceState()
+    if surfaces.showingAi {
+        return Float(surfaces.aiSidebar.surface.width)
+    }
+    return Float(surfaces.browserSidebar.surface.width)
+}
+
+function harmonyShellSidebarHeight() -> Float {
+    let surfaces = harmonyShellSurfaceState()
+    if surfaces.showingAi {
+        return Float(surfaces.aiSidebar.surface.height)
+    }
+    return Float(surfaces.browserSidebar.surface.height)
+}
+
+function harmonyShellDocumentWidth() -> Float {
+    let surfaces = harmonyShellSurfaceState()
+    if surfaces.showingAi {
+        return Float(surfaces.aiDocument.surface.width)
+    }
+    return Float(surfaces.browserDocument.surface.width)
+}
+
+function harmonyShellDocumentHeight() -> Float {
+    let surfaces = harmonyShellSurfaceState()
+    if surfaces.showingAi {
+        return Float(surfaces.aiDocument.surface.height)
+    }
+    return Float(surfaces.browserDocument.surface.height)
+}
+
+function harmonyShellSidebarBehind() -> Int {
+    let surfaces = harmonyShellSurfaceState()
+    if surfaces.showingAi {
+        return Int(surfaces.browserSidebar.texture.viewId)
+    }
+    return Int(surfaces.aiSidebar.texture.viewId)
+}
+
+// The sidebar behind the one showing, but only while a swipe is under way.
+//
+// Zero at rest, so the common case binds one external texture rather than two.
+function harmonyShellSidebarDuring() -> Int {
+    if harmonyShellSwipe() <= 0.0 {
+        return 0
+    }
+    return harmonyShellSidebarBehind()
+}
+
+// How far the swipe stands between them, which the crossfade reads directly.
+function harmonyShellSwipe() -> Float {
+    return harmonyShellSurfaceState().swipe
+}
+
+// Whether there is anywhere to swipe TO.
+//
+// Two components each publishing a sidebar is what makes the gesture mean
+// something. With one, a drag that moved anything would be a drag that took the
+// tab list away and put nothing in its place.
+function harmonyShellCanSwipe() -> Bool {
+    return harmonyShellSidebarBehind() > 0
+}
+
+// Follow the drag.
+//
+// LEFT is forward, the way a page turns: the tab list slides off and the
+// assistant's list arrives behind it. `distance` is cumulative from the press
+// point, so this is a position rather than an increment and a drag that comes
+// back to where it started is a swipe that did not happen.
+function harmonyShellSwipeTo(distance: Float) {
+    if harmonyShellCanSwipe() == false {
+        return
+    }
+    let width = harmonyShellSidebarWidth()
+    if width <= 0.0 {
+        return
+    }
+    var travelled = 0.0 - distance / width
+    if travelled < 0.0 {
+        travelled = 0.0
+    }
+    if travelled > 1.0 {
+        travelled = 1.0
+    }
+    harmonyShellSurfacesEnsure()
+    var surfaces = nativeRecover<HarmonyShellSurfaces>(kiraUiStateSlotGet(harmonyShellSurfacesKey()))
+    surfaces.swipe = travelled
+    return
+}
+
+// Let go.
+//
+// Past the halfway point it lands on the other component; short of it, it goes
+// back. Either way the swipe returns to ZERO -- what changes is which sidebar
+// `showingAi` then means, so the settled state is always "showing one of them
+// fully" rather than "showing one of them at a transition of 1".
+function harmonyShellSwipeSettle() {
+    harmonyShellSurfacesEnsure()
+    var surfaces = nativeRecover<HarmonyShellSurfaces>(kiraUiStateSlotGet(harmonyShellSurfacesKey()))
+    if surfaces.swipe >= 0.5 {
+        surfaces.showingAi = surfaces.showingAi == false
+    }
+    surfaces.swipe = 0.0
+    return
+}
+
+function harmonyShellDocumentTexture() -> Int {
+    let surfaces = harmonyShellSurfaceState()
+    if surfaces.showingAi {
+        return Int(surfaces.aiDocument.texture.viewId)
+    }
+    return Int(surfaces.browserDocument.texture.viewId)
+}
+
+// The assistant's Ask AI column, when it has one. Zero is "no panel", which is
+// also what the window draws when the assistant is not installed at all.
+function harmonyShellInspectorTexture() -> Int {
+    return Int(harmonyShellSurfaceState().aiInspector.texture.viewId)
+}
+
+function harmonyShellInspectorTextureWidth() -> Float {
+    return Float(harmonyShellSurfaceState().aiInspector.surface.width)
+}
+
+function harmonyShellInspectorTextureHeight() -> Float {
+    return Float(harmonyShellSurfaceState().aiInspector.surface.height)
+}
+
+// The component overlay that composites on top, or zero when none is up.
+//
+// Band 2 of the composite: above every component's content and above the shell's
+// own content, and below the shell's own overlay -- which is not negotiable. The
+// window's menus and its address bar belong to the person using it, and a
+// component able to cover them would be a component able to take the window
+// away.
+//
+// One texture, not both. Two overlays up at once is a real arrangement, but the
+// one underneath is covered by the one over it across the whole canvas, so
+// compositing both is a full-canvas pass spent on pixels nothing can see.
+function harmonyShellOverlayTexture() -> Int {
+    let surfaces = harmonyShellSurfaceState()
+    if surfaces.aiRaised > surfaces.browserRaised {
+        return Int(surfaces.aiOverlay.texture.viewId)
+    }
+    if surfaces.browserRaised > 0 {
+        return Int(surfaces.browserOverlay.texture.viewId)
+    }
+    return 0
+}
+
+function harmonyShellOverlayWidth() -> Float {
+    let surfaces = harmonyShellSurfaceState()
+    if surfaces.aiRaised > surfaces.browserRaised {
+        return Float(surfaces.aiOverlay.surface.width)
+    }
+    return Float(surfaces.browserOverlay.surface.width)
+}
+
+function harmonyShellOverlayHeight() -> Float {
+    let surfaces = harmonyShellSurfaceState()
+    if surfaces.aiRaised > surfaces.browserRaised {
+        return Float(surfaces.aiOverlay.surface.height)
+    }
+    return Float(surfaces.browserOverlay.surface.height)
+}
+
+// Which composited region a window point falls in, and where in that region.
+//
+// The rectangles are the ones the window ALLOTTED, so this and the components
+// agree by construction: a component renders the region it was given, and this
+// finds the point inside the same one rather than inside a rectangle worked out
+// a second time from the layout.
+struct HarmonyShellRegionHit {
+    var role: HarmonySurfaceRole = HarmonySurfaceRole.Document
+    var inside: Bool = false
+    var x: Float = 0.0
+    var y: Float = 0.0
+}
+
+function harmonyShellRegionAt(x: Float, y: Float) -> HarmonyShellRegionHit {
+    let regions = harmonyShellSurfaceState().allotted
+    var index = 0
+    while index < regions.count {
+        let region = regions[index].region
+        // The overlay covers the whole canvas, so it would swallow every point
+        // if it were tested like the others. It is skipped here: the component
+        // that raised it is the one the window is already routing to, and an
+        // overlay wanting the pointer is a thing to decide when a component can
+        // say it wants it.
+        if regions[index].role != HarmonySurfaceRole.Floating {
+            if x >= region.x && y >= region.y && x < region.x + region.width && y < region.y + region.height {
+                return HarmonyShellRegionHit {
+                    role: regions[index].role
+                    inside: true
+                    x: x - region.x
+                    y: y - region.y
+                }
+            }
+        }
+        index = index + 1
+    }
+    return HarmonyShellRegionHit {}
+}
+
+function harmonyShellShowingAi() -> Bool {
+    return harmonyShellSurfaceState().showingAi
+}
+
+function harmonyShellSurfaceNote() -> String {
+    return harmonyShellSurfaceState().note
+}

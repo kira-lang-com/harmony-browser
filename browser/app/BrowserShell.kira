@@ -176,7 +176,11 @@ Widget HarmonyBrowserBody() {
             Expanded(flex = 1) {
                 HStack(spacing = Spacing.None, alignment = VerticalAlignment.Stretch) {
                     if harmonyBrowserUsesSidebar() {
+                        // The width the page is inset by, stated once and used
+                        // for both -- so the column and the page can never
+                        // disagree about where the boundary between them is.
                         HarmonyBrowserSidebar()
+                            .width(harmonyBrowserSidebarWidth())
                     }
 
                     Expanded(flex = 1) {
