@@ -1,0 +1,153 @@
+import KiraUI
+
+// The Apple port's profile: where the browser's own state lives on disk.
+//
+// The Windows archive owns a records-based profile under %LOCALAPPDATA% and
+// answers the data-store seams from it. This side owns a directory instead —
+// `~/Library/Application Support/HarmonyBrowser` — and answers the SAME seams
+// from files a person could read with any text editor. The contract is the
+// one `SessionRestore.kira` states: the session is an ordered list of tab
+// URLs with an active index, written whenever the showing tab settles, and
+// adopted back by the registry on the next start. One tab today; the file
+// format is one URL per line, oldest first, so the day the port grows a tab
+// registry the format is already the list the contract describes.
+
+construct HarmonyWebProfileStore {
+    @Required let version: Int
+}
+
+construct HarmonyWebProfile() extends HarmonyWebProfileStore {
+    // The URL the session file was last written with. Recording compares
+    // against it, so a page that re-reports the same address every frame
+    // costs one comparison and no disk.
+    @State var savedURL: String = ""
+    // What the session file held, read once. Minus one means not read yet:
+    // the restore asks first, and the answer is frozen for the run after
+    // that — a session is what the LAST run left, not what this one is doing.
+    @State var sessionCount: Int = -1
+    let version: Int = 1
+
+    // --- Where the profile lives --------------------------------------------
+
+    // The directory is built from the home path every ask rather than cached:
+    // it is two FFI calls, and a cached path is one more thing to be wrong
+    // after a move.
+    function directory() -> String {
+        let home = webNSHomeDirectory()
+        if home.count == 0 {
+            return ""
+        }
+        let base = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), home)
+        if pointerIsNull(base) {
+            return ""
+        }
+        let withDir = webMsgSendP(base, webSel("stringByAppendingPathComponent:"), webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), "HarmonyBrowser"))
+        if pointerIsNull(withDir) {
+            return ""
+        }
+        return webNSStringText(withDir)
+    }
+
+    function sessionPath() -> String {
+        let dir = directory()
+        if dir.count == 0 {
+            return ""
+        }
+        let base = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), dir)
+        if pointerIsNull(base) {
+            return ""
+        }
+        let withFile = webMsgSendP(base, webSel("stringByAppendingPathComponent:"), webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), "session.txt"))
+        if pointerIsNull(withFile) {
+            return ""
+        }
+        return webNSStringText(withFile)
+    }
+
+    function ensureDirectory() {
+        let dir = directory()
+        if dir.count == 0 {
+            return
+        }
+        let fm = webMsgSend(webObjcGetClass("NSFileManager"), webSel("defaultManager"))
+        if pointerIsNull(fm) {
+            return
+        }
+        let ignored = webMsgSendCreateDir(fm, webSel("createDirectoryAtPath:withIntermediateDirectories:attributes:error:"), dir, true, nullPointer(), nullPointer())
+        return
+    }
+
+    // --- The session file ------------------------------------------------------
+
+    function readSessionURL() -> String {
+        let path = sessionPath()
+        if path.count == 0 {
+            return ""
+        }
+        let text = webMsgSendReadFile(webObjcGetClass("NSString"), webSel("stringWithContentsOfFile:encoding:error:"), path, U64(4), nullPointer())
+        if pointerIsNull(text) {
+            return ""
+        }
+        return webNSStringText(text).trim()
+    }
+
+    function writeSessionURL(url: borrow String) {
+        ensureDirectory()
+        let path = sessionPath()
+        if path.count == 0 {
+            return
+        }
+        let text = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), url)
+        if pointerIsNull(text) {
+            return
+        }
+        let ignored = webMsgSendWriteFile(text, webSel("writeToFile:atomically:encoding:error:"), path, true, U64(4), nullPointer())
+        return
+    }
+
+    // --- What the session seams ask ---------------------------------------------
+
+    // How many tabs the last run left. Read once per run: the restore asks,
+    // the file answers, and from then on the session is settled history —
+    // what this run is doing is recorded, not re-read.
+    function count() -> Int {
+        if sessionCount < 0 {
+            savedURL = readSessionURL()
+            if savedURL.count > 0 {
+                sessionCount = 1
+            } else {
+                sessionCount = 0
+            }
+        }
+        return sessionCount
+    }
+
+    function sessionURL(index: Int) -> String {
+        if index != 0 {
+            return ""
+        }
+        let ignoredCount = count()
+        return savedURL
+    }
+
+    function sessionActiveIndex() -> Int {
+        return 0
+    }
+
+    // --- What the frame records ---------------------------------------------------
+
+    // The showing tab settled on an address. One comparison against what the
+    // file already holds; a page that re-reports the same URL costs nothing,
+    // and a redirect or a search writes the file once.
+    function recordShowing(url: String) {
+        if url.count == 0 {
+            return
+        }
+        if url == savedURL {
+            return
+        }
+        writeSessionURL(url)
+        savedURL = move url
+        return
+    }
+}

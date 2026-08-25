@@ -440,6 +440,13 @@ function webEnginePublishFrom(view: RawPtr) {
     let forward = webMsgSendBool(view, webSel("canGoForward"))
 
     HarmonyWebEngine().publish(true, move url, move committed, move provisional, move pageTitle, loading, back, forward)
+
+    // The session follows the showing tab: a settled address is the one the
+    // next start reopens. The copy that travels is what was just published.
+    let settled = HarmonyWebEngine().currentCommittedURL(HarmonyWebEngine().shownTab())
+    if settled.count > 0 {
+        harmonySessionRecordShowing(move settled)
+    }
     return
 }
 

@@ -40,6 +40,9 @@ function hbDataProfilePathEngine() -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function hbDataProfilePath() -> String {
+    if harmonyWebEngineActive() {
+        return HarmonyWebProfile().directory()
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
@@ -293,6 +296,9 @@ function hbDataSessionCountEngine() -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbDataSessionCount() -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(HarmonyWebProfile().count())
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -304,6 +310,9 @@ function hbDataSessionURLEngine(index: I32) -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function hbDataSessionURL(index: I32) -> String {
+    if harmonyWebEngineActive() {
+        return HarmonyWebProfile().sessionURL(Int(index))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
@@ -315,6 +324,9 @@ function hbDataSessionTitleEngine(index: I32) -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function hbDataSessionTitle(index: I32) -> String {
+    if harmonyWebEngineActive() {
+        return ""
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
@@ -326,6 +338,9 @@ function hbDataSessionPinnedEngine(index: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbDataSessionPinned(index: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(0)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -337,6 +352,9 @@ function hbDataSessionActiveIndexEngine() -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbDataSessionActiveIndex() -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(0)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -348,6 +366,9 @@ function hbDataSessionAdoptEngine(index: I32, tabId: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function hbDataSessionAdopt(index: I32, tabId: I32) {
+    if harmonyWebEngineActive() {
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -360,6 +381,9 @@ function hbDataSessionRestorePendingEngine() -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbDataSessionRestorePending() -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(0)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -371,6 +395,9 @@ function hbDataSessionRestoreFinishedEngine() -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function hbDataSessionRestoreFinished() {
+    if harmonyWebEngineActive() {
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }

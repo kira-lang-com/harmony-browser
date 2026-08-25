@@ -118,6 +118,20 @@ function harmonySessionRestore() {
     return
 }
 
+// --- What the frame records ---------------------------------------------------
+
+// The showing tab settled on an address. The Windows profile writes the
+// session from its own thread whenever the tab list settles, so this call is
+// its no-op; the Apple port's profile is a file this side owns, and this is
+// where the write happens — on the same thread the frame runs on.
+function harmonySessionRecordShowing(url: String) {
+    if harmonyWebEngineActive() {
+        HarmonyWebProfile().recordShowing(move url)
+        return
+    }
+    return
+}
+
 // --- The frame hook ----------------------------------------------------------
 
 // Run once per frame, after the tabs registry's own frame hook. Restoring is the

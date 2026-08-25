@@ -99,6 +99,29 @@ function webMsgSendText(obj: RawPtr, op: RawPtr, text: CString): RawPtr;
 @FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
 function webMsgSendUtf8(obj: RawPtr, op: RawPtr): CString;
 
+// -writeToFile:atomically:encoding:error: — the session file's whole write
+// path. The error out-parameter is passed null; a failed write is answered by
+// the BOOL, which is all the caller acts on.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendWriteFile(obj: RawPtr, op: RawPtr, path: CString, atomically: Bool, encoding: U64, err: RawPtr): Bool;
+
+// +stringWithContentsOfFile:encoding:error: — the session file's whole read
+// path. Null when the file is not there yet, which is what a first run is.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendReadFile(cls: RawPtr, op: RawPtr, path: CString, encoding: U64, err: RawPtr): RawPtr;
+
+// -createDirectoryAtPath:withIntermediateDirectories:attributes:error: on the
+// shared file manager, so the profile directory exists before anything is
+// written into it. Attributes are null; the error out-parameter is null too.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendCreateDir(fm: RawPtr, op: RawPtr, path: CString, flag: Bool, attrs: RawPtr, err: RawPtr): Bool;
+
+// NSHomeDirectory() — a C function in Foundation rather than a method, which
+// is why it gets its own extern: the profile is rooted where the platform
+// roots an application's state, and the platform's answer is the one to use.
+@FFI.Extern { library: harmony_webkit; symbol: NSHomeDirectory; abi: c; }
+function webNSHomeDirectory(): CString;
+
 // initWithFrame:configuration: — the content rect is the four-scalar CGRect
 // HFA, then the configuration object.
 @FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }

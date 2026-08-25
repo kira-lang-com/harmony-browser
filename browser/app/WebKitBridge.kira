@@ -129,6 +129,11 @@ function harmonyBrowserFrame(frame: borrow mut KiraGraphics.RenderFrame) {
     // off -- which is also why the guarded steps below it stay out of its way.
     if harmonyWebEngineActive() {
         harmonyWebEngineFrame(frame)
+        // The session restore runs here too: the port's registry answers ready
+        // from its first frame, and the restore adopts that tab onto the URL
+        // the last run left. A first run has no session file, and the restore
+        // answers zero tabs, leaving the home page the attach already queued.
+        harmonyDataStoreFrame()
         harmonyChromeFrame(frame)
         return
     }
