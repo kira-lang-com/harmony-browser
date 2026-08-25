@@ -1,0 +1,229 @@
+// The Apple port's half of the registry: one tab, and the copy of its state
+// this side reads.
+//
+// The Windows archive keeps its tab list in native statics because pages open
+// tabs from inside WebKit. The Apple port starts smaller and keeps what it has
+// in Kira instead: ONE tab, whose view is created on the first frame that has a
+// window to hold it. There is no second registry to fall out of step -- the
+// view IS the tab, and this store is the snapshot of it the widget tree reads,
+// refreshed once per frame straight off the view's own properties.
+//
+// The pointers to the view live in Apple's hands (associated objects on the
+// shared application, see `WebEngineForeign.kira`), so everything here is
+// scalars and strings: the part a browser draws, and the one command a person
+// has asked for that the next frame will carry out.
+
+construct HarmonyWebEngineStore {
+    @Required let version: Int
+}
+
+HarmonyWebEngineStore HarmonyWebEngine() {
+    // What the last refresh read off the view. Every field is what a tab row,
+    // the toolbar or the load lane draws, and `revision` moves whenever any of
+    // them changes -- which is what tells a frame that saw no input that there
+    // is something new to draw.
+    @State var revision: Int = 0
+    @State var attached: Bool = false
+    @State var url: String = ""
+    @State var committedURL: String = ""
+    @State var provisionalURL: String = ""
+    @State var title: String = ""
+    @State var progress: Float = 0.0
+    @State var loading: Bool = false
+    @State var canGoBack: Bool = false
+    @State var canGoForward: Bool = false
+
+    // The one command a person has asked for that has not been applied yet.
+    // A click lands between frames, so a command written here is carried out by
+    // the next frame's pass over the view -- the same beat every other system
+    // of this browser keeps. One slot, because a person asks for one thing at
+    // a time and a newer ask replaces an older one.
+    //
+    //   1 navigate (commandURL carries it) · 2 reload · 3 stop
+    //   4 back · 5 forward
+    @State var command: Int = 0
+    @State var commandURL: String = ""
+
+    let version: Int = 1
+
+    // --- Which tab a question is about --------------------------------------
+
+    // The port shows one tab, and its id is 1: the number a registry would
+    // hand out first, so chrome built for a registry reads it unchanged.
+    let theTab: Int = 1
+
+    function resolvesToShown(tab: Int) -> Bool {
+        if tab <= 0 {
+            return true
+        }
+        return tab == theTab
+    }
+
+    // --- What the chrome and the panels read --------------------------------
+
+    function shownTab() -> Int {
+        return theTab
+    }
+
+    function currentRevision() -> Int {
+        return revision
+    }
+
+    function isAttached() -> Bool {
+        return attached
+    }
+
+    function currentURL(tab: Int) -> String {
+        if resolvesToShown(tab) == false {
+            return ""
+        }
+        return url
+    }
+
+    function currentCommittedURL(tab: Int) -> String {
+        if resolvesToShown(tab) == false {
+            return ""
+        }
+        return committedURL
+    }
+
+    function currentProvisionalURL(tab: Int) -> String {
+        if resolvesToShown(tab) == false {
+            return ""
+        }
+        return provisionalURL
+    }
+
+    function currentTitle(tab: Int) -> String {
+        if resolvesToShown(tab) == false {
+            return ""
+        }
+        return title
+    }
+
+    function currentProgress(tab: Int) -> Float {
+        if resolvesToShown(tab) == false {
+            return 0.0
+        }
+        return progress
+    }
+
+    function currentLoading(tab: Int) -> Bool {
+        if resolvesToShown(tab) == false {
+            return false
+        }
+        return loading
+    }
+
+    function currentCanGoBack(tab: Int) -> Bool {
+        if resolvesToShown(tab) == false {
+            return false
+        }
+        return canGoBack
+    }
+
+    function currentCanGoForward(tab: Int) -> Bool {
+        if resolvesToShown(tab) == false {
+            return false
+        }
+        return canGoForward
+    }
+
+    // --- What the chrome does ------------------------------------------------
+
+    // Loads what was asked for, whether or not the view exists yet. A command
+    // that arrives before the first frame is the home page arriving before the
+    // window, and it is carried out the moment there is something to carry it
+    // out on.
+    function requestNavigate(input: borrow String) {
+        command = 1
+        commandURL = input
+        progress = 0.0
+        revision = revision + 1
+        return
+    }
+
+    function requestReload() {
+        command = 2
+        progress = 0.0
+        revision = revision + 1
+        return
+    }
+
+    function requestStop() {
+        command = 3
+        revision = revision + 1
+        return
+    }
+
+    function requestGoBack() {
+        command = 4
+        revision = revision + 1
+        return
+    }
+
+    function requestGoForward() {
+        command = 5
+        revision = revision + 1
+        return
+    }
+
+    function takeCommand() -> Int {
+        let taken = command
+        command = 0
+        return taken
+    }
+
+    function takeCommandURL() -> String {
+        return commandURL
+    }
+
+    // --- The frame's write side ----------------------------------------------
+
+    // Records what the view says now. Anything the interface can draw is
+    // compared, and one change among any of them moves the revision once: six
+    // separate bumps for one redirected load would be six rebuilds for one
+    // thing a person can see.
+    //
+    // Progress is deliberately absent. It is not read off the view any more --
+    // it ARRIVES, pushed by the KVO watcher while a load runs -- so this frame
+    // pass has no authority over it, and writing its own guess back would
+    // stomp a fresher number the watcher just delivered.
+    function publish(attachedNow: Bool, urlNow: String, committedNow: String, provisionalNow: String, titleNow: String, loadingNow: Bool, backNow: Bool, forwardNow: Bool) {
+        var changed = false
+        if attached != attachedNow || url != urlNow || committedURL != committedNow {
+            changed = true
+        }
+        if provisionalURL != provisionalNow || title != titleNow {
+            changed = true
+        }
+        if loading != loadingNow || canGoBack != backNow || canGoForward != forwardNow {
+            changed = true
+        }
+        attached = attachedNow
+        url = urlNow
+        committedURL = committedNow
+        provisionalURL = provisionalNow
+        title = titleNow
+        loading = loadingNow
+        canGoBack = backNow
+        canGoForward = forwardNow
+        if changed {
+            revision = revision + 1
+        }
+        return
+    }
+
+    // The write side the watcher calls. Fires on WebKit's schedule, not the
+    // frame's, and lands on the same thread the frames run on -- WKWebView's
+    // UI-side properties change on the main thread, which is the thread this
+    // whole port runs on -- so writing straight into the snapshot is as safe
+    // here as the frame pass writing into it is.
+    function publishProgress(value: Float) {
+        if progress != value {
+            progress = value
+            revision = revision + 1
+        }
+        return
+    }
+}

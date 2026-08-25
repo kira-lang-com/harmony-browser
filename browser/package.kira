@@ -106,6 +106,24 @@ Package HarmonyBrowser {
                     ]
                 }
             ]
+        },
+        NativeLibrary {
+            // The Apple port's frameworks, reached the way Kira Graphics reaches
+            // Metal: every symbol is an `@FFI.Extern` in `app/WebEngine/` bound
+            // to this name, and there are no sources of ours behind it -- the
+            // Objective-C runtime dispatches straight into AppKit and WebKit.
+            //
+            // Optional for the same reason `kira_metal` is: a target without a
+            // row excludes the binding instead of failing the link, and the
+            // Kira side asks `harmonyWebEngineActive()` before it calls
+            // anything. A row exists wherever the frameworks do.
+            name: "harmony_webkit",
+            linkMode: LinkMode.Dynamic,
+            availability: Availability.Optional,
+            nativeTargets: [
+                NativeTarget { triple: "aarch64-macos-none", frameworks: ["Foundation", "AppKit", "WebKit"], systemLibs: ["objc"] },
+                NativeTarget { triple: "x86_64-macos-none", frameworks: ["Foundation", "AppKit", "WebKit"], systemLibs: ["objc"] }
+            ]
         }
     ]
 }

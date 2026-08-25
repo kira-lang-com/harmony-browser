@@ -13,6 +13,9 @@ function hbNavActiveTabEngine() -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavActiveTab() -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(HarmonyWebEngine().shownTab())
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -24,6 +27,12 @@ function hbNavTabForSlotEngine(slot: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavTabForSlot(slot: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        if slot == 1 {
+            return I32(HarmonyWebEngine().shownTab())
+        }
+        return I32(0)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -35,6 +44,9 @@ function hbNavTabCountEngine() -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavTabCount() -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(1)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -46,6 +58,12 @@ function hbNavTabIdAtEngine(index: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavTabIdAt(index: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        if index == 0 {
+            return I32(HarmonyWebEngine().shownTab())
+        }
+        return I32(0)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -57,6 +75,12 @@ function hbNavTabSlotEngine(tab: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavTabSlot(tab: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        if tab == HarmonyWebEngine().shownTab() {
+            return I32(1)
+        }
+        return I32(0)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -68,6 +92,9 @@ function hbNavURLEngine(tab: I32) -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavURL(tab: I32) -> String {
+    if harmonyWebEngineActive() {
+        return HarmonyWebEngine().currentURL(Int(tab))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
@@ -79,6 +106,9 @@ function hbNavCommittedURLEngine(tab: I32) -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavCommittedURL(tab: I32) -> String {
+    if harmonyWebEngineActive() {
+        return HarmonyWebEngine().currentCommittedURL(Int(tab))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
@@ -90,6 +120,9 @@ function hbNavProvisionalURLEngine(tab: I32) -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavProvisionalURL(tab: I32) -> String {
+    if harmonyWebEngineActive() {
+        return HarmonyWebEngine().currentProvisionalURL(Int(tab))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
@@ -101,6 +134,9 @@ function hbNavTitleEngine(tab: I32) -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavTitle(tab: I32) -> String {
+    if harmonyWebEngineActive() {
+        return HarmonyWebEngine().currentTitle(Int(tab))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
@@ -112,6 +148,9 @@ function hbNavProgressEngine(tab: I32) -> Float;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavProgress(tab: I32) -> Float {
+    if harmonyWebEngineActive() {
+        return HarmonyWebEngine().currentProgress(Int(tab))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return 0.0
     }
@@ -123,6 +162,9 @@ function hbNavIsLoadingEngine(tab: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavIsLoading(tab: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        return harmonyWebFlag(HarmonyWebEngine().currentLoading(Int(tab)))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -134,6 +176,9 @@ function hbNavCanGoBackEngine(tab: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavCanGoBack(tab: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        return harmonyWebFlag(HarmonyWebEngine().currentCanGoBack(Int(tab)))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -145,6 +190,9 @@ function hbNavCanGoForwardEngine(tab: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavCanGoForward(tab: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        return harmonyWebFlag(HarmonyWebEngine().currentCanGoForward(Int(tab)))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -156,6 +204,9 @@ function hbNavErrorCodeEngine(tab: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavErrorCode(tab: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(0)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -167,6 +218,9 @@ function hbNavErrorTextEngine(tab: I32) -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavErrorText(tab: I32) -> String {
+    if harmonyWebEngineActive() {
+        return ""
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
@@ -178,6 +232,11 @@ function hbNavHistoryCountEngine(tab: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavHistoryCount(tab: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        // The back/forward list is not read off the view yet; the toolbar's
+        // two buttons are driven by canGoBack/canGoForward, which are.
+        return I32(0)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -189,6 +248,9 @@ function hbNavHistoryCurrentEngine(tab: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavHistoryCurrent(tab: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(0)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -200,6 +262,9 @@ function hbNavHistoryURLEngine(tab: I32, index: I32) -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavHistoryURL(tab: I32, index: I32) -> String {
+    if harmonyWebEngineActive() {
+        return ""
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
@@ -211,6 +276,9 @@ function hbNavHistoryTitleEngine(tab: I32, index: I32) -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavHistoryTitle(tab: I32, index: I32) -> String {
+    if harmonyWebEngineActive() {
+        return ""
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
@@ -222,6 +290,10 @@ function hbNavNavigateEngine(tab: I32, url: CString) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavNavigate(tab: I32, url: borrow String) {
+    if harmonyWebEngineActive() {
+        HarmonyWebEngine().requestNavigate(url)
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -234,6 +306,10 @@ function hbNavReloadEngine(tab: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavReload(tab: I32) {
+    if harmonyWebEngineActive() {
+        HarmonyWebEngine().requestReload()
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -246,6 +322,12 @@ function hbNavReloadIgnoringCacheEngine(tab: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavReloadIgnoringCache(tab: I32) {
+    if harmonyWebEngineActive() {
+        // The view's cache is not addressed separately yet; the reload is the
+        // honest part of the ask that exists.
+        HarmonyWebEngine().requestReload()
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -258,6 +340,10 @@ function hbNavStopEngine(tab: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavStop(tab: I32) {
+    if harmonyWebEngineActive() {
+        HarmonyWebEngine().requestStop()
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -270,6 +356,10 @@ function hbNavGoBackEngine(tab: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavGoBack(tab: I32) {
+    if harmonyWebEngineActive() {
+        HarmonyWebEngine().requestGoBack()
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -282,6 +372,10 @@ function hbNavGoForwardEngine(tab: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavGoForward(tab: I32) {
+    if harmonyWebEngineActive() {
+        HarmonyWebEngine().requestGoForward()
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -294,6 +388,9 @@ function hbNavGoToHistoryEntryEngine(tab: I32, index: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavGoToHistoryEntry(tab: I32, index: I32) {
+    if harmonyWebEngineActive() {
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -306,8 +403,20 @@ function hbNavDiagnosticEngine() -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function hbNavDiagnostic() -> String {
+    if harmonyWebEngineActive() {
+        return ""
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
     return hbNavDiagnosticEngine()
+}
+
+// The one conversion the Apple branch above needs that the archive's callers
+// did not: its snapshot carries Kira bools, and these seams answer C ints.
+function harmonyWebFlag(value: Bool) -> I32 {
+    if value {
+        return I32(1)
+    }
+    return I32(0)
 }

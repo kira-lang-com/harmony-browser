@@ -221,3 +221,35 @@ Google may still show an unusual-traffic or human-verification page for an
 embedded WebKit session. That is Google's network and browser-integrity check,
 not a KiraUI rendering failure; it must be completed by a human when shown.
 Packaging the WebKit process binaries with the app is the next layer.
+
+## The Apple port
+
+On macOS the engine is not an archive at all. `app/WebEngine/` drives AppKit and
+WebKit DIRECTLY through the Objective-C runtime -- one typed `objc_msgSend`
+alias per call shape, the way Kira Graphics' Metal backend drives Metal -- so
+there is no shim and no second registry for the view's pointers to fall out of;
+they hang off the shared application as associated objects. The manifest row
+(`harmony_webkit`) carries only Apple frameworks plus libobjc, and is optional
+for the same reason `kira_metal` is: a target without a row excludes the
+binding rather than failing a link.
+
+The frame keeps its own order: attach on the first window there is, drain what
+WebKit did on its own schedule (`runMode:beforeDate:` with distant past --
+which is what makes loads commit inside a loop that never runs the application
+run loop), size the page once in points, apply the command a person asked for,
+read back URL/title/loading/history flags as plain property reads, settle the
+window title. One tab, whose id is 1, answering every seam the chrome already
+reads through `NavigationBridge` and `TabsBridge`; multi-tab, dialogs,
+permissions, downloads and the data store still belong to the Windows archive,
+and say so where they are asked.
+
+Two things were learned by driving a live WKWebView through these shapes:
+the run-loop drain above is sufficient for real page loads (URL, title and
+loading state all arrive), and `-valueForKeyPath:` against a live view
+segfaults. The progress estimate therefore is not read at all -- it is
+OBSERVED. A class built at runtime (`HarmonyWebEngineWatcher`) carries
+`-observeValueForKeyPath:ofObject:change:context:` as a Kira IMP -- the same
+installation `MetalForeign.kira` uses for `-windowDidResize:` -- and WebKit
+pushes each change to it with the new value boxed in an NSNumber, which crosses
+as text and parses on arrival. The lane is determinate; the snapshot keeps the
+last number delivered.

@@ -19,6 +19,9 @@ function nativeTabsReadyEngine() -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsReady() -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(1)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -42,6 +45,9 @@ function nativeTabsErrorEngine() -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsError() -> String {
+    if harmonyWebEngineActive() {
+        return ""
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
@@ -55,6 +61,10 @@ function nativeTabsOpenEngine(url: CString, foreground: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsOpen(url: borrow String, foreground: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        HarmonyWebEngine().requestNavigate(url)
+        return I32(HarmonyWebEngine().shownTab())
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -66,6 +76,10 @@ function nativeTabsOpenAtEngine(url: CString, index: I32, foreground: I32) -> I3
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsOpenAt(url: borrow String, index: I32, foreground: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        HarmonyWebEngine().requestNavigate(url)
+        return I32(HarmonyWebEngine().shownTab())
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -77,6 +91,9 @@ function nativeTabsCloseEngine(tabId: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsClose(tabId: I32) {
+    if harmonyWebEngineActive() {
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -89,6 +106,9 @@ function nativeTabsCloseOthersEngine(tabId: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsCloseOthers(tabId: I32) {
+    if harmonyWebEngineActive() {
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -101,6 +121,9 @@ function nativeTabsCloseAllEngine() -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsCloseAll() {
+    if harmonyWebEngineActive() {
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -113,6 +136,9 @@ function nativeTabsReopenClosedEngine() -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsReopenClosed() -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(0)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -124,6 +150,9 @@ function nativeTabsClosedCountEngine() -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsClosedCount() -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(0)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -137,6 +166,9 @@ function nativeTabsSelectEngine(tabId: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsSelect(tabId: I32) {
+    if harmonyWebEngineActive() {
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -149,6 +181,9 @@ function nativeTabsSelectIndexEngine(index: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsSelectIndex(index: I32) {
+    if harmonyWebEngineActive() {
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -161,6 +196,9 @@ function nativeTabsSelectNextEngine() -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsSelectNext() {
+    if harmonyWebEngineActive() {
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -173,6 +211,9 @@ function nativeTabsSelectPreviousEngine() -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsSelectPrevious() {
+    if harmonyWebEngineActive() {
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -187,6 +228,9 @@ function nativeTabsMoveEngine(tabId: I32, toIndex: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsMove(tabId: I32, toIndex: I32) {
+    if harmonyWebEngineActive() {
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -199,6 +243,9 @@ function nativeTabsSetPinnedEngine(tabId: I32, pinned: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsSetPinned(tabId: I32, pinned: I32) {
+    if harmonyWebEngineActive() {
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -213,6 +260,10 @@ function nativeTabsLoadEngine(tabId: I32, url: CString) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsLoad(tabId: I32, url: borrow String) {
+    if harmonyWebEngineActive() {
+        HarmonyWebEngine().requestNavigate(url)
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -225,6 +276,10 @@ function nativeTabsGoBackEngine(tabId: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsGoBack(tabId: I32) {
+    if harmonyWebEngineActive() {
+        HarmonyWebEngine().requestGoBack()
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -237,6 +292,10 @@ function nativeTabsGoForwardEngine(tabId: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsGoForward(tabId: I32) {
+    if harmonyWebEngineActive() {
+        HarmonyWebEngine().requestGoForward()
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -249,6 +308,10 @@ function nativeTabsReloadEngine(tabId: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsReload(tabId: I32) {
+    if harmonyWebEngineActive() {
+        HarmonyWebEngine().requestReload()
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -261,6 +324,10 @@ function nativeTabsStopEngine(tabId: I32) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsStop(tabId: I32) {
+    if harmonyWebEngineActive() {
+        HarmonyWebEngine().requestStop()
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }
@@ -275,6 +342,9 @@ function nativeTabsCountEngine() -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsCount() -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(1)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -286,6 +356,9 @@ function nativeTabsRevisionEngine() -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsRevision() -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(HarmonyWebEngine().currentRevision())
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -297,6 +370,12 @@ function nativeTabsIdAtEngine(index: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsIdAt(index: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        if index == 0 {
+            return I32(HarmonyWebEngine().shownTab())
+        }
+        return I32(0)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -319,6 +398,9 @@ function nativeTabsActiveIdEngine() -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsActiveId() -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(HarmonyWebEngine().shownTab())
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -330,6 +412,9 @@ function nativeTabsActiveIndexEngine() -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsActiveIndex() -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(0)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -341,6 +426,9 @@ function nativeTabsTitleEngine(tabId: I32) -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsTitle(tabId: I32) -> String {
+    if harmonyWebEngineActive() {
+        return HarmonyWebEngine().currentTitle(Int(tabId))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
@@ -352,6 +440,9 @@ function nativeTabsURLEngine(tabId: I32) -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsURL(tabId: I32) -> String {
+    if harmonyWebEngineActive() {
+        return HarmonyWebEngine().currentURL(Int(tabId))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
@@ -363,6 +454,9 @@ function nativeTabsHostEngine(tabId: I32) -> CString;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsHost(tabId: I32) -> String {
+    if harmonyWebEngineActive() {
+        return webHostOf(HarmonyWebEngine().currentCommittedURL(Int(tabId)))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return ""
     }
@@ -374,6 +468,9 @@ function nativeTabsIsLoadingEngine(tabId: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsIsLoading(tabId: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        return harmonyWebFlag(HarmonyWebEngine().currentLoading(Int(tabId)))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -385,6 +482,9 @@ function nativeTabsIsPinnedEngine(tabId: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsIsPinned(tabId: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        return I32(0)
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -396,6 +496,9 @@ function nativeTabsCanGoBackEngine(tabId: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsCanGoBack(tabId: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        return harmonyWebFlag(HarmonyWebEngine().currentCanGoBack(Int(tabId)))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -407,6 +510,9 @@ function nativeTabsCanGoForwardEngine(tabId: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsCanGoForward(tabId: I32) -> I32 {
+    if harmonyWebEngineActive() {
+        return harmonyWebFlag(HarmonyWebEngine().currentCanGoForward(Int(tabId)))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return I32(0)
     }
@@ -418,6 +524,9 @@ function nativeTabsProgressEngine(tabId: I32) -> Float;
 
 // Guarded: a build with no engine answers without calling it.
 function nativeTabsProgress(tabId: I32) -> Float {
+    if harmonyWebEngineActive() {
+        return HarmonyWebEngine().currentProgress(Int(tabId))
+    }
     if harmonyBrowserEngineAvailable() == false {
         return 0.0
     }

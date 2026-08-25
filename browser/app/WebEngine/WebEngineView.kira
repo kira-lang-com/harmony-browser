@@ -1,0 +1,451 @@
+import KiraGraphics
+
+// The view half of the Apple port: what attaches a page to the window, and the
+// one pass per frame that keeps it in step with everything around it.
+//
+// Everything here runs on the main thread, which is the thread AppKit and
+// WebKit's UI side already belong to -- the Metal run loop that calls this is
+// the process's own. The Windows host needs a thread of its own because its
+// engine must pump a run loop nobody else pumps; here the frame IS the pump,
+// so there is nothing to start and nothing to join.
+//
+// The order of a frame is the whole of this file:
+//
+// 1. Attach, the first frame that has a window to attach to.
+// 2. Drain whatever WebKit has already done (loads commit, replies arrive)
+//    without waiting for any of it.
+// 3. Apply the geometry the window measured, in points, once.
+// 4. Carry out the command a person asked for since last frame.
+// 5. Read back what the page now says and publish it.
+// 6. Settle the window title, so the bar never lags the document.
+function harmonyWebEngineFrame(frame: borrow mut KiraGraphics.RenderFrame) {
+    let pool = webAutoreleasePoolPush()
+
+    let app = webMsgSend(webObjcGetClass("NSApplication"), webSel("sharedApplication"))
+    if pointerIsNull(app) {
+        webAutoreleasePoolPop(pool)
+        return
+    }
+    let window = webMsgSend(app, webSel("keyWindow"))
+    if pointerIsNull(window) {
+        // No key window yet: the first frames after launch, or the app in the
+        // background. There is nothing to size and nothing new to read.
+        webAutoreleasePoolPop(pool)
+        return
+    }
+
+    let store = HarmonyWebEngine()
+    var view = webObjcGetAssociatedObject(app, webEngineViewKey())
+    let justAttached = pointerIsNull(view)
+    if justAttached {
+        view = webEngineAttach(window, frame)
+    }
+
+    // What WebKit did on its own schedule while the last frame was being shown.
+    // distantPast drains what is ready and waits for nothing.
+    let runLoop = webMsgSend(webObjcGetClass("NSRunLoop"), webSel("mainRunLoop"))
+    if !pointerIsNull(runLoop) {
+        let mode = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), "NSDefaultRunLoopMode")
+        let date = webMsgSend(webObjcGetClass("NSDate"), webSel("distantPast"))
+        let ignored = webMsgSendRunMode(runLoop, webSel("runMode:beforeDate:"), mode, date)
+    }
+
+    if !pointerIsNull(view) {
+        // The page's rectangle, applied once by the one pass that measured it.
+        let rect = webEnginePageRect(frame)
+        webMsgSendVoidRect(view, webSel("setFrame:"), Float(rect.x), Float(rect.y), Float(rect.width), Float(rect.height))
+    }
+
+    webEngineApplyCommand(view, justAttached)
+
+    if !pointerIsNull(view) {
+        webEnginePublishFrom(view)
+    } else {
+        store.publish(false, "", "", "", "", false, false, false)
+    }
+
+    // The title is the window's, settled ahead of the frame that will show the
+    // document it names -- the same beat `harmonyChromeFrame` keeps on Windows,
+    // reached through the runtime because the chrome's own seam is the archive's.
+    let title = harmonyChromeWindowTitle()
+    let nsTitle = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), title)
+    if !pointerIsNull(nsTitle) {
+        webMsgSendVoidP(window, webSel("setTitle:"), nsTitle)
+    }
+
+    webAutoreleasePoolPop(pool)
+    return
+}
+
+// Runs once, as the runner returns. The view stops being observed before it
+// stops being in the window -- an observer still registered at dealloc is the
+// exception AppKit raises on the way out -- and then removes itself from
+// whatever superview still holds it (-removeFromSuperview is sent TO the
+// view). The process is ending, so Apple reclaims everything it held beside it.
+function harmonyWebEngineShutdown() {
+    let pool = webAutoreleasePoolPush()
+    let app = webMsgSend(webObjcGetClass("NSApplication"), webSel("sharedApplication"))
+    if !pointerIsNull(app) {
+        let view = webObjcGetAssociatedObject(app, webEngineViewKey())
+        let watcher = webObjcGetAssociatedObject(app, webEngineObserverKey())
+        if !pointerIsNull(view) && !pointerIsNull(watcher) {
+            let keyPath = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), "estimatedProgress")
+            if !pointerIsNull(keyPath) {
+                webMsgSendVoidPP(view, webSel("removeObserver:forKeyPath:"), watcher, keyPath)
+            }
+        }
+        if !pointerIsNull(view) {
+            webMsgSendVoid(view, webSel("removeFromSuperview"))
+        }
+    }
+    webAutoreleasePoolPop(pool)
+    return
+}
+
+// --- Attaching -----------------------------------------------------------------
+
+// Creates the configuration and the view, puts the view in the window's content
+// view sized for the page, and remembers both pointers where the next frame will
+// find them. The first load is the home URL, or whatever was asked for before
+// there was a view to ask for.
+function webEngineAttach(window: RawPtr, frame: borrow mut KiraGraphics.RenderFrame) -> RawPtr {
+    let content = webMsgSend(window, webSel("contentView"))
+    if pointerIsNull(content) {
+        return nullPointer()
+    }
+
+    let configurationClass = webObjcGetClass("WKWebViewConfiguration")
+    let config = webMsgSend(webMsgSend(configurationClass, webSel("alloc")), webSel("init"))
+    if pointerIsNull(config) {
+        return nullPointer()
+    }
+
+    let viewClass = webObjcGetClass("WKWebView")
+    let rect = webEnginePageRect(frame)
+    let view = webMsgSendInitWebView(
+        webMsgSend(viewClass, webSel("alloc")),
+        webSel("initWithFrame:configuration:"),
+        Float(rect.x),
+        Float(rect.y),
+        Float(rect.width),
+        Float(rect.height),
+        config
+    )
+    if pointerIsNull(view) {
+        return nullPointer()
+    }
+
+    // Width and height sizable: during a live resize AppKit stretches the page
+    // itself, and the next frame's setFrame settles the exact rectangle once
+    // the layout has caught up -- the same division of labour the Windows host
+    // keeps between WM_SIZE and the per-frame measurement.
+    webMsgSendVoidU(view, webSel("setAutoresizingMask:"), U64(18))
+
+    webMsgSendVoidP(content, webSel("addSubview:"), view)
+
+    let app = webMsgSend(webObjcGetClass("NSApplication"), webSel("sharedApplication"))
+    webObjcSetAssociatedObject(app, webEngineViewKey(), view, U64(1))
+    webObjcSetAssociatedObject(app, webEngineConfigurationKey(), config, U64(1))
+
+    // Progress is observed, not polled -- see `webProgressImp` below. The
+    // watcher object hangs off the application beside the view's pointers, so
+    // it outlives this frame the same way they do and is found once, here.
+    var watcher = webObjcGetAssociatedObject(app, webEngineObserverKey())
+    if pointerIsNull(watcher) {
+        watcher = webInstallProgressWatcher()
+        if !pointerIsNull(watcher) {
+            webObjcSetAssociatedObject(app, webEngineObserverKey(), watcher, U64(1))
+        }
+    }
+    if !pointerIsNull(watcher) {
+        let keyPath = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), "estimatedProgress")
+        if !pointerIsNull(keyPath) {
+            webMsgSendAddObserver(view, webSel("addObserver:forKeyPath:options:context:"), watcher, keyPath, U64(1), nullPointer())
+        }
+    }
+
+    return view
+}
+
+function webEngineViewKey() -> RawPtr {
+    return webSel("harmony.webengine.view")
+}
+
+function webEngineConfigurationKey() -> RawPtr {
+    return webSel("harmony.webengine.configuration")
+}
+
+function webEngineObserverKey() -> RawPtr {
+    return webSel("harmony.webengine.observer")
+}
+
+// --- The progress watcher ------------------------------------------------------
+
+// Builds (once) the class whose -observeValueForKeyPath:ofObject:change:context:
+// is the Kira IMP below, and returns an instance of it. The type encoding
+// "v@:@@@^v" is the observer method's honest signature: void, self, _cmd, then
+// three objects -- the key path, the observed view, the change dictionary --
+// and the context pointer nobody here uses.
+function webInstallProgressWatcher() -> RawPtr {
+    var cls = webObjcGetClass("HarmonyWebEngineWatcher")
+    if pointerIsNull(cls) {
+        cls = webObjcAllocateClassPair(webObjcGetClass("NSObject"), "HarmonyWebEngineWatcher", U64(0))
+        if pointerIsNull(cls) {
+            return nullPointer()
+        }
+        let added = webClassAddMethod(
+            cls,
+            webSel("observeValueForKeyPath:ofObject:change:context:"),
+            webProgressImp,
+            "v@:@@@^v"
+        )
+        let ignoredAdded = added
+        webObjcRegisterClassPair(cls)
+    }
+    return webMsgSend(webMsgSend(cls, webSel("alloc")), webSel("init"))
+}
+
+// The IMP. WebKit calls it whenever `estimatedProgress` moves, on this very
+// thread -- WKWebView's UI-side properties change on the main thread, which is
+// the thread every frame runs on -- so writing into the snapshot directly is
+// the same write the frame pass already makes.
+//
+// What crosses is the change dictionary's "new" entry: an NSNumber whose own
+// string spelling of the double ("0.375", "1") is what a CString read hands
+// over. That road stays pure Kira to Apple, where neither of the two roads
+// that failed could go: the FFI does not marshal scalar-double returns, and
+// -valueForKeyPath: segfaults against a live view.
+@Native
+function webProgressImp(selfObj: RawPtr, cmd: RawPtr, keyPath: RawPtr, object: RawPtr, change: RawPtr, context: RawPtr): Void {
+    let pool = webAutoreleasePoolPush()
+    var value = 0.0
+    if !pointerIsNull(change) {
+        let key = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), "new")
+        if !pointerIsNull(key) {
+            let boxed = webMsgSendP(change, webSel("objectForKey:"), key)
+            if !pointerIsNull(boxed) {
+                let spelled = webMsgSend(boxed, webSel("stringValue"))
+                if !pointerIsNull(spelled) {
+                    value = webParseProgress(webMsgSendUtf8(spelled, webSel("UTF8String")))
+                }
+            }
+        }
+    }
+    HarmonyWebEngine().publishProgress(value)
+    webAutoreleasePoolPop(pool)
+    return
+}
+
+
+// --- Geometry ------------------------------------------------------------------
+
+// The rectangle the page occupies, in POINTS, because a subview is placed in
+// the coordinate system its superview draws in and the content view draws in
+// points -- unlike the Windows child window, which is placed in pixels. The
+// insets are the same ones the widget tree lays the chrome out from, read from
+// `BrowserState.kira` directly so the two can never disagree about who owns
+// what band of the window.
+struct WebEngineRect {
+    let x: Float
+    let y: Float
+    let width: Float
+    let height: Float
+}
+
+function webEnginePageRect(frame: borrow mut KiraGraphics.RenderFrame) -> WebEngineRect {
+    var width = frame.viewportWidth()
+    var height = frame.viewportHeight()
+    if width <= 0.0 {
+        width = Float(frame.drawableWidth())
+    }
+    if height <= 0.0 {
+        height = Float(frame.drawableHeight())
+    }
+
+    let leading = harmonyBrowserLeadingInset()
+    let top = harmonyBrowserTopInset()
+
+    // A view too big for its window is clipped by it; a negative extent would
+    // be an argument setFrame: never asked for.
+    var pageWidth = width - leading
+    var pageHeight = height - top
+    if pageWidth < 0.0 {
+        pageWidth = 0.0
+    }
+    if pageHeight < 0.0 {
+        pageHeight = 0.0
+    }
+
+    // AppKit measures y upward from the bottom of the content view; the inset
+    // is measured down from its top, which is the flip applied exactly here.
+    return WebEngineRect {
+        x: leading
+        y: height - top - pageHeight
+        width: pageWidth
+        height: pageHeight
+    }
+}
+
+// --- Commands -------------------------------------------------------------------
+
+// Carries out what was asked since last frame. The frame a view is attached on
+// has no command yet by definition, and its command is the home page -- the
+// same first tab the Windows registry opens from the URL the host hands it.
+// A navigate asked for before any frame ran cannot happen: there is no chrome
+// to ask from until the window that carries the view exists.
+function webEngineApplyCommand(view: RawPtr, justAttached: Bool) {
+    let store = HarmonyWebEngine()
+    let taken = store.takeCommand()
+    if taken == 0 {
+        if justAttached && !pointerIsNull(view) {
+            webEngineLoad(view, harmonyTabsHomeURL())
+        }
+        return
+    }
+
+    if taken == 1 {
+        webEngineLoad(view, store.takeCommandURL())
+        return
+    }
+    if pointerIsNull(view) {
+        return
+    }
+    if taken == 2 {
+        webMsgSendVoid(view, webSel("reload"))
+        return
+    }
+    if taken == 3 {
+        webMsgSendVoid(view, webSel("stopLoading"))
+        return
+    }
+    if taken == 4 {
+        webMsgSendVoid(view, webSel("goBack"))
+        return
+    }
+    if taken == 5 {
+        webMsgSendVoid(view, webSel("goForward"))
+        return
+    }
+    return
+}
+
+// Asks the view to load an absolute URL. Every piece is built through the
+// runtime from the same three classes a Swift line would name, and a piece
+// that fails to build -- a malformed address, mostly -- ends the attempt
+// quietly: the address bar still shows what the person typed, and the page
+// still shows what it showed.
+function webEngineLoad(view: RawPtr, url: borrow String) {
+    if pointerIsNull(view) || url.count == 0 {
+        return
+    }
+    let nsString = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), url)
+    if pointerIsNull(nsString) {
+        return
+    }
+    let nsURL = webMsgSendP(webObjcGetClass("NSURL"), webSel("URLWithString:"), nsString)
+    if pointerIsNull(nsURL) {
+        return
+    }
+    let request = webMsgSendP(webObjcGetClass("NSURLRequest"), webSel("requestWithURL:"), nsURL)
+    if pointerIsNull(request) {
+        return
+    }
+    webMsgSendVoidP(view, webSel("loadRequest:"), request)
+    return
+}
+
+// --- Reading back ----------------------------------------------------------------
+
+// Publishes what the page says now: the address after redirects, the title it
+// gave itself, how far the load has got, and what history lets the toolbar
+// offer. All of it is property reads -- none of it enters WebKit or waits on a
+// page, which is what lets a widget build interleave with this state freely.
+function webEnginePublishFrom(view: RawPtr) {
+    var url = ""
+    var committed = ""
+    var provisional = ""
+    let nsURL = webMsgSend(view, webSel("URL"))
+    if !pointerIsNull(nsURL) {
+        let absolute = webMsgSend(nsURL, webSel("absoluteString"))
+        if !pointerIsNull(absolute) {
+            committed = webNSStringText(absolute)
+            provisional = committed
+            url = committed
+        }
+    }
+
+    var pageTitle = ""
+    let nsTitle = webMsgSend(view, webSel("title"))
+    if !pointerIsNull(nsTitle) {
+        pageTitle = webNSStringText(nsTitle)
+    }
+
+    let loading = webMsgSendBool(view, webSel("isLoading"))
+
+    // Progress is absent on purpose: it arrives over KVO while a load runs
+    // (`webProgressImp`), and the snapshot keeps the last number that arrived.
+    // This pass publishes everything the view can be ASKED, and nothing it has
+    // to be told about twice.
+    let back = webMsgSendBool(view, webSel("canGoBack"))
+    let forward = webMsgSendBool(view, webSel("canGoForward"))
+
+    HarmonyWebEngine().publish(true, url, committed, provisional, pageTitle, loading, back, forward)
+    return
+}
+
+// The bytes of an NSString, as a Kira String. They live until the frame's pool
+// drains, which is after the snapshot has copied them out.
+function webNSStringText(value: RawPtr) -> String {
+    if pointerIsNull(value) {
+        return ""
+    }
+    return webMsgSendUtf8(value, webSel("UTF8String"))
+}
+
+// NSNumber spells a double the way printf does. Progress lives between 0 and 1,
+// so what a parser has to honor is digits and one dot. The text is walked a
+// byte at a time, the way every other read of an address in this browser is;
+// anything else -- a negative, an exponent, a word -- is not a progress value,
+// and zero answers for it rather than pretending it parsed.
+function webParseProgress(text: borrow String) -> Float {
+    var whole: Float = 0.0
+    var fraction: Float = 0.0
+    var scale: Float = 1.0
+    var pastDot = false
+    var index = 0
+    while index < text.count {
+        let byte = text.charAt(index)
+        if byte == 46 {
+            pastDot = true
+        } else {
+            if byte < 48 || byte > 57 {
+                return 0.0
+            }
+            let digit = Float(byte - 48)
+            if pastDot {
+                scale = scale * 0.1
+                fraction = fraction + digit * scale
+            } else {
+                whole = whole * 10.0 + digit
+            }
+        }
+        index = index + 1
+    }
+    return whole + fraction
+}
+
+// The host of a URL, the way a tab row and a site mark name it: what sits
+// between the scheme and the first path, query or fragment, without its
+// userinfo. Built from the same authority helpers the address bar normalizes
+// with, so a tab strip and an address bar can never disagree about a site.
+function webHostOf(url: borrow String) -> String {
+    if url.count == 0 {
+        return ""
+    }
+    let schemeEnd = url.indexOf("://")
+    if schemeEnd < 0 {
+        return ""
+    }
+    let rest = url.substring(schemeEnd + 3, url.count)
+    return harmonyNavigationHostOf(harmonyNavigationAuthorityOf(rest))
+}

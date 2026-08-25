@@ -41,22 +41,36 @@ function nativeBrowserError() -> String {
     return nativeBrowserErrorEngine()
 }
 
-// Whether this build has a WebKit engine behind it at all.
+// Whether this build has the Windows archive behind its seams at all.
 //
 // `harmony_browser` is Windows-only: two thirds of its sources reach either the
 // WebKit C API or Win32, and its manifest declares no row for anything else. A
 // call into a library a target excludes traps by name, so this has to be asked
 // before the call rather than answered by it -- which is what every guarded
 // wrapper in the bridges below does.
-//
-// It reads the platform because that is what the manifest says. When the engine
-// gains a second port, this is the one line that learns about it.
 function harmonyBrowserEngineAvailable() -> Bool {
     return KiraGraphics.hostPlatform() == KiraGraphics.Platform.Windows
 }
 
+// Whether THIS build carries the Apple port of the engine.
+//
+// This is the second port the seam above was written waiting for, and it lives
+// somewhere the first one does not: in Kira itself. There is no archive behind
+// it -- AppKit and WebKit are driven straight through the Objective-C runtime
+// from `app/WebEngine/`, the way Kira Graphics drives Metal -- so the question
+// it answers is not "does the native half exist" but "does a page render here".
+// The two questions stay separate because every guarded wrapper in the bridges
+// keys on the first, and on an Apple host those wrappers must keep answering
+// their no-archive values for everything the port does not yet carry.
+function harmonyWebEngineActive() -> Bool {
+    return KiraGraphics.hostPlatform() == KiraGraphics.Platform.MacOS
+}
+
 // Whether the engine is up and serving commands.
 function harmonyBrowserReady() -> Bool {
+    if harmonyWebEngineActive() {
+        return HarmonyWebEngine().isAttached()
+    }
     if harmonyBrowserEngineAvailable() == false {
         return false
     }
@@ -66,6 +80,13 @@ function harmonyBrowserReady() -> Bool {
 // Why the browser is not showing a page, or "" when nothing is wrong. The system
 // with something to say answers, starting with the one that owns the engine.
 function harmonyBrowserDiagnostic() -> String {
+    if harmonyWebEngineActive() {
+        // The port has no engine thread to fail to start and no archive to be
+        // missing; what can go wrong with it shows up as a page that has not
+        // loaded, which the page's own error surface will say once the port
+        // grows one. Nothing here has anything to add yet.
+        return ""
+    }
     if harmonyBrowserEngineAvailable() == false {
         return "This build has no WebKit engine: the browser's native half is Windows-only."
     }
@@ -103,6 +124,15 @@ function harmonyBrowserDiagnostic() -> String {
 // page that asks for the camera before that table exists is a page prompted about
 // a site the user already answered for.
 function harmonyBrowserFrame(frame: borrow mut KiraGraphics.RenderFrame) {
+    // The Apple port's frame: attach, drain, size, act, read back. Its engine
+    // runs on this very thread, so the pass is a function call and not a hand-
+    // off -- which is also why the guarded steps below it stay out of its way.
+    if harmonyWebEngineActive() {
+        harmonyWebEngineFrame(frame)
+        harmonyChromeFrame(frame)
+        return
+    }
+
     let window = KiraGraphics.kiraGraphicsHostWindowHandle(frame)
     if pointerIsNull(window) {
         return
@@ -151,6 +181,10 @@ function harmonyBrowserFrame(frame: borrow mut KiraGraphics.RenderFrame) {
 // owns the engine goes last, and takes the download engine and the navigation
 // model down from its own teardown hooks on the way.
 function harmonyBrowserShutdown() {
+    if harmonyWebEngineActive() {
+        harmonyWebEngineShutdown()
+        return
+    }
     if harmonyBrowserEngineAvailable() == false {
         return
     }

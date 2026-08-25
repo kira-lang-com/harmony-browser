@@ -1,0 +1,165 @@
+// Foreign surface for the Apple port of the engine.
+//
+// This file is the whole native boundary the WKWebView port has. There is no
+// C/Objective-C archive behind it and no shim: AppKit, Foundation and WebKit
+// are driven DIRECTLY through the Objective-C runtime, the same way Kira
+// Graphics' Metal backend drives Metal (see `MetalForeign.kira` there for the
+// precedent this file follows shape for shape).
+//
+// Every capability is an `@FFI.Extern` bound to `harmony_webkit`, whose only
+// rows are Apple triples carrying the three frameworks and libobjc. On a
+// target without a row the binding is excluded and a call traps by name --
+// which is why every caller above this file asks `harmonyWebEngineActive()`
+// first.
+//
+// objc_msgSend is not variadic on arm64: each call must use the exact signature
+// of the target method. One typed alias is declared per call SHAPE this port
+// uses, all bound to the single C symbol `objc_msgSend`. The Kira compiler
+// shares one LLVM global across these aliases, and the VM/libffi path binds
+// each call by its own signature, so this is sound on both backends.
+
+// ---------------------------------------------------------------------------
+// Objective-C runtime primitives
+// ---------------------------------------------------------------------------
+
+@FFI.Extern { library: harmony_webkit; symbol: objc_getClass; abi: c; }
+function webObjcGetClass(name: CString): RawPtr;
+
+@FFI.Extern { library: harmony_webkit; symbol: sel_registerName; abi: c; }
+function webSel(name: CString): RawPtr;
+
+// ---------------------------------------------------------------------------
+// objc_msgSend, one typed alias per call shape
+// ---------------------------------------------------------------------------
+
+// () -> id  — property reads that answer an object: -URL, -title,
+// -absoluteString, -keyWindow, -contentView, -mainRunLoop, +distantPast, alloc.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSend(obj: RawPtr, op: RawPtr): RawPtr;
+
+// () -> void — -reload, -stopLoading, -goBack, -goForward, -init.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendVoid(obj: RawPtr, op: RawPtr): Void;
+
+// () -> BOOL — -isLoading, -canGoBack, -canGoForward.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendBool(obj: RawPtr, op: RawPtr): Bool;
+
+// (id) -> id — +[NSURLRequest requestWithURL:], -backForwardList.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendP(obj: RawPtr, op: RawPtr, a: RawPtr): RawPtr;
+
+// (id, id) -> void — -addSubview:.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendVoidP(obj: RawPtr, op: RawPtr, a: RawPtr): Void;
+
+// (id, id, NSUInteger, void*) -> void — -addObserver:forKeyPath:options:
+// context:, which starts the page's progress estimate arriving as events
+// instead of being polled. NSKeyValueObservingOptionNew (1) is the only option
+// the lane needs: every fire carries the value it fired for.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendAddObserver(obj: RawPtr, op: RawPtr, observer: RawPtr, keyPath: RawPtr, options: U64, context: RawPtr): Void;
+
+// (id, id, id, id) -> void — -removeObserver:forKeyPath:, which must run before
+// the view leaves the window: an observer still registered at dealloc is an
+// exception AppKit raises on the way out.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendVoidPP(obj: RawPtr, op: RawPtr, a: RawPtr, b: RawPtr): Void;
+
+// (NSUInteger) -> void — -setAutoresizingMask:. NSViewWidthSizable (2) and
+// NSViewHeightSizable (16) ride in one mask so AppKit keeps the page's view
+// stretched over the content view during a live resize.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendVoidU(obj: RawPtr, op: RawPtr, mask: U64): Void;
+
+// -setTitle:/-setFrameName-like (id) -> void on NSString receivers reuses
+// webMsgSendVoidP.
+
+// (CGRect) -> void — -setFrame:. The rect is an HFA of four doubles passed as
+// four Float scalars in v0-v3 (the same shape `-initWithContentRect:` uses in
+// Kira Graphics), because the page's rectangle arrives here in points and is
+// applied once, by the frame that measured it.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendVoidRect(obj: RawPtr, op: RawPtr, x: Float, y: Float, w: Float, h: Float): Void;
+
+// (CString) -> id — +[NSString stringWithUTF8String:], which every URL and
+// window title crosses on its way in.
+//
+// It is deliberately the only text-argument shape. Reading a scalar-double
+// property (`estimatedProgress`) by boxing it through -valueForKeyPath: was
+// tried and is BANNED here: the call segfaults against a live WKWebView. The
+// progress estimate arrives over KVO instead -- see the class construction
+// below, whose change dictionary carries an NSNumber this side reads as text.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendText(obj: RawPtr, op: RawPtr, text: CString): RawPtr;
+
+// () -> char* — -UTF8String, the way an NSString hands its bytes to a CString
+// return. The bytes live until the enclosing autorelease pool drains, which is
+// why every read that produces one runs inside the pool the frame pushes.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendUtf8(obj: RawPtr, op: RawPtr): CString;
+
+// initWithFrame:configuration: — the content rect is the four-scalar CGRect
+// HFA, then the configuration object.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendInitWebView(alloc: RawPtr, op: RawPtr, x: Float, y: Float, w: Float, h: Float, configuration: RawPtr): RawPtr;
+
+// (id, id) -> Bool — -runMode:beforeDate:, the one line that keeps WebKit's
+// own machinery alive inside a frame loop that does not run the application's
+// main run loop itself. A mode and a distant-past date drain whatever sources
+// are already ready -- page loads commit, replies arrive, timers fire -- and
+// return immediately when none are, so a quiet page costs the frame nothing.
+@FFI.Extern { library: harmony_webkit; symbol: objc_msgSend; abi: c; }
+function webMsgSendRunMode(obj: RawPtr, op: RawPtr, mode: RawPtr, date: RawPtr): Bool;
+
+// ---------------------------------------------------------------------------
+// Objective-C autorelease pool (C functions in libobjc)
+// ---------------------------------------------------------------------------
+
+// Every string this port reads (-title, -absoluteString) and builds (a URL to
+// load) is an autoreleased temporary. Without a pool that is undefined
+// behaviour, so each engine frame pushes one and pops it on the way out --
+// the same discipline the Metal backend keeps around resource creation.
+@FFI.Extern { library: harmony_webkit; symbol: objc_autoreleasePoolPush; abi: c; }
+function webAutoreleasePoolPush(): RawPtr;
+@FFI.Extern { library: harmony_webkit; symbol: objc_autoreleasePoolPop; abi: c; }
+function webAutoreleasePoolPop(token: RawPtr): Void;
+
+// ---------------------------------------------------------------------------
+// Objective-C runtime class construction — used to build the KVO watcher whose
+// -observeValueForKeyPath:ofObject:change:context: is a Kira IMP, the way
+// Kira Graphics' Metal backend installs -windowDidResize: to render during
+// AppKit's modal resize loop. This is how the page's progress estimate reaches
+// this side at all: it is a scalar double, which the FFI does not marshal, and
+// asking for a boxed copy through -valueForKeyPath: segfaults against a live
+// view -- but OBSERVED changes arrive pushed to us, carrying the new value as
+// an NSNumber, which crosses as text and parses on arrival.
+// ---------------------------------------------------------------------------
+
+@FFI.Extern { library: harmony_webkit; symbol: objc_allocateClassPair; abi: c; }
+function webObjcAllocateClassPair(superclass: RawPtr, name: CString, extraBytes: U64): RawPtr;
+@FFI.Extern { library: harmony_webkit; symbol: objc_registerClassPair; abi: c; }
+function webObjcRegisterClassPair(cls: RawPtr): Void;
+
+// The IMP signature for -observeValueForKeyPath:ofObject:change:context:: six
+// pointers (self, _cmd, keyPath, object, change dictionary, context), nothing
+// returned.
+@FFI.Callback { abi: c; params: [RawPtr, RawPtr, RawPtr, RawPtr, RawPtr, RawPtr]; result: Void; }
+struct webImpCallback {}
+
+@FFI.Extern { library: harmony_webkit; symbol: class_addMethod; abi: c; }
+function webClassAddMethod(cls: RawPtr, name: RawPtr, imp: webImpCallback, types: CString): Bool;
+
+// ---------------------------------------------------------------------------
+// Associated objects — where the port keeps its pointers
+// ---------------------------------------------------------------------------
+
+// A web view outlives the frame that attached it and has to be found again on
+// the next one, but a Kira-side store holding a raw pointer would be a second
+// registry where Apple already keeps one. The pointers hang off the shared
+// NSApplication as associated objects instead, which ties their lifetime to
+// the process they belong to and needs no bookkeeping on this side at all.
+@FFI.Extern { library: harmony_webkit; symbol: objc_setAssociatedObject; abi: c; }
+function webObjcSetAssociatedObject(obj: RawPtr, key: RawPtr, value: RawPtr, policy: U64): Void;
+@FFI.Extern { library: harmony_webkit; symbol: objc_getAssociatedObject; abi: c; }
+function webObjcGetAssociatedObject(obj: RawPtr, key: RawPtr): RawPtr;
