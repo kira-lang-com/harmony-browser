@@ -12,7 +12,7 @@ import KiraUI
 // the same registry and the same commands as the strip across the top: two views
 // of one list, not two lists.
 
-Widget HarmonyBrowserSidebarHeader() {
+construct HarmonyBrowserSidebarHeader() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Text("Tabs")
@@ -27,9 +27,8 @@ Widget HarmonyBrowserSidebarHeader() {
     }
 }
 
-Widget HarmonyBrowserSidebar() {
+construct HarmonyBrowserSidebar() extends Widget {
     body {
-        Panel(radius = CornerRadius.None) {
             Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
                 VStack(spacing = Spacing.None) {
                     HarmonyBrowserSidebarHeader()
@@ -53,7 +52,9 @@ Widget HarmonyBrowserSidebar() {
                 }
                 .fillHeight()
             }
-        }
+        .background(RoundedRectangle(radius = CornerRadius.None))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Surface)
         // FLAT, not frosted.
         //

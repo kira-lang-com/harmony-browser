@@ -18,7 +18,7 @@ import KiraUI
 // Both components' sidebars are held at once, which is what makes moving
 // between them a crossfade on the GPU rather than a component being asked to
 // redraw: the tab list swipes aside and the assistant is already there.
-Widget SidebarView() {
+construct SidebarView() extends Widget {
     body {
         if harmonyShellSidebarTexture() > 0 {
             // The swipe between the two components' sidebars, done on the GPU.
@@ -60,9 +60,8 @@ Widget SidebarView() {
 //
 // Not a placeholder for the real thing: it is what a shell with no components
 // installed shows, and it has to be a real answer rather than an empty column.
-Widget ShellDrawnSidebar() {
+construct ShellDrawnSidebar() extends Widget {
     body {
-        Panel(radius = CornerRadius.None) {
             VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
                 SidebarSectionLabel(title = "Tabs")
 
@@ -89,7 +88,9 @@ Widget ShellDrawnSidebar() {
                 FixedGap(width = 1.0, height = 12.0)
             }
             .fillHeight()
-        }
+        .background(RoundedRectangle(radius = CornerRadius.None))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Surface)
         .material(.Frosted)
         .fillHeight()
@@ -101,7 +102,7 @@ Widget ShellDrawnSidebar() {
 // With no browser attached there is nothing to list, and the column says so in
 // one short line. Short because the column is narrow and a sentence that runs
 // past its edge is a sentence nobody finishes reading.
-Widget TabListView() {
+construct TabListView() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             if harmonyLinkIsWell(harmonyShellBrowser()) {
@@ -116,7 +117,7 @@ Widget TabListView() {
                 }
             } else {
                 ListRow() {
-                    Icon(.CircleDashed)
+                    Icon(.Arrow2Circlepath)
                         .imageScale(.Small)
                         .foregroundColor(.Quaternary)
 

@@ -38,7 +38,7 @@ function siteDataHiddenCount() -> Int {
 
 // Three lines rather than one: nothing KiraUI draws wraps, and a site's name,
 // its weight and what it is holding do not fit on one line of a sidebar column.
-Widget SiteDataRowText(label: String, weight: String, held: String) {
+construct SiteDataRowText(label: String, weight: String, held: String) extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             Text(label)
@@ -56,7 +56,7 @@ Widget SiteDataRowText(label: String, weight: String, held: String) {
     }
 }
 
-Widget SiteDataRow(origin: String, label: String, weight: String, held: String, symbol: Symbol) {
+construct SiteDataRow(origin: String, label: String, weight: String, held: String, symbol: Symbol) extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Icon(symbol)
@@ -68,7 +68,7 @@ Widget SiteDataRow(origin: String, label: String, weight: String, held: String, 
             }
 
             ControlSlot() {
-                Icon(.TrashSimple)
+                Icon(.Trash)
                     .imageScale(.Small)
             }
             .onClick(harmonyDataStoreRemoveAction(origin))
@@ -90,7 +90,7 @@ function siteDataRowAt(index: Int) -> Any Widget {
     )
 }
 
-Widget SiteDataRows() {
+construct SiteDataRows() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             For(index in indices(siteDataVisibleCount())) {
@@ -102,7 +102,7 @@ Widget SiteDataRows() {
 
 // --- The section -------------------------------------------------------------
 
-Widget SiteDataHeader() {
+construct SiteDataHeader() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Text("Sites with stored data")
@@ -119,10 +119,10 @@ Widget SiteDataHeader() {
     }
 }
 
-Widget SiteDataScanning() {
+construct SiteDataScanning() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-            Icon(.CircleNotch)
+            Icon(.Arrow2Circlepath)
                 .imageScale(.Small)
                 .foregroundColor(.Accent)
 
@@ -136,7 +136,7 @@ Widget SiteDataScanning() {
     }
 }
 
-Widget SiteDataEmpty() {
+construct SiteDataEmpty() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Text("No site has stored anything yet")
@@ -149,7 +149,7 @@ Widget SiteDataEmpty() {
     }
 }
 
-Widget SiteDataOverflow(hidden: Int) {
+construct SiteDataOverflow(hidden: Int) extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Text(String(hidden) + " smaller sites not shown")
@@ -162,7 +162,7 @@ Widget SiteDataOverflow(hidden: Int) {
     }
 }
 
-Widget SiteDataSection() {
+construct SiteDataSection() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             SiteDataHeader()
@@ -187,11 +187,11 @@ Widget SiteDataSection() {
 // The control that forgets the site showing in front, for a toolbar or a site
 // menu: the one place a person thinks about one site's data rather than all of
 // them.
-Widget ForgetThisSiteControl() {
+construct ForgetThisSiteControl() extends Widget {
     body {
         HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
             ControlSlot() {
-                Icon(.Prohibit)
+                Icon(.SlashCircle)
                     .imageScale(.Small)
             }
 

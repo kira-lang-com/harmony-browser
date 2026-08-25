@@ -7,7 +7,7 @@ import KiraUI
 // them -- a swipe that reads as one column moving only if the two are built the
 // same way.
 
-Widget AiSidebarHeader() {
+construct AiSidebarHeader() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Text("Conversations")
@@ -24,9 +24,8 @@ Widget AiSidebarHeader() {
     }
 }
 
-Widget AiSidebar() {
+construct AiSidebar() extends Widget {
     body {
-        Panel(radius = CornerRadius.None) {
             Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
                 VStack(spacing = Spacing.None) {
                     AiSidebarHeader()
@@ -57,7 +56,9 @@ Widget AiSidebar() {
                 }
                 .fillHeight()
             }
-        }
+        .background(RoundedRectangle(radius = CornerRadius.None))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Surface)
         // FLAT, not frosted, for the same reason the browser's column is: glass
         // photographs what is behind it, and behind a component's surface there
@@ -70,7 +71,7 @@ Widget AiSidebar() {
 }
 
 // What is answering, in one line a person can act on.
-Widget AiRuntimeNote() {
+construct AiRuntimeNote() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             Divider()

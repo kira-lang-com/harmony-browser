@@ -5,9 +5,8 @@ import KiraUI
 // It is the bar's PRINCIPAL item, so it sits over the detail column and not over
 // the sidebar: the address belongs to the page, and a field that started at the
 // window's left edge would be a field that claims to address the tab list too.
-Widget AddressField(text: String, secure: Bool) {
+construct AddressField(text: String, secure: Bool) extends Widget {
     body {
-        Panel(radius = CornerRadius.Capsule) {
             Inset(horizontal = Spacing.Small, vertical = Spacing.None) {
                 HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
                     Icon(addressFieldSymbol(secure))
@@ -22,7 +21,9 @@ Widget AddressField(text: String, secure: Bool) {
                 }
                 .fillHeight()
             }
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Capsule))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Control)
         // A stated width, because the bar's document section is a row and a
         // field that filled it would push the trailing controls off the window.
@@ -43,7 +44,7 @@ function addressFieldSymbol(secure: Bool) -> Symbol {
     if secure {
         return Symbol.Lock
     }
-    return Symbol.MagnifyingGlass
+    return Symbol.Search
 }
 
 function addressFieldInk(secure: Bool) -> PrimaryColor {

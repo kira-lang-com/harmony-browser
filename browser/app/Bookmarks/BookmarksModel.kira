@@ -125,7 +125,7 @@ function suggestionSymbol(kind: SuggestionKind) -> Symbol {
     match kind {
         Typed -> return Symbol.ArrowRight;
         Bookmark -> return Symbol.Bookmark;
-        History -> return Symbol.ClockCounterClockwise;
+        History -> return Symbol.ArrowCounterclockwise;
     }
 }
 

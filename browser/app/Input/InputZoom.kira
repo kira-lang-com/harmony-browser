@@ -56,11 +56,10 @@ function harmonyInputZoomSet(percent: Int) {
 // read at anything but its own size, and nothing at all while it is. Pressing
 // it puts the site back to 100%, which is the only thing a badge like this has
 // ever done.
-Widget HarmonyInputZoomBadge() {
+construct HarmonyInputZoomBadge() extends Widget {
     body {
-        Panel(radius = CornerRadius.Capsule) {
             HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
-                Icon(.MagnifyingGlass)
+                Icon(.Search)
                     .imageScale(.Small)
                     .foregroundColor(.Secondary)
 
@@ -70,7 +69,9 @@ Widget HarmonyInputZoomBadge() {
             }
             .inset(horizontal = Spacing.Small)
             .height(20.0)
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Capsule))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Control)
         .themeBorder(.Subtle)
         .onClick(harmonyInputZoomReset)

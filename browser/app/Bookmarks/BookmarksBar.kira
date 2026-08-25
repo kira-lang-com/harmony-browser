@@ -31,7 +31,7 @@ construct HarmonyBookmarksBarStore {
     @Required let version: Int
 }
 
-HarmonyBookmarksBarStore HarmonyBookmarksBar() {
+construct HarmonyBookmarksBar() extends HarmonyBookmarksBarStore {
     @State var visible: Bool = true
     let version: Int = 1
 
@@ -113,9 +113,8 @@ function harmonyBookmarksBarOpenFolderAction(id: Int) -> () -> Void {
 
 // --- The items -----------------------------------------------------------------
 
-Widget HarmonyBookmarksBarItem(symbol: Symbol, label: String, action: () -> Void) {
+construct HarmonyBookmarksBarItem(symbol: Symbol, label: String, action: () -> Void) extends Widget {
     body {
-        Panel(radius = CornerRadius.Small) {
             HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
                 Icon(symbol)
                     .imageScale(.Small)
@@ -127,7 +126,9 @@ Widget HarmonyBookmarksBarItem(symbol: Symbol, label: String, action: () -> Void
             }
             .inset(horizontal = Spacing.ExtraSmall)
             .hugWidth()
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Small))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Clear)
         .height(22.0)
         .hugWidth()
@@ -152,19 +153,18 @@ function harmonyBookmarksBarItemAt(index: Int) -> Any Widget {
     )
 }
 
-Widget HarmonyBookmarksBarOverflow(hidden: Int) {
+construct HarmonyBookmarksBarOverflow(hidden: Int) extends Widget {
     body {
         HarmonyBookmarksBarItem(
-            symbol = Symbol.DotsThree,
+            symbol = Symbol.Ellipsis,
             label = String(hidden) + " more",
             action = harmonyBookmarksTogglePanel
         )
     }
 }
 
-Widget HarmonyBookmarksBarBody() {
+construct HarmonyBookmarksBarBody() extends Widget {
     body {
-        Panel(radius = CornerRadius.None) {
             HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
                 For(index in indices(harmonyBookmarksBarVisibleCount())) {
                     harmonyBookmarksBarItemAt(index)
@@ -178,7 +178,9 @@ Widget HarmonyBookmarksBarBody() {
             }
             .fillHeight()
             .inset(horizontal = Spacing.Small)
-        }
+        .background(RoundedRectangle(radius = CornerRadius.None))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Surface)
         .height(harmonyBookmarksBarHeight())
     }
@@ -186,7 +188,7 @@ Widget HarmonyBookmarksBarBody() {
 
 // What a shell puts under its toolbar. It occupies nothing at all while the bar
 // is hidden or empty, so the page keeps every pixel it had.
-Widget HarmonyBookmarksBarSlot() {
+construct HarmonyBookmarksBarSlot() extends Widget {
     body {
         VStack(spacing = Spacing.None) {
             if harmonyBookmarksBarIsShowing() {
@@ -223,7 +225,7 @@ function harmonyBookmarksStarInk() -> PrimaryColor {
 //
 // It reads the module rather than a flag of its own: a star lit from a copy is a
 // star that stays lit over a bookmark deleted from the manager beside it.
-Widget BookmarkThisPageControl() {
+construct BookmarkThisPageControl() extends Widget {
     body {
         ControlSlot(active = harmonyBookmarksActivePageIsBookmarked()) {
             Icon(harmonyBookmarksStarSymbol())

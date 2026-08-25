@@ -7,7 +7,7 @@ import KiraUI
 // web engine is -- so this says what is missing and what to do about it, in the
 // place a person is already looking.
 
-Widget AiContent() {
+construct AiContent() extends Widget {
     body {
         ZStack(alignment = StackAlignment.Center) {
             BackgroundFill(style = .Window)
@@ -24,7 +24,7 @@ Widget AiContent() {
 }
 
 // The turn in flight: what was asked, and what has come back so far.
-Widget AiTranscript() {
+construct AiTranscript() extends Widget {
     body {
         VStack(spacing = Spacing.Medium, alignment = HorizontalAlignment.Leading) {
             Text(aiCurrentTitle())
@@ -44,10 +44,10 @@ Widget AiTranscript() {
 // page area has, because they answer the same question: a person looking at an
 // empty region needs to know what to DO, not to be told again what they can
 // already see.
-Widget AiNothingAsked() {
+construct AiNothingAsked() extends Widget {
     body {
         VStack(spacing = Spacing.Medium, alignment = HorizontalAlignment.Center) {
-            Icon(.Sparkle)
+            Icon(.Sparkles)
                 .typography(.title1)
                 .imageScale(.ExtraLarge)
                 .foregroundColor(.Quaternary)

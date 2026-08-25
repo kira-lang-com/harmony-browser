@@ -7,7 +7,7 @@ import KiraUI
 // the same commands as the strip: the two are two views of one list, not two
 // lists.
 
-Widget HarmonyTabSidebarRow(tabId: Int) {
+construct HarmonyTabSidebarRow(tabId: Int) extends Widget {
     body {
         HStack(spacing = Spacing.None, alignment = VerticalAlignment.Center) {
             Expanded(flex = 1) {
@@ -26,13 +26,13 @@ Widget HarmonyTabSidebarRow(tabId: Int) {
                 .onClick(harmonyTabSelectAction(tabId))
             }
 
-            Icon(.CaretDown)
+            Icon(.ChevronDown)
                 .imageScale(.Small)
                 .foregroundColor(.Tertiary)
                 .size(18.0)
                 .onClick(harmonyTabMenuAction(tabId))
 
-            Icon(.X)
+            Icon(.Xmark)
                 .imageScale(.Small)
                 .foregroundColor(.Tertiary)
                 .size(18.0)
@@ -44,7 +44,7 @@ Widget HarmonyTabSidebarRow(tabId: Int) {
 
 // The row a tab's menu stands under, so the commands land beside the tab they
 // belong to rather than at the top of the column.
-Widget HarmonyTabSidebarEntry(tabId: Int) {
+construct HarmonyTabSidebarEntry(tabId: Int) extends Widget {
     body {
         VStack(spacing = Spacing.None) {
             HarmonyTabSidebarRow(tabId = tabId)
@@ -56,7 +56,7 @@ Widget HarmonyTabSidebarEntry(tabId: Int) {
     }
 }
 
-Widget HarmonyNewTabRow() {
+construct HarmonyNewTabRow() extends Widget {
     body {
         ListRow() {
             Icon(.Plus)
@@ -72,10 +72,10 @@ Widget HarmonyNewTabRow() {
 
 // Shown only when there is something to undo, because a row that does nothing
 // is a row the eye has to learn to skip.
-Widget HarmonyReopenClosedRow() {
+construct HarmonyReopenClosedRow() extends Widget {
     body {
         ListRow() {
-            Icon(.ArrowUUpLeft)
+            Icon(.Globe)
                 .imageScale(.Small)
 
             Text("Reopen Closed Tab")
@@ -86,7 +86,7 @@ Widget HarmonyReopenClosedRow() {
     }
 }
 
-Widget HarmonyTabSidebarList() {
+construct HarmonyTabSidebarList() extends Widget {
     body {
         VStack(spacing = Spacing.None) {
             For(index in indices(harmonyTabsCount())) {
@@ -103,7 +103,7 @@ Widget HarmonyTabSidebarList() {
 }
 
 // The window's tab count, for a header that says how many there are.
-Widget HarmonyTabCountLabel() {
+construct HarmonyTabCountLabel() extends Widget {
     body {
         Text(harmonyTabCountText())
             .typography(.footnote)

@@ -89,14 +89,14 @@ function harmonyTabFaviconFor(tabId: Int) -> Symbol {
         return Symbol.Plus
     }
     if nativeTabsIsLoading(I32(tabId)) != I32(0) {
-        return Symbol.CircleNotch
+        return Symbol.Arrow2Circlepath
     }
     return harmonyTabSiteSymbol(nativeTabsHost(I32(tabId)))
 }
 
 function harmonyTabFavicon(tab: borrow TabModel) -> Symbol {
     if tab.loading {
-        return Symbol.CircleNotch
+        return Symbol.Arrow2Circlepath
     }
     return harmonyTabSiteSymbol(tab.host)
 }
@@ -106,72 +106,72 @@ function harmonyTabSiteSymbol(host: borrow String) -> Symbol {
         return Symbol.Globe
     }
     if host == "google.com" {
-        return Symbol.GoogleLogo
+        return Symbol.Globe
     }
     if host == "mail.google.com" {
         return Symbol.Envelope
     }
     if host == "github.com" {
-        return Symbol.GithubLogo
+        return Symbol.Globe
     }
     if host == "gitlab.com" {
-        return Symbol.GitlabLogo
+        return Symbol.Globe
     }
     if host == "figma.com" {
-        return Symbol.FigmaLogo
+        return Symbol.Globe
     }
     if host == "youtube.com" {
-        return Symbol.YoutubeLogo
+        return Symbol.Globe
     }
     if host == "x.com" {
-        return Symbol.XLogo
+        return Symbol.Globe
     }
     if host == "twitter.com" {
-        return Symbol.TwitterLogo
+        return Symbol.Globe
     }
     if host == "linkedin.com" {
-        return Symbol.LinkedinLogo
+        return Symbol.Globe
     }
     if host == "reddit.com" {
-        return Symbol.RedditLogo
+        return Symbol.Globe
     }
     if host == "instagram.com" {
-        return Symbol.InstagramLogo
+        return Symbol.Globe
     }
     if host == "twitch.tv" {
-        return Symbol.TwitchLogo
+        return Symbol.Globe
     }
     if host == "open.spotify.com" {
-        return Symbol.SpotifyLogo
+        return Symbol.Globe
     }
     if host == "dribbble.com" {
-        return Symbol.DribbbleLogo
+        return Symbol.Globe
     }
     if host == "medium.com" {
-        return Symbol.MediumLogo
+        return Symbol.Globe
     }
     if host == "apple.com" {
-        return Symbol.AppleLogo
+        return Symbol.Globe
     }
     if host == "outlook.office.com" || host == "outlook.live.com" {
-        return Symbol.MicrosoftOutlookLogo
+        return Symbol.Globe
     }
     if host == "teams.microsoft.com" {
-        return Symbol.MicrosoftTeamsLogo
+        return Symbol.Globe
     }
     if host == "slack.com" || host == "app.slack.com" {
-        return Symbol.SlackLogo
+        return Symbol.Globe
     }
     if host == "discord.com" {
-        return Symbol.DiscordLogo
+        return Symbol.Globe
     }
     if host == "notion.so" {
-        return Symbol.NotionLogo
+        return Symbol.Globe
     }
     if host == "stackoverflow.com" {
-        return Symbol.StackOverflowLogo
+        return Symbol.Globe
     }
-    return Symbol.GlobeSimple
+    return Symbol.Globe
 }
 
 // --- Per-tab reads the strip makes ------------------------------------------

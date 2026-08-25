@@ -11,7 +11,7 @@ import HarmonyCore
 // The moment a real runtime is written, this stops being reached. Nothing about
 // the harness or the protocol changes when it does, which is the point of the
 // family it is backed by.
-AiRuntime AiNoModelRuntime() {
+construct AiNoModelRuntime() extends AiRuntime {
     function capabilities() -> AiCapabilities {
         return AiCapabilities {
             runtimeReady: false

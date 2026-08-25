@@ -193,9 +193,9 @@ function permissionKindSymbol(kind: PermissionKind) -> Symbol {
         Geolocation -> return Symbol.MapPin;
         Notifications -> return Symbol.Bell;
         Camera -> return Symbol.Camera;
-        Microphone -> return Symbol.Microphone;
+        Microphone -> return Symbol.Mic;
         CameraAndMicrophone -> return Symbol.VideoCamera;
-        ScreenCapture -> return Symbol.Monitor;
+        ScreenCapture -> return Symbol.DeviceDesktop;
     }
 }
 

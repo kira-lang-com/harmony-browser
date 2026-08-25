@@ -33,7 +33,7 @@ function harmonyMenuOpenInNewTab(url: borrow String, tab: Int, foreground: Bool)
     let source = harmonyMenuTargetTab(tab)
     let at = harmonyTabsIndexOf(source)
     if at < 0 {
-        let appended = list.open(target)
+        let appended = list.open(move target)
         if appended <= 0 {
             return
         }
@@ -43,7 +43,7 @@ function harmonyMenuOpenInNewTab(url: borrow String, tab: Int, foreground: Bool)
         return
     }
 
-    let opened = list.openAt(target, at + 1)
+    let opened = list.openAt(move target, at + 1)
     if opened <= 0 {
         return
     }

@@ -80,11 +80,11 @@ function downloadIsStopped(state: DownloadState) -> Bool {
 
 function downloadSymbol(state: DownloadState) -> Symbol {
     match state {
-        Starting -> return Symbol.FileArrowDown;
-        Running -> return Symbol.FileArrowDown;
-        Finished -> return Symbol.CheckCircle;
-        Failed -> return Symbol.WarningCircle;
-        Cancelled -> return Symbol.Prohibit;
+        Starting -> return Symbol.ArrowDownDoc;
+        Running -> return Symbol.ArrowDownDoc;
+        Finished -> return Symbol.CheckmarkCircle;
+        Failed -> return Symbol.ExclamationmarkCircle;
+        Cancelled -> return Symbol.SlashCircle;
     }
 }
 

@@ -27,7 +27,7 @@ function settingsFieldWidth() -> Float {
 
 // --- The pieces a row is built from ------------------------------------------
 
-Widget SettingsSectionHeader(title: String) {
+construct SettingsSectionHeader(title: String) extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Text(title)
@@ -43,13 +43,13 @@ Widget SettingsSectionHeader(title: String) {
 // One property: what it is called, what it does, and the switch that turns it
 // on. The whole row is the target, because a switch this size is a small thing
 // to aim at and the label names exactly the same setting.
-Widget SettingsToggleRow(
+construct SettingsToggleRow(
     title: String,
     detail: String,
     symbol: Symbol,
     isOn: Bool,
     action: () -> Void,
-) {
+) extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Icon(symbol)
@@ -78,15 +78,16 @@ Widget SettingsToggleRow(
 // One of a short set of choices, drawn as the chip a press lands on. A set this
 // small is shown whole rather than behind a menu: every option fits on the row,
 // and a menu would hide the answer the panel exists to state.
-Widget SettingsChoiceChip(title: String, chosen: Bool, action: () -> Void) {
+construct SettingsChoiceChip(title: String, chosen: Bool, action: () -> Void) extends Widget {
     body {
-        Panel(radius = CornerRadius.Small) {
             Inset(horizontal = Spacing.Small) {
                 Text(title)
                     .typography(.caption)
                     .foregroundColor(settingsChipInk(chosen))
             }
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Small))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(settingsChipStyle(chosen))
         .height(22.0)
         .hugWidth()
@@ -110,7 +111,7 @@ function settingsChipInk(chosen: Bool) -> PrimaryColor {
 
 // --- Where the browser starts -------------------------------------------------
 
-Widget SettingsHomeRow() {
+construct SettingsHomeRow() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Icon(.House)
@@ -123,7 +124,6 @@ Widget SettingsHomeRow() {
 
             Spacer()
 
-            Panel(radius = CornerRadius.Small) {
                 Inset(horizontal = Spacing.ExtraSmall) {
                     TextField(
                         key = harmonySettingsHomeFieldKey(),
@@ -137,14 +137,16 @@ Widget SettingsHomeRow() {
                         .foregroundColor(.Primary)
                         .typography(.control)
                 }
-            }
+            .background(RoundedRectangle(radius = CornerRadius.Small))
+            .backgroundStyle(.Surface)
+
             .backgroundStyle(.Control)
             .themeBorder(.Subtle)
             .height(settingsFieldHeight() + 4.0)
             .hugWidth()
 
             ControlSlot() {
-                Icon(.Check)
+                Icon(.Checkmark)
                     .imageScale(.Small)
             }
             .onClick(harmonySettingsSubmitHome)
@@ -161,10 +163,10 @@ function settingsStartupChip(behaviour: borrow StartupBehaviour) -> Any Widget {
     )
 }
 
-Widget SettingsStartupRow() {
+construct SettingsStartupRow() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-            Icon(.Browsers)
+            Icon(.Globe)
                 .imageScale(.Small)
                 .foregroundColor(.Secondary)
 
@@ -182,7 +184,7 @@ Widget SettingsStartupRow() {
     }
 }
 
-Widget SettingsStartupSection() {
+construct SettingsStartupSection() extends Widget {
     body {
         VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
             SettingsSectionHeader(title = "Startup")
@@ -207,13 +209,13 @@ function settingsZoomChip(percent: Int) -> Any Widget {
 // The level a site with no remembered zoom of its own is read at. A site that
 // has been zoomed keeps what it was given, which is why this row says so rather
 // than claiming to set the zoom of every page.
-Widget SettingsZoomSection() {
+construct SettingsZoomSection() extends Widget {
     body {
         VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
             SettingsSectionHeader(title = "Page zoom")
 
             HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-                Icon(.MagnifyingGlass)
+                Icon(.Search)
                     .imageScale(.Small)
                     .foregroundColor(.Secondary)
 
@@ -246,7 +248,7 @@ Widget SettingsZoomSection() {
 
 // --- What a page may do ------------------------------------------------------
 
-Widget SettingsContentSection() {
+construct SettingsContentSection() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             SettingsSectionHeader(title = "Content")
@@ -254,7 +256,7 @@ Widget SettingsContentSection() {
             SettingsToggleRow(
                 title = "JavaScript",
                 detail = "Pages may run scripts.",
-                symbol = Symbol.Code,
+                symbol = Symbol.ChevronLeftSlashChevronRight,
                 isOn = harmonySettingsJavaScriptEnabled(),
                 action = harmonySettingsToggleJavaScript
             )
@@ -262,7 +264,7 @@ Widget SettingsContentSection() {
             SettingsToggleRow(
                 title = "Images",
                 detail = "Pages may load pictures.",
-                symbol = Symbol.Image,
+                symbol = Symbol.Photo,
                 isOn = harmonySettingsImagesEnabled(),
                 action = harmonySettingsToggleImages
             )
@@ -270,7 +272,7 @@ Widget SettingsContentSection() {
             SettingsToggleRow(
                 title = "Pop-ups",
                 detail = "Scripts may open a window you did not ask for.",
-                symbol = Symbol.Browsers,
+                symbol = Symbol.Globe,
                 isOn = harmonySettingsPopupsEnabled(),
                 action = harmonySettingsTogglePopups
             )
@@ -278,7 +280,7 @@ Widget SettingsContentSection() {
     }
 }
 
-Widget SettingsPrivacySection() {
+construct SettingsPrivacySection() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             SettingsSectionHeader(title = "Privacy")
@@ -286,7 +288,7 @@ Widget SettingsPrivacySection() {
             SettingsToggleRow(
                 title = "Do Not Track",
                 detail = "Tell sites you do not want to be tracked.",
-                symbol = Symbol.ShieldCheck,
+                symbol = Symbol.CheckmarkShield,
                 isOn = harmonySettingsDoNotTrack(),
                 action = harmonySettingsToggleDoNotTrack
             )
@@ -296,7 +298,7 @@ Widget SettingsPrivacySection() {
 
 // --- Where a download lands ----------------------------------------------------
 
-Widget SettingsDownloadRow() {
+construct SettingsDownloadRow() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Icon(.FolderOpen)
@@ -316,21 +318,21 @@ Widget SettingsDownloadRow() {
             Spacer()
 
             ControlSlot() {
-                Icon(.ArrowSquareOut)
+                Icon(.ArrowUpRightSquare)
                     .imageScale(.Small)
             }
             .onClick(harmonySettingsRevealDownloadFolder)
 
             if harmonySettingsDownloadDirectoryIsDefault() == false {
                 ControlSlot() {
-                    Icon(.ArrowCounterClockwise)
+                    Icon(.ArrowCounterclockwise)
                         .imageScale(.Small)
                 }
                 .onClick(harmonySettingsUseDefaultDownloadFolder)
             }
 
             ControlSlot(active = harmonySettingsDownloadPickerIsOpen()) {
-                Icon(.FolderSimple)
+                Icon(.Folder)
                     .imageScale(.Small)
             }
             .onClick(harmonySettingsChooseDownloadFolder)
@@ -339,7 +341,7 @@ Widget SettingsDownloadRow() {
     }
 }
 
-Widget SettingsDownloadSection() {
+construct SettingsDownloadSection() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             SettingsSectionHeader(title = "Downloads")
@@ -351,7 +353,7 @@ Widget SettingsDownloadSection() {
 
 // --- The panel ------------------------------------------------------------------
 
-Widget SettingsPanelHeader() {
+construct SettingsPanelHeader() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Text("Settings")
@@ -361,7 +363,7 @@ Widget SettingsPanelHeader() {
             Spacer()
 
             ControlSlot() {
-                Icon(.X)
+                Icon(.Xmark)
                     .imageScale(.Small)
             }
             .onClick(harmonySettingsPanelClose)
@@ -373,10 +375,10 @@ Widget SettingsPanelHeader() {
 
 // A profile directory that cannot be written to is worth saying out loud: the
 // settings hold for this run and none of them will survive it.
-Widget SettingsUnsavedNote() {
+construct SettingsUnsavedNote() extends Widget {
     body {
         HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
-            Icon(.Warning)
+            Icon(.ExclamationmarkTriangle)
                 .imageScale(.Small)
 
             Text(harmonySettingsDiagnostic())
@@ -389,7 +391,7 @@ Widget SettingsUnsavedNote() {
     }
 }
 
-Widget SettingsFooter() {
+construct SettingsFooter() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             Text(harmonySettingsFilePath())
@@ -400,7 +402,7 @@ Widget SettingsFooter() {
     }
 }
 
-Widget SettingsPanelBody() {
+construct SettingsPanelBody() extends Widget {
     body {
         Card(material = Material.Frosted) {
             Inset(horizontal = Spacing.Small, vertical = Spacing.Small) {
@@ -442,7 +444,7 @@ Widget SettingsPanelBody() {
 
 // What the window places. It draws nothing at all while the panel is closed, so
 // the column it sits in keeps its shape.
-Widget SettingsPanel() {
+construct SettingsPanel() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             if harmonySettingsPanelIsOpen() {
@@ -454,7 +456,7 @@ Widget SettingsPanel() {
 }
 
 // The control that opens it.
-Widget SettingsPanelButton() {
+construct SettingsPanelButton() extends Widget {
     body {
         ControlSlot(active = harmonySettingsPanelIsOpen()) {
             Icon(.Gear)

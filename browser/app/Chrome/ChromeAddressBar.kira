@@ -57,7 +57,7 @@ function harmonyChromeAddressTextWidth(
 
 // The indicator in front of the address: what the scheme says about how the page
 // on screen got here.
-Widget ChromeSecurityIndicator(level: ChromeSecurity) {
+construct ChromeSecurityIndicator(level: ChromeSecurity) extends Widget {
     body {
         Icon(chromeSecuritySymbol(level))
             .imageScale(.Small)
@@ -65,30 +65,29 @@ Widget ChromeSecurityIndicator(level: ChromeSecurity) {
     }
 }
 
-Widget ChromeAddressBar() {
+construct ChromeAddressBar() extends Widget {
     function lower(
         context: borrow KiraUIFoundation.FoundationUiContext,
         modifiers: borrow ModifierContext,
     ) -> KiraUIFoundation.FoundationView {
-        let bar = Panel(radius = CornerRadius.Capsule) {
-            HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-                ChromeSecurityIndicator(level = harmonyChromeSecurityLevel())
+        let bar = HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
+            ChromeSecurityIndicator(level = harmonyChromeSecurityLevel())
 
-                TextField(
-                    key = harmonyChromeAddressFieldKey(),
-                    initial = harmonyChromeAddressText(),
-                    placeholder = "Search or enter address",
-                    width = harmonyChromeAddressTextWidth(context, modifiers),
-                    height = harmonyChromeAddressTextHeight(),
-                    onSubmit = harmonyChromeSubmitAddress
-                )
-                    .fill(Color { a: 0.0 })
-                    .foregroundColor(.Primary)
-                    .typography(.control)
-            }
-            .fillHeight()
-            .inset(horizontal = Spacing.Small)
+            TextField(
+                key = harmonyChromeAddressFieldKey(),
+                initial = harmonyChromeAddressText(),
+                placeholder = "Search or enter address",
+                width = harmonyChromeAddressTextWidth(context, modifiers),
+                height = harmonyChromeAddressTextHeight(),
+                onSubmit = harmonyChromeSubmitAddress
+            )
+                .fill(Color { a: 0.0 })
+                .foregroundColor(.Primary)
+                .typography(.control)
         }
+        .fillHeight()
+        .inset(horizontal = Spacing.Small)
+        .background(RoundedRectangle(radius = CornerRadius.Capsule))
         .backgroundStyle(.Control)
         .themeBorder(.Subtle)
         .width(harmonyChromeAddressBarWidth(context, modifiers))

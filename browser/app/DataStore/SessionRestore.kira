@@ -15,7 +15,7 @@ construct HarmonySessionStore {
     @Required let version: Int
 }
 
-HarmonySessionStore HarmonySession() {
+construct HarmonySession() extends HarmonySessionStore {
     @State var restored: Bool = false
     @State var restoredCount: Int = 0
     let version: Int = 1
@@ -54,7 +54,7 @@ function harmonySessionAdoptFirstTab(index: Int) {
 
     let url = hbDataSessionURL(I32(index))
     if url.count > 0 {
-        nativeTabsLoad(I32(tabId), url)
+        nativeTabsLoad(I32(tabId), move url)
     }
     if hbDataSessionPinned(I32(index)) != I32(0) {
         nativeTabsSetPinned(I32(tabId), I32(1))
@@ -72,7 +72,7 @@ function harmonySessionOpenTab(index: Int) {
         return
     }
 
-    let tabId = Int(nativeTabsOpenAt(url, I32(index), I32(0)))
+    let tabId = Int(nativeTabsOpenAt(move url, I32(index), I32(0)))
     if tabId <= 0 {
         return
     }
@@ -154,7 +154,7 @@ function harmonySessionIsRestoring() -> Bool {
 // A line for the sidebar while the restored tabs are still getting their history
 // back. It says what the browser is doing rather than leaving a strip of tabs
 // that cannot go back yet unexplained.
-Widget SessionRestoreNote() {
+construct SessionRestoreNote() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             if harmonySessionIsRestoring() {
@@ -164,10 +164,10 @@ Widget SessionRestoreNote() {
     }
 }
 
-Widget SessionRestoreNoteBody() {
+construct SessionRestoreNoteBody() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-            Icon(.ClockCounterClockwise)
+            Icon(.ArrowCounterclockwise)
                 .imageScale(.Small)
                 .foregroundColor(.Accent)
 

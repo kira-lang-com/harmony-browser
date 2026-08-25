@@ -89,9 +89,9 @@ function chromeURLSecurity(url: borrow String) -> ChromeSecurity {
 
 function chromeSecuritySymbol(level: borrow ChromeSecurity) -> Symbol {
     match level {
-        Secure -> return Symbol.LockSimple;
-        Insecure -> return Symbol.LockSimpleOpen;
-        Local -> return Symbol.FolderSimple;
+        Secure -> return Symbol.Lock;
+        Insecure -> return Symbol.LockOpen;
+        Local -> return Symbol.Folder;
         Internal -> return Symbol.Info;
     }
 }

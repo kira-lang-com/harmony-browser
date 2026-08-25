@@ -10,7 +10,7 @@ construct HarmonyTabListStore {
     @Required let version: Int
 }
 
-HarmonyTabListStore HarmonyTabList() {
+construct HarmonyTabList() extends HarmonyTabListStore {
     @State var menuTabId: Int = 0
     @State var listMenuOpen: Bool = false
     // What the strip last drew, as the registry's own revision number. The list
@@ -52,16 +52,16 @@ HarmonyTabListStore HarmonyTabList() {
 
     // --- Opening and closing ------------------------------------------------
 
-    function open(url: borrow String) -> Int {
-        return Int(nativeTabsOpen(url, I32(1)))
+    function open(url: String) -> Int {
+        return Int(nativeTabsOpen(move url, I32(1)))
     }
 
     function openBackground(url: String) -> Int {
-        return Int(nativeTabsOpen(url, I32(0)))
+        return Int(nativeTabsOpen(move url, I32(0)))
     }
 
-    function openAt(url: borrow String, index: Int) -> Int {
-        return Int(nativeTabsOpenAt(url, I32(index), I32(1)))
+    function openAt(url: String, index: Int) -> Int {
+        return Int(nativeTabsOpenAt(move url, I32(index), I32(1)))
     }
 
     function close(tabId: Int) {
@@ -119,8 +119,8 @@ HarmonyTabListStore HarmonyTabList() {
 
     // --- Navigation on a tab ------------------------------------------------
 
-    function load(tabId: Int, url: borrow String) {
-        nativeTabsLoad(I32(tabId), url)
+    function load(tabId: Int, url: String) {
+        nativeTabsLoad(I32(tabId), move url)
         return
     }
 

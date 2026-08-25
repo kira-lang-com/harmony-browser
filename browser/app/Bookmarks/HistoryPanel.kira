@@ -25,11 +25,10 @@ function historyPanelFieldWidth() -> Float {
 
 // --- The search field ----------------------------------------------------------
 
-Widget HistorySearchField() {
+construct HistorySearchField() extends Widget {
     body {
-        Panel(radius = CornerRadius.Capsule) {
             HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-                Icon(.MagnifyingGlass)
+                Icon(.Search)
                     .imageScale(.Small)
                     .foregroundColor(.Secondary)
 
@@ -47,7 +46,9 @@ Widget HistorySearchField() {
             }
             .fillHeight()
             .inset(horizontal = Spacing.Small)
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Capsule))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Control)
         .themeBorder(.Subtle)
         .height(24.0)
@@ -56,7 +57,7 @@ Widget HistorySearchField() {
 
 // --- One row --------------------------------------------------------------------
 
-Widget HistoryDayHeading(text: String) {
+construct HistoryDayHeading(text: String) extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Text(text)
@@ -69,7 +70,7 @@ Widget HistoryDayHeading(text: String) {
     }
 }
 
-Widget HistoryRowText(name: String, detail: String) {
+construct HistoryRowText(name: String, detail: String) extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             Text(name)
@@ -99,7 +100,7 @@ function historyRowDetail(visit: borrow HistoryVisit) -> String {
     return text
 }
 
-Widget HistoryRow(url: String, host: String, name: String, detail: String) {
+construct HistoryRow(url: String, host: String, name: String, detail: String) extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Icon(harmonyTabSiteSymbol(host))
@@ -111,13 +112,13 @@ Widget HistoryRow(url: String, host: String, name: String, detail: String) {
             }
 
             ControlSlot() {
-                Icon(.ArrowSquareOut)
+                Icon(.ArrowUpRightSquare)
                     .imageScale(.Small)
             }
             .onClick(harmonyHistoryOpenInNewTabAction(url))
 
             ControlSlot() {
-                Icon(.TrashSimple)
+                Icon(.Trash)
                     .imageScale(.Small)
             }
             .onClick(harmonyHistoryForgetAction(url))
@@ -143,14 +144,14 @@ function historyPanelRowAt(index: Int) -> Any Widget {
     )
 }
 
-Widget HistoryPanelEntry(
+construct HistoryPanelEntry(
     opensDay: Bool,
     heading: String,
     url: String,
     host: String,
     name: String,
     detail: String,
-) {
+) extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             if opensDay {
@@ -162,7 +163,7 @@ Widget HistoryPanelEntry(
     }
 }
 
-Widget HistoryPanelRows() {
+construct HistoryPanelRows() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             For(index in indices(harmonyHistoryRowCount())) {
@@ -174,7 +175,7 @@ Widget HistoryPanelRows() {
 
 // --- Clearing --------------------------------------------------------------------
 
-Widget HistoryRangeRow() {
+construct HistoryRangeRow() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Icon(.Clock)
@@ -197,13 +198,12 @@ Widget HistoryRangeRow() {
     }
 }
 
-Widget HistoryClearButton() {
+construct HistoryClearButton() extends Widget {
     body {
-        Panel(radius = CornerRadius.Medium) {
             HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
                 Spacer()
 
-                Icon(.Broom)
+                Icon(.TrashSlash)
                     .imageScale(.Small)
 
                 Text(browsingDataClearLabel(harmonyHistoryRange()))
@@ -212,7 +212,9 @@ Widget HistoryClearButton() {
                 Spacer()
             }
             .height(30.0)
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Medium))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(historyClearButtonStyle())
         .foregroundColor(historyClearButtonInk())
         .width(historyPanelWidth() - 16.0)
@@ -237,7 +239,7 @@ function historyClearButtonInk() -> PrimaryColor {
 
 // --- The panel ---------------------------------------------------------------------
 
-Widget HistoryPanelHeader() {
+construct HistoryPanelHeader() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Text("History")
@@ -251,7 +253,7 @@ Widget HistoryPanelHeader() {
                 .foregroundColor(.Quaternary)
 
             ControlSlot() {
-                Icon(.X)
+                Icon(.Xmark)
                     .imageScale(.Small)
             }
             .onClick(harmonyHistoryClosePanel)
@@ -274,7 +276,7 @@ function historyPanelCountText() -> String {
     return String(addresses) + " pages · " + String(harmonyHistoryVisitTotal()) + " visits"
 }
 
-Widget HistoryPanelEmpty() {
+construct HistoryPanelEmpty() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             Text(historyPanelEmptyText())
@@ -296,7 +298,7 @@ function historyPanelEmptyText() -> String {
     return "Nowhere yet"
 }
 
-Widget HistoryPanelOverflow(hidden: Int) {
+construct HistoryPanelOverflow(hidden: Int) extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Text(String(hidden) + " earlier pages — search to reach them")
@@ -309,9 +311,8 @@ Widget HistoryPanelOverflow(hidden: Int) {
     }
 }
 
-Widget HistoryPanelBody() {
+construct HistoryPanelBody() extends Widget {
     body {
-        Panel(radius = CornerRadius.Medium) {
             Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
                 VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
                     HistoryPanelHeader()
@@ -339,7 +340,9 @@ Widget HistoryPanelBody() {
                     HistoryClearButton()
                 }
             }
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Medium))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Raised)
         .themeBorder(.Subtle)
         .width(historyPanelWidth())
@@ -349,7 +352,7 @@ Widget HistoryPanelBody() {
 
 // What the window hangs under its toolbar. It draws nothing at all while the
 // panel is closed, so the column it sits in keeps its shape.
-Widget HistoryPanel() {
+construct HistoryPanel() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             if harmonyHistoryPanelIsOpen() {
@@ -361,10 +364,10 @@ Widget HistoryPanel() {
 }
 
 // The control that opens it, for the toolbar beside the bookmarks one.
-Widget HistoryPanelButton() {
+construct HistoryPanelButton() extends Widget {
     body {
         ControlSlot(active = harmonyHistoryPanelIsOpen()) {
-            Icon(.ClockCounterClockwise)
+            Icon(.ArrowCounterclockwise)
                 .imageScale(.Small)
         }
         .onClick(harmonyHistoryTogglePanel)

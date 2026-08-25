@@ -20,7 +20,7 @@ function clearDataRowHeight() -> Float {
 
 // --- One type ----------------------------------------------------------------
 
-Widget ClearDataTypeText(kind: BrowsingDataType, size: Float) {
+construct ClearDataTypeText(kind: BrowsingDataType, size: Float) extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             Text(browsingDataTypeName(kind))
@@ -34,7 +34,7 @@ Widget ClearDataTypeText(kind: BrowsingDataType, size: Float) {
     }
 }
 
-Widget ClearDataTypeRow(kind: BrowsingDataType) {
+construct ClearDataTypeRow(kind: BrowsingDataType) extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Icon(browsingDataTypeSymbol(kind))
@@ -63,7 +63,7 @@ function clearDataTypeRowAt(index: Int) -> Any Widget {
     return ClearDataTypeRow(kind = browsingDataTypeAt(index))
 }
 
-Widget ClearDataTypeList() {
+construct ClearDataTypeList() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             For(index in indices(browsingDataTypes().count)) {
@@ -75,7 +75,7 @@ Widget ClearDataTypeList() {
 
 // --- The range ---------------------------------------------------------------
 
-Widget ClearDataRangeRow() {
+construct ClearDataRangeRow() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Icon(.Clock)
@@ -101,10 +101,10 @@ Widget ClearDataRangeRow() {
 // A range the cookie jar cannot honour is a range the panel has to say it
 // cannot honour, rather than one that quietly clears more than was asked.
 // Nothing KiraUI draws wraps, so the sentence is written as the lines it is.
-Widget ClearDataCookieNote() {
+construct ClearDataCookieNote() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Top) {
-            Icon(.Warning)
+            Icon(.ExclamationmarkTriangle)
                 .imageScale(.Small)
                 .foregroundColor(.Yellow)
 
@@ -148,13 +148,12 @@ function clearDataButtonInk() -> PrimaryColor {
     return PrimaryColor.Primary
 }
 
-Widget ClearDataButton() {
+construct ClearDataButton() extends Widget {
     body {
-        Panel(radius = CornerRadius.Medium) {
             HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
                 Spacer()
 
-                Icon(.Broom)
+                Icon(.TrashSlash)
                     .imageScale(.Small)
 
                 Text(clearDataButtonLabel())
@@ -163,7 +162,9 @@ Widget ClearDataButton() {
                 Spacer()
             }
             .height(30.0)
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Medium))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(clearDataButtonStyle())
         .foregroundColor(clearDataButtonInk())
         .width(clearDataPanelWidth() - 16.0)
@@ -174,10 +175,10 @@ Widget ClearDataButton() {
 
 // What the last removal freed. A browser that says nothing after deleting a
 // gigabyte leaves the user wondering whether it did anything.
-Widget ClearDataResult() {
+construct ClearDataResult() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-            Icon(.CheckCircle)
+            Icon(.CheckmarkCircle)
                 .imageScale(.Small)
                 .foregroundColor(.Green)
 
@@ -193,7 +194,7 @@ Widget ClearDataResult() {
 
 // --- The panel ---------------------------------------------------------------
 
-Widget ClearDataHeader() {
+construct ClearDataHeader() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Text("Clear browsing data")
@@ -203,13 +204,13 @@ Widget ClearDataHeader() {
             Spacer()
 
             ControlSlot() {
-                Icon(.ArrowCounterClockwise)
+                Icon(.ArrowCounterclockwise)
                     .imageScale(.Small)
             }
             .onClick(harmonyDataStoreRefresh)
 
             ControlSlot() {
-                Icon(.X)
+                Icon(.Xmark)
                     .imageScale(.Small)
             }
             .onClick(harmonyDataStoreClosePanel)
@@ -220,7 +221,7 @@ Widget ClearDataHeader() {
 }
 
 // Where the profile is, so a person who wants to see the files can find them.
-Widget ClearDataFooter() {
+construct ClearDataFooter() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             Text(harmonyDataStoreProfilePath())
@@ -236,9 +237,8 @@ Widget ClearDataFooter() {
     }
 }
 
-Widget ClearDataPanelBody() {
+construct ClearDataPanelBody() extends Widget {
     body {
-        Panel(radius = CornerRadius.Medium) {
             Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
                 VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
                     ClearDataHeader()
@@ -268,7 +268,9 @@ Widget ClearDataPanelBody() {
                     ClearDataFooter()
                 }
             }
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Medium))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Raised)
         .themeBorder(.Subtle)
         .width(clearDataPanelWidth())
@@ -278,7 +280,7 @@ Widget ClearDataPanelBody() {
 
 // What the sidebar places. It draws nothing at all while the panel is closed,
 // so the column it sits in keeps its shape.
-Widget ClearDataPanel() {
+construct ClearDataPanel() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             if harmonyDataStoreIsOpen() {
@@ -290,10 +292,10 @@ Widget ClearDataPanel() {
 
 // The control that opens the panel, for the sidebar footer beside the downloads
 // and settings controls.
-Widget ClearBrowsingDataControl() {
+construct ClearBrowsingDataControl() extends Widget {
     body {
         ControlSlot(active = harmonyDataStoreIsOpen()) {
-            Icon(.Broom)
+            Icon(.TrashSlash)
                 .imageScale(.Small)
         }
         .onClick(harmonyDataStoreTogglePanel)

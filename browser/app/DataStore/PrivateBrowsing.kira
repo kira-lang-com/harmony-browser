@@ -48,7 +48,7 @@ function harmonyPrivateActiveTabIsPrivate() -> Bool {
 // whatever mark the site gave it.
 function harmonyPrivateTabSymbol(tabId: Int) -> Symbol {
     if harmonyPrivateTabIsPrivate(tabId) {
-        return Symbol.Detective
+        return Symbol.Eyeglasses
     }
     return harmonyTabFaviconFor(tabId)
 }
@@ -67,11 +67,11 @@ function harmonyPrivateOpenAction(url: String) -> () -> Void {
 
 // The toolbar control that opens a private tab, carrying the count of the ones
 // already open: the one thing a private-browsing button ever has to say.
-Widget PrivateBrowsingControl() {
+construct PrivateBrowsingControl() extends Widget {
     body {
         HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
             ControlSlot(active = harmonyPrivateActiveTabIsPrivate()) {
-                Icon(.Detective)
+                Icon(.Eyeglasses)
                     .imageScale(.Small)
             }
 
@@ -89,7 +89,7 @@ Widget PrivateBrowsingControl() {
 // What a private tab says about itself. It sits in the sidebar column, above the
 // page, because the page is a native child window and nothing KiraUI draws can
 // be composited over it.
-Widget PrivateBrowsingBanner() {
+construct PrivateBrowsingBanner() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             if harmonyPrivateActiveTabIsPrivate() {
@@ -99,12 +99,11 @@ Widget PrivateBrowsingBanner() {
     }
 }
 
-Widget PrivateBrowsingBannerBody() {
+construct PrivateBrowsingBannerBody() extends Widget {
     body {
-        Panel(radius = CornerRadius.Medium) {
             Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
                 HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Top) {
-                    Icon(.Detective)
+                    Icon(.Eyeglasses)
                         .imageScale(.Medium)
                         .foregroundColor(.Accent)
 
@@ -125,7 +124,9 @@ Widget PrivateBrowsingBannerBody() {
                     }
                 }
             }
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Medium))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Raised)
         .themeBorder(.Subtle)
         .width(harmonyBrowserSidebarWidth() - 24.0)

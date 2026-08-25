@@ -17,7 +17,7 @@ import KiraUI
 
 // Which arrangement the tabs are in. One control, because there are two
 // arrangements and no third state worth a menu.
-Widget HarmonyBrowserLayoutToggle() {
+construct HarmonyBrowserLayoutToggle() extends Widget {
     body {
         ControlSlot(active = harmonyBrowserUsesSidebar()) {
             Icon(harmonyBrowserLayoutSymbol())
@@ -37,7 +37,7 @@ Widget HarmonyBrowserLayoutToggle() {
 // size, which is the only time a badge like it has ever been shown, and
 // `harmonyChromeLeadingSlots` counts it so the address bar is sized against the
 // row that is actually drawn.
-Widget HarmonyBrowserToolbarControls() {
+construct HarmonyBrowserToolbarControls() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             HarmonyBrowserLayoutToggle()
@@ -67,7 +67,7 @@ Widget HarmonyBrowserToolbarControls() {
 // A browser whose engine never loaded is otherwise a browser drawing an empty
 // window, and the difference between that and a browser that is still starting is
 // exactly what the host's diagnostic says.
-Widget HarmonyBrowserStartupNotice() {
+construct HarmonyBrowserStartupNotice() extends Widget {
     body {
         Card(material = Material.Frosted) {
             Inset(horizontal = Spacing.Medium, vertical = Spacing.Small) {
@@ -95,7 +95,7 @@ Widget HarmonyBrowserStartupNotice() {
 // whatever were drawn here would be underneath the page's window and invisible,
 // and drawing it anyway is how a browser ends up with a interface it can only see
 // when the engine is broken.
-Widget HarmonyBrowserPageArea() {
+construct HarmonyBrowserPageArea() extends Widget {
     body {
         ZStack(alignment = StackAlignment.Center) {
             BackgroundFill(style = .Window)
@@ -122,7 +122,7 @@ Widget HarmonyBrowserPageArea() {
 // because the toolbar is where the controls that open them are and a panel drawn
 // over its own button is a panel that cannot be closed. The offset is a fill of
 // the toolbar's height: `Inset` takes spacing tokens, and this is a measurement.
-Widget HarmonyBrowserPanelLayer() {
+construct HarmonyBrowserPanelLayer() extends Widget {
     body {
         ZStack(alignment = StackAlignment.TopLeading) {
             VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
@@ -151,7 +151,7 @@ Widget HarmonyBrowserPanelLayer() {
 // lane, the tab strip when the tabs are across the top, and the find bar for as
 // long as a find session is open. `harmonyBrowserTopInset` measures exactly this,
 // and the page's own window is placed under it.
-Widget HarmonyBrowserHeader() {
+construct HarmonyBrowserHeader() extends Widget {
     body {
         VStack(spacing = Spacing.None) {
             HarmonyBrowserChrome() {
@@ -168,7 +168,7 @@ Widget HarmonyBrowserHeader() {
     }
 }
 
-Widget HarmonyBrowserBody() {
+construct HarmonyBrowserBody() extends Widget {
     body {
         VStack(spacing = Spacing.None) {
             HarmonyBrowserHeader()
@@ -196,7 +196,7 @@ Widget HarmonyBrowserBody() {
 
 // The window itself: the browser, the panels it floats, and the layer a page's
 // own questions arrive in, in the order they cover one another.
-Widget HarmonyBrowserWindow() {
+construct HarmonyBrowserWindow() extends Widget {
     body {
         AppSurface {
             ZStack(alignment = StackAlignment.TopLeading) {

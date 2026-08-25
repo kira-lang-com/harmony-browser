@@ -289,9 +289,9 @@ function hbNavHistoryTitle(tab: I32, index: I32) -> String {
 function hbNavNavigateEngine(tab: I32, url: CString) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
-function hbNavNavigate(tab: I32, url: borrow String) {
+function hbNavNavigate(tab: I32, url: String) {
     if harmonyWebEngineActive() {
-        HarmonyWebEngine().requestNavigate(url)
+        HarmonyWebEngine().requestNavigate(move url)
         return
     }
     if harmonyBrowserEngineAvailable() == false {

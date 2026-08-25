@@ -19,7 +19,7 @@ construct HarmonyBrowserLayoutStore {
     @Required let version: Int
 }
 
-HarmonyBrowserLayoutStore HarmonyBrowserLayout() {
+construct HarmonyBrowserLayout() extends HarmonyBrowserLayoutStore {
     @State var sidebar: Bool = true
     let version: Int = 1
 
@@ -44,9 +44,9 @@ function harmonyBrowserToggleLayout() {
 
 function harmonyBrowserLayoutSymbol() -> Symbol {
     if harmonyBrowserUsesSidebar() {
-        return Symbol.SidebarSimple
+        return Symbol.SidebarLeft
     }
-    return Symbol.Rows
+    return Symbol.Globe
 }
 
 // How many control slots the window puts at the leading end of the toolbar. The
@@ -228,9 +228,9 @@ function harmonyBrowserStartupText() -> String {
 
 function harmonyBrowserStartupSymbol() -> Symbol {
     if harmonyBrowserDiagnostic().count > 0 {
-        return Symbol.WarningCircle
+        return Symbol.ExclamationmarkCircle
     }
-    return Symbol.CircleNotch
+    return Symbol.Arrow2Circlepath
 }
 
 function harmonyBrowserStartupInk() -> PrimaryColor {

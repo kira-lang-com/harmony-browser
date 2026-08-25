@@ -60,9 +60,9 @@ function nativeTabsError() -> String {
 function nativeTabsOpenEngine(url: CString, foreground: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
-function nativeTabsOpen(url: borrow String, foreground: I32) -> I32 {
+function nativeTabsOpen(url: String, foreground: I32) -> I32 {
     if harmonyWebEngineActive() {
-        HarmonyWebEngine().requestNavigate(url)
+        HarmonyWebEngine().requestNavigate(move url)
         return I32(HarmonyWebEngine().shownTab())
     }
     if harmonyBrowserEngineAvailable() == false {
@@ -75,9 +75,9 @@ function nativeTabsOpen(url: borrow String, foreground: I32) -> I32 {
 function nativeTabsOpenAtEngine(url: CString, index: I32, foreground: I32) -> I32;
 
 // Guarded: a build with no engine answers without calling it.
-function nativeTabsOpenAt(url: borrow String, index: I32, foreground: I32) -> I32 {
+function nativeTabsOpenAt(url: String, index: I32, foreground: I32) -> I32 {
     if harmonyWebEngineActive() {
-        HarmonyWebEngine().requestNavigate(url)
+        HarmonyWebEngine().requestNavigate(move url)
         return I32(HarmonyWebEngine().shownTab())
     }
     if harmonyBrowserEngineAvailable() == false {
@@ -259,9 +259,9 @@ function nativeTabsSetPinned(tabId: I32, pinned: I32) {
 function nativeTabsLoadEngine(tabId: I32, url: CString) -> Void;
 
 // Guarded: a build with no engine answers without calling it.
-function nativeTabsLoad(tabId: I32, url: borrow String) {
+function nativeTabsLoad(tabId: I32, url: String) {
     if harmonyWebEngineActive() {
-        HarmonyWebEngine().requestNavigate(url)
+        HarmonyWebEngine().requestNavigate(move url)
         return
     }
     if harmonyBrowserEngineAvailable() == false {

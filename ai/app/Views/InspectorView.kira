@@ -7,9 +7,8 @@ import KiraUI
 // know whether it is visible, which is what keeps "is the panel open" one
 // question with one answer rather than one per side.
 
-Widget AiInspector() {
+construct AiInspector() extends Widget {
     body {
-        Panel(radius = CornerRadius.None) {
             Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
                 VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
                     AiInspectorHeader()
@@ -27,7 +26,9 @@ Widget AiInspector() {
                 }
                 .fillHeight()
             }
-        }
+        .background(RoundedRectangle(radius = CornerRadius.None))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Surface)
         .material(.Flat)
         .fillWidth()
@@ -35,7 +36,7 @@ Widget AiInspector() {
     }
 }
 
-Widget AiInspectorHeader() {
+construct AiInspectorHeader() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Text("Ask AI")

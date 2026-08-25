@@ -10,7 +10,7 @@ construct HarmonySettingsStore {
     @Required let version: Int
 }
 
-HarmonySettingsStore HarmonySettings() {
+construct HarmonySettings() extends HarmonySettingsStore {
     @State var panelOpen: Bool = false
 
     // Which engine the two fields are editing: an index into the list, or -1

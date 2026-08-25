@@ -55,7 +55,7 @@ function permissionDecisionNext(decision: PermissionDecision) -> PermissionDecis
 
 // --- Rows --------------------------------------------------------------------
 
-Widget PermissionGrantRow(origin: String, kind: PermissionKind, decision: PermissionDecision) {
+construct PermissionGrantRow(origin: String, kind: PermissionKind, decision: PermissionDecision) extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Icon(permissionKindSymbol(kind))
@@ -83,7 +83,7 @@ function permissionGrantRowAt(origin: String, index: Int) -> Any Widget {
     return PermissionGrantRow(origin = origin, kind = grant.kind, decision = grant.decision)
 }
 
-Widget PermissionOriginGrants(origin: String) {
+construct PermissionOriginGrants(origin: String) extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             For(index in indices(harmonyPermissionOriginGrants(origin).count)) {
@@ -94,14 +94,14 @@ Widget PermissionOriginGrants(origin: String) {
     }
 }
 
-Widget PermissionOriginHeader(origin: String, expanded: Bool) {
+construct PermissionOriginHeader(origin: String, expanded: Bool) extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-            Icon(expanded ? Symbol.CaretDown : Symbol.CaretRight)
+            Icon(expanded ? Symbol.ChevronDown : Symbol.ChevronRight)
                 .imageScale(.Small)
                 .foregroundColor(.Tertiary)
 
-            Icon(permissionOriginIsSecure(origin) ? Symbol.Lock : Symbol.LockKeyOpen)
+            Icon(permissionOriginIsSecure(origin) ? Symbol.Lock : Symbol.LockOpen)
                 .imageScale(.Small)
                 .foregroundColor(permissionOriginIsSecure(origin) ? PrimaryColor.Secondary : PrimaryColor.Warning)
 
@@ -112,7 +112,7 @@ Widget PermissionOriginHeader(origin: String, expanded: Bool) {
             Spacer()
 
             ControlSlot() {
-                Icon(.TrashSimple)
+                Icon(.Trash)
                     .imageScale(.Small)
             }
             .onClick(permissionForgetOriginAction(origin))
@@ -122,7 +122,7 @@ Widget PermissionOriginHeader(origin: String, expanded: Bool) {
     }
 }
 
-Widget PermissionOriginRow(origin: String, expanded: Bool) {
+construct PermissionOriginRow(origin: String, expanded: Bool) extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             PermissionOriginHeader(origin = origin, expanded = expanded)
@@ -142,7 +142,7 @@ function permissionOriginRowAt(index: Int) -> Any Widget {
 
 // --- The panel ---------------------------------------------------------------
 
-Widget PermissionPanelHeader() {
+construct PermissionPanelHeader() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Text("Site Permissions")
@@ -152,13 +152,13 @@ Widget PermissionPanelHeader() {
             Spacer()
 
             ControlSlot() {
-                Icon(.TrashSimple)
+                Icon(.Trash)
                     .imageScale(.Small)
             }
             .onClick(harmonyPermissionForgetEverything)
 
             ControlSlot() {
-                Icon(.X)
+                Icon(.Xmark)
                     .imageScale(.Small)
             }
             .onClick(harmonyPermissionPanelClose)
@@ -168,7 +168,7 @@ Widget PermissionPanelHeader() {
     }
 }
 
-Widget PermissionPanelEmptyState() {
+construct PermissionPanelEmptyState() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             Text("No site has been answered yet")
@@ -185,10 +185,10 @@ Widget PermissionPanelEmptyState() {
 
 // A profile directory that cannot be written to is worth saying out loud: the
 // answers hold for this run and none of them will survive it.
-Widget PermissionPanelUnsavedNote() {
+construct PermissionPanelUnsavedNote() extends Widget {
     body {
         HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
-            Icon(.Warning)
+            Icon(.ExclamationmarkTriangle)
                 .imageScale(.Small)
 
             Text("These answers cannot be saved and will be forgotten when the browser closes.")
@@ -201,7 +201,7 @@ Widget PermissionPanelUnsavedNote() {
     }
 }
 
-Widget PermissionPanelList() {
+construct PermissionPanelList() extends Widget {
     body {
         VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
             For(index in indices(harmonyPermissionOrigins().count)) {
@@ -211,7 +211,7 @@ Widget PermissionPanelList() {
     }
 }
 
-Widget PermissionPanelBody() {
+construct PermissionPanelBody() extends Widget {
     body {
         Card(material = Material.Frosted) {
             Inset(horizontal = Spacing.Small, vertical = Spacing.Small) {
@@ -242,7 +242,7 @@ Widget PermissionPanelBody() {
 
 // What the shell places. It draws nothing while the panel is closed, so the
 // column it sits in keeps its shape.
-Widget PermissionPanel() {
+construct PermissionPanel() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             if harmonyPermissionPanelOpen() {
@@ -253,11 +253,11 @@ Widget PermissionPanel() {
 }
 
 // The control that opens it, and the count of sites it would show.
-Widget PermissionPanelButton() {
+construct PermissionPanelButton() extends Widget {
     body {
         HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
             ControlSlot(active = harmonyPermissionPanelOpen()) {
-                Icon(.SlidersHorizontal)
+                Icon(.SliderHorizontal3)
                     .imageScale(.Small)
             }
 

@@ -18,7 +18,7 @@ import KiraUI
 // The page's own controls are Principal rather than Navigation, because a
 // Navigation item sits over the SIDEBAR whichever column declared it: back and
 // forward filed there would be back and forward for the tab list.
-Widget HarmonyWindow() {
+construct HarmonyWindow() extends Widget {
     @State var path: NavigationPath = NavigationPath {}
 
     body {
@@ -33,31 +33,35 @@ Widget HarmonyWindow() {
         ZStack(alignment = StackAlignment.TopLeading) {
             NavigationSplitView(columnVisibility = harmonyShellColumns(), path = path) {
                 SidebarView()
-                    .toolbar(ToolbarItemGroup(placement = .Navigation) {
-                        // Both DO something. A bar of glyphs that only look like
-                        // controls is worse than a bar with fewer of them: a
-                        // person presses one, nothing happens, and what they
-                        // learn is that the window is broken.
-                        ToolbarGlyph(symbol = .SidebarSimple, enabled = true)
-                            .onClick(harmonyShellToggleSidebar)
-
-                        ToolbarGlyph(symbol = .Plus, enabled = harmonyLinkIsWell(harmonyShellBrowser()))
-                            .onClick(harmonyShellNewTab)
-                    })
+                    .toolbar {
+                        ToolbarItem(placement = .Navigation) {
+                            ToolbarGlyph(symbol = .SidebarLeft, enabled = true)
+                                .onClick(harmonyShellToggleSidebar)
+                        }
+                        ToolbarItem(placement = .Navigation) {
+                            ToolbarGlyph(symbol = .Plus, enabled = harmonyLinkIsWell(harmonyShellBrowser()))
+                                .onClick(harmonyShellNewTab)
+                        }
+                    }
             } detail: {
                 DetailView()
-                    .toolbar(ToolbarItemGroup(placement = .Principal) {
-                        ToolbarGlyph(symbol = .ArrowLeft, enabled = false)
-
-                        ToolbarGlyph(symbol = .ArrowRight, enabled = false)
-
-                        ToolbarGlyph(symbol = .ArrowClockwise, enabled = harmonyLinkIsWell(harmonyShellBrowser()))
-
-                        AddressField(text = addressFieldPlaceholder(), secure = false)
-                    })
-                    .toolbar(ToolbarItem(placement = .PrimaryAction) {
-                        AiToolbarButton(link = harmonyShellAi())
-                    })
+                    .toolbar {
+                        ToolbarItem(placement = .Principal) {
+                            ToolbarGlyph(symbol = .ArrowLeft, enabled = false)
+                        }
+                        ToolbarItem(placement = .Principal) {
+                            ToolbarGlyph(symbol = .ArrowRight, enabled = false)
+                        }
+                        ToolbarItem(placement = .Principal) {
+                            ToolbarGlyph(symbol = .ArrowClockwise, enabled = harmonyLinkIsWell(harmonyShellBrowser()))
+                        }
+                        ToolbarItem(placement = .Principal) {
+                            AddressField(text = addressFieldPlaceholder(), secure = false)
+                        }
+                        ToolbarItem(placement = .PrimaryAction) {
+                            AiToolbarButton(link = harmonyShellAi())
+                        }
+                    }
             }
 
             if harmonyShellOverlayTexture() > 0 {

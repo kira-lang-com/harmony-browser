@@ -19,7 +19,7 @@ function permissionPromptLeadingInset() -> Float {
     return 12.0
 }
 
-Widget PermissionPromptHeading(kind: PermissionKind, origin: String) {
+construct PermissionPromptHeading(kind: PermissionKind, origin: String) extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Icon(permissionKindSymbol(kind))
@@ -44,10 +44,10 @@ Widget PermissionPromptHeading(kind: PermissionKind, origin: String) {
 // A site that is not on a transport nobody can tamper with is worth saying so
 // about: the name in the card is only as trustworthy as the connection carrying
 // it.
-Widget PermissionPromptInsecureNote() {
+construct PermissionPromptInsecureNote() extends Widget {
     body {
         HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
-            Icon(.LockKeyOpen)
+            Icon(.LockOpen)
                 .imageScale(.Small)
 
             Text("This site is not using a private connection.")
@@ -60,7 +60,7 @@ Widget PermissionPromptInsecureNote() {
     }
 }
 
-Widget PermissionPromptRememberRow(remember: Bool) {
+construct PermissionPromptRememberRow(remember: Bool) extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Toggle(isOn = remember)
@@ -76,7 +76,7 @@ Widget PermissionPromptRememberRow(remember: Bool) {
     }
 }
 
-Widget PermissionPromptButtons() {
+construct PermissionPromptButtons() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Spacer()
@@ -91,7 +91,7 @@ Widget PermissionPromptButtons() {
     }
 }
 
-Widget PermissionPromptBody(kind: PermissionKind, origin: String, remember: Bool) {
+construct PermissionPromptBody(kind: PermissionKind, origin: String, remember: Bool) extends Widget {
     body {
         VStack(spacing = Spacing.Small, alignment = HorizontalAlignment.Leading) {
             PermissionPromptHeading(kind = kind, origin = origin)
@@ -109,7 +109,7 @@ Widget PermissionPromptBody(kind: PermissionKind, origin: String, remember: Bool
 
 // The card, anchored where the address bar is: what a page asks for belongs
 // beside where the page came from.
-Widget PermissionPrompt() {
+construct PermissionPrompt() extends Widget {
     body {
         Card(material = Material.Frosted) {
             Inset(horizontal = Spacing.Small, vertical = Spacing.Small) {

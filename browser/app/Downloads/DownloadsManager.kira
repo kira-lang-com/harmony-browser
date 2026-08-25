@@ -11,7 +11,7 @@ construct DownloadManagerStore {
     @Required let version: Int
 }
 
-DownloadManagerStore DownloadManager() {
+construct DownloadManager() extends DownloadManagerStore {
     @State var panelOpen: Bool = false
     @State var activeSeen: Int = -1
     @State var presentedRevision: Int = -1
@@ -158,7 +158,7 @@ function downloadsSaveLinkAs(url: borrow String, tab: Int = 0) {
     }
 
     downloadsNativeForceNext(target)
-    HarmonyTabList().load(inTab, target)
+    HarmonyTabList().load(inTab, move target)
     return
 }
 

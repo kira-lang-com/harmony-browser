@@ -16,7 +16,7 @@ construct HarmonyBrowserMenuStore {
     @Required let version: Int
 }
 
-HarmonyBrowserMenuStore HarmonyBrowserMenu() {
+construct HarmonyBrowserMenu() extends HarmonyBrowserMenuStore {
     @State var open: Bool = false
     let version: Int = 1
 
@@ -68,7 +68,7 @@ function harmonyBrowserHistoryAction(index: Int) -> () -> Void {
 // The entries behind the current one, nearest first. This is what a press-and-hold
 // on the back button lists, and the window has no press-and-hold, so it lists them
 // here.
-Widget HarmonyBrowserBackHistory() {
+construct HarmonyBrowserBackHistory() extends Widget {
     body {
         VStack(spacing = Spacing.None) {
             For(entry in harmonyNavigationBackHistory()) {
@@ -82,7 +82,7 @@ Widget HarmonyBrowserBackHistory() {
     }
 }
 
-Widget HarmonyBrowserForwardHistory() {
+construct HarmonyBrowserForwardHistory() extends Widget {
     body {
         VStack(spacing = Spacing.None) {
             For(entry in harmonyNavigationForwardHistory()) {
@@ -96,7 +96,7 @@ Widget HarmonyBrowserForwardHistory() {
     }
 }
 
-Widget HarmonyBrowserHistorySection() {
+construct HarmonyBrowserHistorySection() extends Widget {
     body {
         VStack(spacing = Spacing.None) {
             HarmonyBrowserBackHistory()
@@ -131,15 +131,16 @@ function harmonyBrowserZoomPresetAction(percent: Int) -> () -> Void {
     return press
 }
 
-Widget HarmonyBrowserZoomPreset(percent: Int) {
+construct HarmonyBrowserZoomPreset(percent: Int) extends Widget {
     body {
-        Panel(radius = CornerRadius.Small) {
             Inset(horizontal = Spacing.Small) {
                 Text(String(percent) + "%")
                     .typography(.caption)
                     .foregroundColor(.Secondary)
             }
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Small))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(harmonyBrowserZoomPresetStyle(percent))
         .height(20.0)
         .hugWidth()
@@ -156,7 +157,7 @@ function harmonyBrowserZoomPresetStyle(percent: Int) -> BackgroundStyle {
 
 // The zoom row: step down, what it is now and what it is remembered under, step
 // up, and the levels worth reaching in one press.
-Widget HarmonyBrowserZoomSection() {
+construct HarmonyBrowserZoomSection() extends Widget {
     body {
         VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
             HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
@@ -219,12 +220,12 @@ function harmonyBrowserPrintPage() {
     return
 }
 
-Widget HarmonyBrowserSiteSection() {
+construct HarmonyBrowserSiteSection() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             HarmonyTabMenuItem(
                 title = "Site Permissions",
-                symbol = Symbol.SlidersHorizontal,
+                symbol = Symbol.SliderHorizontal3,
                 action = harmonyBrowserOpenSitePermissions
             )
 
@@ -247,9 +248,8 @@ function harmonyBrowserMenuWidth() -> Float {
     return 320.0
 }
 
-Widget HarmonyBrowserMenuBody() {
+construct HarmonyBrowserMenuBody() extends Widget {
     body {
-        Panel(radius = CornerRadius.Small) {
             VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
                 HarmonyBrowserHistorySection()
 
@@ -260,7 +260,9 @@ Widget HarmonyBrowserMenuBody() {
 
                 HarmonyBrowserSiteSection()
             }
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Small))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Raised)
         .themeBorder(.Subtle)
         .width(harmonyBrowserMenuWidth())
@@ -270,7 +272,7 @@ Widget HarmonyBrowserMenuBody() {
 
 // What the window puts under its toolbar. It occupies nothing while the menu is
 // closed, so the page keeps every pixel it had.
-Widget HarmonyBrowserMenuSlot() {
+construct HarmonyBrowserMenuSlot() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             if harmonyBrowserMenuIsOpen() {
@@ -282,10 +284,10 @@ Widget HarmonyBrowserMenuSlot() {
 }
 
 // The control that opens it.
-Widget HarmonyBrowserMenuButton() {
+construct HarmonyBrowserMenuButton() extends Widget {
     body {
         ControlSlot(active = harmonyBrowserMenuIsOpen()) {
-            Icon(.DotsThree)
+            Icon(.Ellipsis)
                 .imageScale(.Small)
         }
         .onClick(harmonyBrowserMenuToggle)

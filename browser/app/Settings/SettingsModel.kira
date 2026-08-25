@@ -58,7 +58,7 @@ function startupBehaviourTitle(behaviour: borrow StartupBehaviour) -> String {
 function startupBehaviourSymbol(behaviour: StartupBehaviour) -> Symbol {
     match behaviour {
         NewTab -> return Symbol.Plus;
-        RestoreSession -> return Symbol.ClockCounterClockwise;
+        RestoreSession -> return Symbol.ArrowCounterclockwise;
     }
 }
 

@@ -12,7 +12,7 @@ construct HarmonyDataStoreStore {
     @Required let version: Int
 }
 
-HarmonyDataStoreStore HarmonyDataStore() {
+construct HarmonyDataStore() extends HarmonyDataStoreStore {
     @State var panelOpen: Bool = false
     // Cache, offline site caches and tracking records: what a browser clears
     // without signing anyone out of anything.

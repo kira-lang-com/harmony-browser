@@ -7,7 +7,7 @@ construct HarmonyDialogStore {
     @Required let version: Int
 }
 
-HarmonyDialogStore HarmonyDialogState() {
+construct HarmonyDialogState() extends HarmonyDialogStore {
     @State var requestId: Int = 0
     @State var kindValue: Int = 0
     @State var flagsValue: Int = 0

@@ -11,7 +11,7 @@ construct HarmonyShellStore {
     @Required let version: Int
 }
 
-HarmonyShellStore HarmonyShell() {
+construct HarmonyShell() extends HarmonyShellStore {
     // Publishing the endpoint is the FIRST thing the window does, before it has
     // drawn anything: a component started later connects to a name that is
     // already listening, so there is no window in which a component comes up,
@@ -490,11 +490,11 @@ function harmonyLinkInk(link: borrow HarmonyLink) -> PrimaryColor {
 
 function harmonyLinkSymbol(link: borrow HarmonyLink) -> Symbol {
     match link.state {
-        Absent -> return Symbol.CircleDashed;
+        Absent -> return Symbol.Arrow2Circlepath;
         Idle -> return Symbol.Circle;
-        Starting -> return Symbol.CircleNotch;
-        Ready -> return Symbol.CheckCircle;
-        Refused -> return Symbol.WarningCircle;
-        Lost -> return Symbol.XCircle;
+        Starting -> return Symbol.Arrow2Circlepath;
+        Ready -> return Symbol.CheckmarkCircle;
+        Refused -> return Symbol.ExclamationmarkCircle;
+        Lost -> return Symbol.XmarkCircle;
     }
 }

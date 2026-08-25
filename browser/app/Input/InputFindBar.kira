@@ -40,7 +40,7 @@ function harmonyInputFindStepInk() -> PrimaryColor {
     return PrimaryColor.Quaternary
 }
 
-Widget HarmonyInputFindStepButton(symbol: Symbol, action: () -> Void) {
+construct HarmonyInputFindStepButton(symbol: Symbol, action: () -> Void) extends Widget {
     body {
         ControlSlot() {
             Icon(symbol)
@@ -52,11 +52,10 @@ Widget HarmonyInputFindStepButton(symbol: Symbol, action: () -> Void) {
     }
 }
 
-Widget HarmonyInputFindField() {
+construct HarmonyInputFindField() extends Widget {
     body {
-        Panel(radius = CornerRadius.Capsule) {
             HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-                Icon(.MagnifyingGlass)
+                Icon(.Search)
                     .imageScale(.Small)
                     .foregroundColor(.Secondary)
 
@@ -74,16 +73,17 @@ Widget HarmonyInputFindField() {
             }
             .fillHeight()
             .inset(horizontal = Spacing.Small)
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Capsule))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Control)
         .themeBorder(harmonyInputFindFieldBorder())
         .height(24.0)
     }
 }
 
-Widget HarmonyInputFindBar() {
+construct HarmonyInputFindBar() extends Widget {
     body {
-        Panel(radius = CornerRadius.None) {
             HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
                 HarmonyInputFindField()
 
@@ -94,17 +94,17 @@ Widget HarmonyInputFindBar() {
                 Spacer()
 
                 HarmonyInputFindStepButton(
-                    symbol = Symbol.CaretUp,
+                    symbol = Symbol.ChevronUp,
                     action = harmonyInputFindPrevious
                 )
 
                 HarmonyInputFindStepButton(
-                    symbol = Symbol.CaretDown,
+                    symbol = Symbol.ChevronDown,
                     action = harmonyInputFindNext
                 )
 
                 ControlSlot() {
-                    Icon(.X)
+                    Icon(.Xmark)
                         .imageScale(.Small)
                         .foregroundColor(.Secondary)
                 }
@@ -112,7 +112,9 @@ Widget HarmonyInputFindBar() {
             }
             .fillHeight()
             .inset(horizontal = Spacing.Small)
-        }
+        .background(RoundedRectangle(radius = CornerRadius.None))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Surface)
         .height(harmonyInputFindBarHeight())
     }
@@ -120,7 +122,7 @@ Widget HarmonyInputFindBar() {
 
 // What a shell puts under its toolbar. It occupies nothing at all while no find
 // session is open, so the page keeps every pixel it had.
-Widget HarmonyInputFindBarSlot() {
+construct HarmonyInputFindBarSlot() extends Widget {
     body {
         VStack(spacing = Spacing.None) {
             if harmonyInputFindIsOpen() {

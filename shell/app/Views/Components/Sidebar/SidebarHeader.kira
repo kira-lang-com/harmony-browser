@@ -7,7 +7,7 @@ import KiraUI
 // the same weight and on the same baseline as the document's own title. A
 // heading painted inside the column would be a second answer to the same
 // question, one gap lower and in whatever size this file happened to choose.
-Widget SidebarSectionLabel(title: String) {
+construct SidebarSectionLabel(title: String) extends Widget {
     body {
         Inset(horizontal = Spacing.Small, vertical = Spacing.None) {
             HStack(spacing = Spacing.None, alignment = VerticalAlignment.Center) {

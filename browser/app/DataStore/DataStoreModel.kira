@@ -95,14 +95,14 @@ function browsingDataTypeNote(kind: BrowsingDataType) -> String {
 
 function browsingDataTypeSymbol(kind: BrowsingDataType) -> Symbol {
     match kind {
-        Cookies -> return Symbol.Cookie;
-        Cache -> return Symbol.Images;
-        LocalStorage -> return Symbol.HardDrive;
-        IndexedDB -> return Symbol.Database;
+        Cookies -> return Symbol.Globe;
+        Cache -> return Symbol.PhotoOnRectangle;
+        LocalStorage -> return Symbol.Globe;
+        IndexedDB -> return Symbol.Globe;
         ServiceWorkers -> return Symbol.Gear;
-        DOMCache -> return Symbol.Package;
-        MediaKeys -> return Symbol.Key;
-        Tracking -> return Symbol.Detective;
+        DOMCache -> return Symbol.Globe;
+        MediaKeys -> return Symbol.Globe;
+        Tracking -> return Symbol.Eyeglasses;
     }
 }
 

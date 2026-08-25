@@ -24,9 +24,9 @@ function settingsEngineFieldWidth() -> Float {
 // typed phrase reaches.
 function settingsEngineSymbol(isDefault: Bool) -> Symbol {
     if isDefault {
-        return Symbol.CheckCircle
+        return Symbol.CheckmarkCircle
     }
-    return Symbol.MagnifyingGlass
+    return Symbol.Search
 }
 
 function settingsEngineInk(isDefault: Bool) -> PrimaryColor {
@@ -38,7 +38,7 @@ function settingsEngineInk(isDefault: Bool) -> PrimaryColor {
 
 // --- One engine ----------------------------------------------------------------
 
-Widget SettingsEngineRow(index: Int, name: String, query: String, isDefault: Bool, removable: Bool) {
+construct SettingsEngineRow(index: Int, name: String, query: String, isDefault: Bool, removable: Bool) extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Icon(settingsEngineSymbol(isDefault))
@@ -59,7 +59,7 @@ Widget SettingsEngineRow(index: Int, name: String, query: String, isDefault: Boo
             }
 
             ControlSlot(active = HarmonySettings().editingIndex() == index) {
-                Icon(.PencilSimple)
+                Icon(.Pencil)
                     .imageScale(.Small)
             }
             .onClick(harmonySettingsEditEngineAction(index))
@@ -68,7 +68,7 @@ Widget SettingsEngineRow(index: Int, name: String, query: String, isDefault: Boo
             // phrase at all, and the row says so by having no way to remove it.
             if removable {
                 ControlSlot() {
-                    Icon(.TrashSimple)
+                    Icon(.Trash)
                         .imageScale(.Small)
                 }
                 .onClick(harmonySettingsRemoveEngineAction(index))
@@ -93,7 +93,7 @@ function settingsEngineRowAt(index: Int) -> Any Widget {
     )
 }
 
-Widget SettingsEngineList() {
+construct SettingsEngineList() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             For(index in indices(harmonySettingsEngineCount())) {
@@ -105,9 +105,8 @@ Widget SettingsEngineList() {
 
 // --- The editor ------------------------------------------------------------------
 
-Widget SettingsEngineField(key: Int, initial: String, placeholder: String, width: Float) {
+construct SettingsEngineField(key: Int, initial: String, placeholder: String, width: Float) extends Widget {
     body {
-        Panel(radius = CornerRadius.Small) {
             Inset(horizontal = Spacing.ExtraSmall) {
                 TextField(
                     key = key,
@@ -121,7 +120,9 @@ Widget SettingsEngineField(key: Int, initial: String, placeholder: String, width
                     .foregroundColor(.Primary)
                     .typography(.control)
             }
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Small))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Control)
         .themeBorder(.Subtle)
         .height(settingsFieldHeight() + 4.0)
@@ -135,7 +136,7 @@ function settingsEngineCommitSymbol() -> Symbol {
     if HarmonySettings().editingIndex() < 0 {
         return Symbol.Plus
     }
-    return Symbol.Check
+    return Symbol.Checkmark
 }
 
 function settingsEngineEditorTitle() -> String {
@@ -146,7 +147,7 @@ function settingsEngineEditorTitle() -> String {
     return "Editing " + harmonySettingsEngineAt(index).name
 }
 
-Widget SettingsEngineEditor() {
+construct SettingsEngineEditor() extends Widget {
     body {
         VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
             HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
@@ -158,7 +159,7 @@ Widget SettingsEngineEditor() {
 
                 if HarmonySettings().editingIndex() >= 0 {
                     ControlSlot() {
-                        Icon(.X)
+                        Icon(.Xmark)
                             .imageScale(.Small)
                     }
                     .onClick(harmonySettingsCancelEngineEdit)
@@ -211,7 +212,7 @@ function settingsEngineCommitInk() -> PrimaryColor {
 
 // --- The section -------------------------------------------------------------------
 
-Widget SettingsSearchSection() {
+construct SettingsSearchSection() extends Widget {
     body {
         VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
             SettingsSectionHeader(title = "Search")

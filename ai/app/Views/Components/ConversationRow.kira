@@ -6,10 +6,10 @@ import KiraUI
 // is named by its first line, and a line needs the width of a column rather than
 // the width of a tab.
 
-Widget AiConversationRow(conversation: Int, title: String, active: Bool) {
+construct AiConversationRow(conversation: Int, title: String, active: Bool) extends Widget {
     body {
         ListRow(selected = active) {
-            Icon(.ChatCircle)
+            Icon(.BubbleLeft)
                 .imageScale(.Small)
                 .foregroundColor(aiConversationInk(active))
 
@@ -32,7 +32,7 @@ function aiConversationInk(active: Bool) -> PrimaryColor {
 // Starting one. Always present, and always the last row: a new conversation is
 // what a person does when nothing in the list is what they wanted, which is a
 // thing they discover at the bottom of it.
-Widget AiNewConversationRow() {
+construct AiNewConversationRow() extends Widget {
     body {
         ListRow(selected = false) {
             Icon(.Plus)

@@ -389,7 +389,7 @@ function webEnginePublishFrom(view: RawPtr) {
     let back = webMsgSendBool(view, webSel("canGoBack"))
     let forward = webMsgSendBool(view, webSel("canGoForward"))
 
-    HarmonyWebEngine().publish(true, url, committed, provisional, pageTitle, loading, back, forward)
+    HarmonyWebEngine().publish(true, move url, move committed, move provisional, move pageTitle, loading, back, forward)
     return
 }
 

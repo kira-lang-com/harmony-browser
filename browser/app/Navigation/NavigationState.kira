@@ -160,7 +160,7 @@ function harmonyNavigationNavigate(input: borrow String, tab: Int = 0) {
     if url.count == 0 {
         return
     }
-    hbNavNavigate(tab, url)
+    hbNavNavigate(tab, move url)
     return
 }
 
@@ -171,7 +171,7 @@ function harmonyNavigationLoad(url: borrow String, tab: Int = 0) {
     if target.count == 0 {
         return
     }
-    hbNavNavigate(tab, target)
+    hbNavNavigate(tab, move target)
     return
 }
 

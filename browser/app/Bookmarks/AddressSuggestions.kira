@@ -35,7 +35,7 @@ construct HarmonyAddressSuggestionStore {
     @Required let version: Int
 }
 
-HarmonyAddressSuggestionStore HarmonyAddressSuggestions() {
+construct HarmonyAddressSuggestions() extends HarmonyAddressSuggestionStore {
     @State var rows: [AddressSuggestion] = []
     @State var cachedText: String = ""
     @State var cachedRevision: Int = -1
@@ -199,7 +199,7 @@ function harmonyAddressSuggestionNewTabAction(url: String) -> () -> Void {
 
 // --- The dropdown ----------------------------------------------------------------
 
-Widget AddressSuggestionRowText(name: String, detail: String) {
+construct AddressSuggestionRowText(name: String, detail: String) extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             Text(name)
@@ -213,7 +213,7 @@ Widget AddressSuggestionRowText(name: String, detail: String) {
     }
 }
 
-Widget AddressSuggestionRow(kind: SuggestionKind, name: String, detail: String, url: String) {
+construct AddressSuggestionRow(kind: SuggestionKind, name: String, detail: String, url: String) extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Icon(suggestionSymbol(kind))
@@ -225,7 +225,7 @@ Widget AddressSuggestionRow(kind: SuggestionKind, name: String, detail: String, 
             }
 
             ControlSlot() {
-                Icon(.ArrowSquareOut)
+                Icon(.ArrowUpRightSquare)
                     .imageScale(.Small)
             }
             .onClick(harmonyAddressSuggestionNewTabAction(url))
@@ -248,7 +248,7 @@ function harmonyAddressSuggestionRowAt(index: Int) -> Any Widget {
     )
 }
 
-Widget AddressSuggestionList() {
+construct AddressSuggestionList() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             For(index in indices(harmonyAddressSuggestionCount())) {
@@ -258,13 +258,14 @@ Widget AddressSuggestionList() {
     }
 }
 
-Widget AddressSuggestionPanelBody() {
+construct AddressSuggestionPanelBody() extends Widget {
     body {
-        Panel(radius = CornerRadius.Medium) {
             Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
                 AddressSuggestionList()
             }
-        }
+        .background(RoundedRectangle(radius = CornerRadius.Medium))
+        .backgroundStyle(.Surface)
+
         .backgroundStyle(.Raised)
         .themeBorder(.Subtle)
         .width(harmonyAddressSuggestionWidth())
@@ -274,7 +275,7 @@ Widget AddressSuggestionPanelBody() {
 
 // What the window hangs under its toolbar. It draws nothing at all while the bar
 // is not being edited, so the column it sits in keeps its shape.
-Widget AddressSuggestionPanel() {
+construct AddressSuggestionPanel() extends Widget {
     body {
         VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
             if harmonyAddressSuggestionsAreOpen() {

@@ -23,7 +23,7 @@ construct HarmonyBookmarksStore {
     @Required let version: Int
 }
 
-HarmonyBookmarksStore HarmonyBookmarks() {
+construct HarmonyBookmarks() extends HarmonyBookmarksStore {
     @State var panelOpen: Bool = false
     @State var expanded: [Int] = []
     @State var target: Int = 1

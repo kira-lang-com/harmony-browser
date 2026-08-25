@@ -10,7 +10,7 @@ import KiraUI
 //
 // One line, not two. A row is a fixed height, and a second line inside it does
 // not make the row taller: it makes the row overlap the one beneath it.
-Widget ComponentRow(link: HarmonyLink) {
+construct ComponentRow(link: HarmonyLink) extends Widget {
     body {
         ListRow() {
             Icon(harmonyLinkSymbol(link))

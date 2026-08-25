@@ -78,7 +78,7 @@ construct HarmonyInputStore {
     @Required let version: Int
 }
 
-HarmonyInputStore HarmonyInputState() {
+construct HarmonyInputState() extends HarmonyInputStore {
     // The number of presses the chrome's window had seen when the keyboard
     // target was last worked out. A press is what moves the target between the
     // address bar, the find field and neither, and this is what says one has

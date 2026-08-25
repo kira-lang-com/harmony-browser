@@ -12,10 +12,10 @@ function harmonyDialogInterstitialWidth() -> Float {
     return 520.0
 }
 
-Widget HarmonyDialogInterstitialHeading(origin: String) {
+construct HarmonyDialogInterstitialHeading(origin: String) extends Widget {
     body {
         VStack(spacing = Spacing.Small, alignment = HorizontalAlignment.Leading) {
-            Icon(.ShieldWarning)
+            Icon(.ExclamationmarkShield)
                 .imageScale(.Large)
                 .foregroundColor(.Warning)
 
@@ -30,7 +30,7 @@ Widget HarmonyDialogInterstitialHeading(origin: String) {
     }
 }
 
-Widget HarmonyDialogInterstitialDetail(message: String, code: Int) {
+construct HarmonyDialogInterstitialDetail(message: String, code: Int) extends Widget {
     body {
         VStack(spacing = Spacing.ExtraSmall, alignment = HorizontalAlignment.Leading) {
             Divider()
@@ -45,10 +45,10 @@ Widget HarmonyDialogInterstitialDetail(message: String, code: Int) {
     }
 }
 
-Widget HarmonyDialogInterstitialDetailToggle(open: Bool) {
+construct HarmonyDialogInterstitialDetailToggle(open: Bool) extends Widget {
     body {
         HStack(spacing = Spacing.ExtraSmall, alignment = VerticalAlignment.Center) {
-            Icon(open ? Symbol.CaretDown : Symbol.CaretRight)
+            Icon(open ? Symbol.ChevronDown : Symbol.ChevronRight)
                 .imageScale(.Small)
 
             Text(harmonyDialogCertificateDetailLabel(open))
@@ -62,7 +62,7 @@ Widget HarmonyDialogInterstitialDetailToggle(open: Bool) {
     }
 }
 
-Widget HarmonyDialogInterstitialButtons() {
+construct HarmonyDialogInterstitialButtons() extends Widget {
     body {
         HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
             Button(
@@ -84,13 +84,13 @@ Widget HarmonyDialogInterstitialButtons() {
     }
 }
 
-Widget HarmonyDialogInterstitialBody(
+construct HarmonyDialogInterstitialBody(
     origin: String,
     message: String,
     code: Int,
     remember: Bool,
     detailOpen: Bool,
-) {
+) extends Widget {
     body {
         VStack(spacing = Spacing.Medium, alignment = HorizontalAlignment.Leading) {
             HarmonyDialogInterstitialHeading(origin = origin)
@@ -115,7 +115,7 @@ Widget HarmonyDialogInterstitialBody(
 // What the shell puts where the page would be. It paints the window's own
 // surface edge to edge: the page's view is held down while it is up, and a
 // transparent warning over a blank child window is a warning nobody can read.
-Widget HarmonyDialogInterstitial() {
+construct HarmonyDialogInterstitial() extends Widget {
     body {
         ZStack(alignment = StackAlignment.Center) {
             BackgroundFill(style = .Window)

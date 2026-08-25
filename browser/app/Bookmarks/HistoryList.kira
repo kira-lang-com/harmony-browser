@@ -26,7 +26,7 @@ construct HarmonyHistoryStore {
     @Required let version: Int
 }
 
-HarmonyHistoryStore HarmonyHistory() {
+construct HarmonyHistory() extends HarmonyHistoryStore {
     @State var panelOpen: Bool = false
     @State var rows: [HistoryVisit] = []
     @State var cachedRevision: Int = -1

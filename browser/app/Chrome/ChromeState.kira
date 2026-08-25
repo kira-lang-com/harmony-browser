@@ -13,7 +13,7 @@ construct HarmonyChromeAddressStore {
     @Required let version: Int
 }
 
-HarmonyChromeAddressStore HarmonyChromeAddress() {
+construct HarmonyChromeAddress() extends HarmonyChromeAddressStore {
     // The URL the field's buffer was last filled from. It is what tells an edit
     // the user has made apart from a change the engine has reported: the field
     // still reading this means nobody has typed since it was seeded.
@@ -34,7 +34,7 @@ construct HarmonyChromePresentedStore {
     @Required let version: Int
 }
 
-HarmonyChromePresentedStore HarmonyChromePresented() {
+construct HarmonyChromePresented() extends HarmonyChromePresentedStore {
     @State var url: String = ""
     @State var title: String = ""
     @State var progressStep: Int = -1
@@ -132,7 +132,7 @@ function harmonyChromeReloadOrStop() {
 
 function harmonyChromeReloadStopSymbol() -> Symbol {
     if harmonyChromeIsLoading() {
-        return Symbol.X
+        return Symbol.Xmark
     }
     return Symbol.ArrowClockwise
 }

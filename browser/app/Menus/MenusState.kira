@@ -11,7 +11,7 @@ construct HarmonyMenusStore {
     @Required let version: Int
 }
 
-HarmonyMenusStore HarmonyMenus() {
+construct HarmonyMenus() extends HarmonyMenusStore {
     @State var presentedRevision: Int = -1
     let version: Int = 1
 

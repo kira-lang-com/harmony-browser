@@ -7,7 +7,7 @@ import KiraUI
 // handed a surface over there is nothing to composite, and this says what is
 // missing rather than showing an empty rectangle -- which is the difference
 // between an application that is starting and one that is broken.
-Widget DetailView() {
+construct DetailView() extends Widget {
     body {
         ZStack(alignment = StackAlignment.Center) {
             BackgroundFill(style = .Window)
@@ -53,7 +53,7 @@ Widget DetailView() {
 // One mark, one sentence, one instruction. The components are already listed in
 // the sidebar, so they are not listed again here: a person reading this needs to
 // know what to DO, and a second copy of the status is not that.
-Widget NoSurfaceView() {
+construct NoSurfaceView() extends Widget {
     body {
         VStack(spacing = Spacing.Medium, alignment = HorizontalAlignment.Center) {
             // An icon is sized from the TYPE in effect, not from a length:

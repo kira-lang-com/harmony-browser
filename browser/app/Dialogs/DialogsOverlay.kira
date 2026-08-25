@@ -11,7 +11,7 @@ import KiraUI
 // A press outside the card answers it the way closing it would. An alert has one
 // button, so pressing outside can only mean what the button means; everything
 // else reads it as the refusal, which is the answer that changes nothing.
-Widget HarmonyDialogScrim() {
+construct HarmonyDialogScrim() extends Widget {
     body {
         ZStack(alignment = StackAlignment.Center) {
             BackgroundFill(style = .Overlay)
@@ -26,7 +26,7 @@ Widget HarmonyDialogScrim() {
 }
 
 // The sheet and the ground it dims, in the order they are drawn.
-Widget HarmonyDialogSheetLayer() {
+construct HarmonyDialogSheetLayer() extends Widget {
     body {
         ZStack(alignment = StackAlignment.Center) {
             HarmonyDialogScrim()
@@ -39,7 +39,7 @@ Widget HarmonyDialogSheetLayer() {
 // What a page's question looks like: a sheet over a dimmed page for the ones a
 // page asks, and the interstitial in place of the page for the one about the
 // page's own connection.
-Widget HarmonyDialogLayer() {
+construct HarmonyDialogLayer() extends Widget {
     body {
         ZStack(alignment = StackAlignment.Center) {
             if harmonyDialogIsSheet() {
@@ -58,7 +58,7 @@ Widget HarmonyDialogLayer() {
 // it is the thing being placed, and it knows where its own pointer has to land.
 // `Inset` takes spacing tokens rather than points, so the offsets are spacers,
 // which is the same two numbers with nothing between them and the edge.
-Widget HarmonyPermissionPromptLayer() {
+construct HarmonyPermissionPromptLayer() extends Widget {
     body {
         ZStack(alignment = StackAlignment.TopLeading) {
             VStack(spacing = Spacing.None, alignment = HorizontalAlignment.Leading) {
@@ -78,7 +78,7 @@ Widget HarmonyPermissionPromptLayer() {
     }
 }
 
-Widget HarmonyPermissionPanelLayer() {
+construct HarmonyPermissionPanelLayer() extends Widget {
     body {
         ZStack(alignment = StackAlignment.TopTrailing) {
             Inset(horizontal = Spacing.Small, vertical = Spacing.Small) {
@@ -91,12 +91,12 @@ Widget HarmonyPermissionPanelLayer() {
 // What the browser could not do, said once and waved away with a press. It sits
 // at the bottom of the window rather than over the page's own content: nothing
 // here is about the document, and none of it is worth taking the page away for.
-Widget HarmonyBrowserNotice() {
+construct HarmonyBrowserNotice() extends Widget {
     body {
         Card(material = Material.Frosted) {
             Inset(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall) {
                 HStack(spacing = Spacing.Small, alignment = VerticalAlignment.Center) {
-                    Icon(.Warning)
+                    Icon(.ExclamationmarkTriangle)
                         .imageScale(.Small)
                         .foregroundColor(.Warning)
 
@@ -105,7 +105,7 @@ Widget HarmonyBrowserNotice() {
                         .foregroundColor(.Primary)
 
                     ControlSlot() {
-                        Icon(.X)
+                        Icon(.Xmark)
                             .imageScale(.Small)
                     }
                     .onClick(harmonyBrowserNoticeDismiss)
@@ -119,7 +119,7 @@ Widget HarmonyBrowserNotice() {
     }
 }
 
-Widget HarmonyBrowserNoticeLayer() {
+construct HarmonyBrowserNoticeLayer() extends Widget {
     body {
         ZStack(alignment = StackAlignment.Bottom) {
             Inset(horizontal = Spacing.Small, vertical = Spacing.Medium) {
@@ -155,7 +155,7 @@ construct HarmonyOverlayPresentedStore {
     @Required let version: Int
 }
 
-HarmonyOverlayPresentedStore HarmonyOverlayPresented() {
+construct HarmonyOverlayPresented() extends HarmonyOverlayPresentedStore {
     @State var dialogRequest: Int = -1
     @State var permissionRequest: Int = -1
     @State var panelState: Int = -1
@@ -196,7 +196,7 @@ function harmonyBrowserOverlayNeedsRebuild() -> Bool {
 }
 
 // What the shell puts over its window, after the chrome and the page area.
-Widget HarmonyBrowserOverlay() {
+construct HarmonyBrowserOverlay() extends Widget {
     body {
         ZStack(alignment = StackAlignment.Center) {
             if harmonyBrowserNoticeVisible() {

@@ -217,12 +217,12 @@ function harmonyDialogSymbol(kind: HarmonyDialogKind) -> Symbol {
     var symbol = Symbol.Info
     match kind {
         None -> {}
-        Alert -> { symbol = Symbol.Warning }
+        Alert -> { symbol = Symbol.ExclamationmarkTriangle }
         Confirm -> { symbol = Symbol.Question }
         Prompt -> { symbol = Symbol.Keyboard }
-        BeforeUnload -> { symbol = Symbol.SignOut }
-        Authenticate -> { symbol = Symbol.LockKey }
-        Certificate -> { symbol = Symbol.ShieldWarning }
+        BeforeUnload -> { symbol = Symbol.Globe }
+        Authenticate -> { symbol = Symbol.Lock }
+        Certificate -> { symbol = Symbol.ExclamationmarkShield }
     }
     return symbol
 }
