@@ -119,6 +119,7 @@ function webEngineAttach(window: RawPtr, frame: borrow mut KiraGraphics.RenderFr
     if pointerIsNull(config) {
         return nullPointer()
     }
+    webEngineSeedConsentCookie(config)
 
     let viewClass = webObjcGetClass("WKWebView")
     let rect = webEnginePageRect(frame)
@@ -133,6 +134,17 @@ function webEngineAttach(window: RawPtr, frame: borrow mut KiraGraphics.RenderFr
     )
     if pointerIsNull(view) {
         return nullPointer()
+    }
+
+    // Sites gate their modern interfaces on the agent string, and Google
+    // answers a bare WebKit agent with the legacy homepage. The Windows host
+    // presents a desktop Safari agent for the same reason; the port carries
+    // the current macOS Safari shape, so a page renders for this browser the
+    // way it renders for the platform's own.
+    let agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15"
+    let nsAgent = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), agent)
+    if !pointerIsNull(nsAgent) {
+        webMsgSendVoidP(view, webSel("setCustomUserAgent:"), nsAgent)
     }
 
     // Width and height sizable: during a live resize AppKit stretches the page
@@ -236,6 +248,44 @@ function webProgressImp(selfObj: RawPtr, cmd: RawPtr, keyPath: RawPtr, object: R
     return
 }
 
+
+// --- The consent cookie -----------------------------------------------------
+
+// A fresh profile has no cookies, and a European address without a consent
+// cookie is served Google's BASIC page — the legacy homepage a person reads
+// as "this browser is broken", when the only thing missing is the answer
+// their other browser gave years ago. Seed the standard accept cookie into
+// the profile before the first load, so the first page is the modern one.
+// Sites set their own cookies the moment a person actually consents; this
+// only stops the empty profile from answering for them with 2010.
+function webEngineSeedConsentCookie(config: RawPtr) {
+    let store = webMsgSend(webMsgSend(config, webSel("websiteDataStore")), webSel("httpCookieStore"))
+    if pointerIsNull(store) {
+        return
+    }
+    let dict = webMsgSend(webObjcGetClass("NSMutableDictionary"), webSel("dictionary"))
+    if pointerIsNull(dict) {
+        return
+    }
+    let name = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), "NSHTTPCookieName")
+    let nameValue = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), "SOCS")
+    let valueKey = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), "NSHTTPCookieValue")
+    let value = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), "CAISHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmZyIAEaBgiA_LyaBg")
+    let domainKey = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), "NSHTTPCookieDomain")
+    let domain = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), ".google.com")
+    let pathKey = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), "NSHTTPCookiePath")
+    let path = webMsgSendText(webObjcGetClass("NSString"), webSel("stringWithUTF8String:"), "/")
+    webMsgSendVoidPP(dict, webSel("setObject:forKey:"), nameValue, name)
+    webMsgSendVoidPP(dict, webSel("setObject:forKey:"), value, valueKey)
+    webMsgSendVoidPP(dict, webSel("setObject:forKey:"), domain, domainKey)
+    webMsgSendVoidPP(dict, webSel("setObject:forKey:"), path, pathKey)
+    let cookie = webMsgSendP(webObjcGetClass("NSHTTPCookie"), webSel("cookieWithProperties:"), dict)
+    if pointerIsNull(cookie) {
+        return
+    }
+    webMsgSendVoidPP(store, webSel("setCookie:completionHandler:"), cookie, nullPointer())
+    return
+}
 
 // --- Geometry ------------------------------------------------------------------
 
