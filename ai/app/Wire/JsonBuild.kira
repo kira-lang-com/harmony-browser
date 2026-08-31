@@ -1,0 +1,264 @@
+// The JSON writer for Harmony AI.
+//
+// The whole problem a writer has is the comma: every child of a container
+// needs one behind it except the first, so a writer that decides comma by
+// counting what it has written must be told about every child exactly once.
+// This design makes the decision local instead. `filled` holds one entry per
+// open container -- whether that container has had a child yet -- and every
+// completed child marks its parent filled as it lands:
+//
+//   * a scalar marks its parent right after it writes;
+//   * a container marks its parent when it closes.
+//
+// A name is not a child; it is the label the next value carries, so writing
+// one never touches `filled`. The colon it leaves behind is how the next
+// value knows the separator was already decided: a complete JSON value can
+// end in many bytes, but never in ':', so text ending in ':' unambiguously
+// means "a member name is waiting for its value".
+//
+// With those two rules a missing or doubled comma between any two children is
+// not something the writer checks for -- there is no path to it. Every write
+// goes through the same mark, and the flag travels with the containers, so
+// nesting to any depth composes without the callers doing anything.
+
+struct JsonBuilder {
+    var text: String = ""
+    // One entry per open container: whether it has had a child yet, so the
+    // builder knows where a comma goes.
+    var filled: [Bool] = []
+}
+
+// Whether the innermost open container is owed a separator before its next
+// child: it has had one already, and the last byte written is not the colon
+// of a member name still waiting for its value.
+function jsonBuilderOwesComma(builder: borrow JsonBuilder) -> Bool {
+    if builder.filled.count == 0 {
+        return false
+    }
+    if builder.filled[builder.filled.count - 1] == false {
+        return false
+    }
+    if builder.text.count > 0 && builder.text.charAt(builder.text.count - 1) == 58 {
+        return false
+    }
+    return true
+}
+
+// Mark the innermost open container as having had a child.
+function jsonBuilderMarkFilled(builder: borrow mut JsonBuilder) {
+    if builder.filled.count > 0 {
+        builder.filled[builder.filled.count - 1] = true
+    }
+    return
+}
+
+// Append raw text to the document under construction.
+function jsonBuilderAppend(builder: borrow mut JsonBuilder, piece: borrow String) {
+    builder.text = builder.text + piece
+    return
+}
+
+// Open an object. Every container pushes its own entry, which is what makes
+// the commas of nested documents land in the right container.
+function jsonBeginObject(builder: borrow mut JsonBuilder) {
+    jsonBuilderAppend(builder, "{")
+    builder.filled.append(false)
+    return
+}
+
+// Close the innermost object and mark its parent filled: a closed container
+// was a child of whatever held it.
+function jsonEndObject(builder: borrow mut JsonBuilder) {
+    if builder.filled.count == 0 {
+        return
+    }
+    var kept: [Bool] = []
+    for index in 0..(builder.filled.count - 1) {
+        kept.append(builder.filled[index])
+    }
+    builder.filled = kept
+    jsonBuilderAppend(builder, "}")
+    jsonBuilderMarkFilled(builder)
+    return
+}
+
+// Open an array.
+function jsonBeginArray(builder: borrow mut JsonBuilder) {
+    jsonBuilderAppend(builder, "[")
+    builder.filled.append(false)
+    return
+}
+
+// Close the innermost array and mark its parent filled.
+function jsonEndArray(builder: borrow mut JsonBuilder) {
+    if builder.filled.count == 0 {
+        return
+    }
+    var kept: [Bool] = []
+    for index in 0..(builder.filled.count - 1) {
+        kept.append(builder.filled[index])
+    }
+    builder.filled = kept
+    jsonBuilderAppend(builder, "]")
+    jsonBuilderMarkFilled(builder)
+    return
+}
+
+// Write the name of the next member, quoted and followed by ':'. Legal only
+// directly inside an object; outside any container it does nothing rather
+// than write text no document could parse.
+function jsonName(builder: borrow mut JsonBuilder, name: borrow String) {
+    if builder.filled.count == 0 {
+        return
+    }
+    if jsonBuilderOwesComma(builder) {
+        jsonBuilderAppend(builder, ",")
+    }
+    builder.text = builder.text + "\"" + jsonEscape(name) + "\":"
+    return
+}
+
+// Write one text value, quoted, with every control byte carried as its
+// mandatory escape.
+function jsonTextValue(builder: borrow mut JsonBuilder, value: borrow String) {
+    if jsonBuilderOwesComma(builder) {
+        jsonBuilderAppend(builder, ",")
+    }
+    builder.text = builder.text + "\"" + jsonEscape(value) + "\""
+    jsonBuilderMarkFilled(builder)
+    return
+}
+
+// Write one integer value. Integers go out exactly as they came in: a token
+// count written as 4096 is read back as 4096, not as 4.0960000000000e3.
+function jsonIntValue(builder: borrow mut JsonBuilder, value: Int) {
+    if jsonBuilderOwesComma(builder) {
+        jsonBuilderAppend(builder, ",")
+    }
+    jsonBuilderAppend(builder, String(value))
+    jsonBuilderMarkFilled(builder)
+    return
+}
+
+// Write one float value.
+function jsonFloatValue(builder: borrow mut JsonBuilder, value: Float) {
+    if jsonBuilderOwesComma(builder) {
+        jsonBuilderAppend(builder, ",")
+    }
+    jsonBuilderAppend(builder, String(value))
+    jsonBuilderMarkFilled(builder)
+    return
+}
+
+// Write one boolean value.
+function jsonBoolValue(builder: borrow mut JsonBuilder, value: Bool) {
+    if jsonBuilderOwesComma(builder) {
+        jsonBuilderAppend(builder, ",")
+    }
+    jsonBuilderAppend(builder, value ? "true" : "false")
+    jsonBuilderMarkFilled(builder)
+    return
+}
+
+// Write one null.
+function jsonNullValue(builder: borrow mut JsonBuilder) {
+    if jsonBuilderOwesComma(builder) {
+        jsonBuilderAppend(builder, ",")
+    }
+    jsonBuilderAppend(builder, "null")
+    jsonBuilderMarkFilled(builder)
+    return
+}
+
+// Splice already-encoded JSON in as one value. This is how a tool's declared
+// schema, written once, reaches a request without being taken apart: the text
+// arrives complete, so the builder treats it the way it treats any other
+// child -- separator, splice, mark.
+function jsonRawValue(builder: borrow mut JsonBuilder, raw: borrow String) {
+    if jsonBuilderOwesComma(builder) {
+        jsonBuilderAppend(builder, ",")
+    }
+    jsonBuilderAppend(builder, raw)
+    jsonBuilderMarkFilled(builder)
+    return
+}
+
+// Name plus text value: the shape almost every call site wants.
+function jsonTextMember(builder: borrow mut JsonBuilder, name: borrow String, value: borrow String) {
+    jsonName(builder, name)
+    jsonTextValue(builder, value)
+    return
+}
+
+// Name plus integer value.
+function jsonIntMember(builder: borrow mut JsonBuilder, name: borrow String, value: Int) {
+    jsonName(builder, name)
+    jsonIntValue(builder, value)
+    return
+}
+
+// Name plus boolean value.
+function jsonBoolMember(builder: borrow mut JsonBuilder, name: borrow String, value: Bool) {
+    jsonName(builder, name)
+    jsonBoolValue(builder, value)
+    return
+}
+
+// Name plus spliced raw value.
+function jsonRawMember(builder: borrow mut JsonBuilder, name: borrow String, raw: borrow String) {
+    jsonName(builder, name)
+    jsonRawValue(builder, raw)
+    return
+}
+
+// Write the subtree at `node` into the builder as one value. A node index
+// that names nothing writes null, which is the answer the navigation half
+// gives for the same question and keeps a caller walking borrowed data from
+// having to check before it writes.
+function jsonWriteNode(builder: borrow mut JsonBuilder, document: borrow JsonDocument, node: Int) {
+    if node < 0 || node >= document.nodes.count {
+        jsonNullValue(builder)
+        return
+    }
+    let subject = document.nodes[node]
+    match subject.kind {
+        Null -> jsonNullValue(builder);
+        Boolean -> jsonBoolValue(builder, subject.boolean);
+        Number -> {
+            // Whole numbers go back out through their exact integer, so a
+            // round trip keeps ids and token counts bit-identical.
+            if subject.whole {
+                jsonIntValue(builder, subject.integer)
+            } else {
+                jsonFloatValue(builder, subject.number)
+            }
+        }
+        Text -> jsonTextValue(builder, subject.text);
+        Array -> {
+            jsonBeginArray(builder)
+            for index in 0..subject.children.count {
+                let child = subject.children[index]
+                jsonWriteNode(builder, document, child)
+            }
+            jsonEndArray(builder)
+        }
+        Object -> {
+            jsonBeginObject(builder)
+            for index in 0..subject.children.count {
+                let member = subject.names[index]
+                jsonName(builder, member)
+                let child = subject.children[index]
+                jsonWriteNode(builder, document, child)
+            }
+            jsonEndObject(builder)
+        }
+    }
+    return
+}
+
+// The whole document as text.
+function jsonToText(document: borrow JsonDocument) -> String {
+    var builder = JsonBuilder {}
+    jsonWriteNode(builder, document, document.root)
+    return builder.text
+}

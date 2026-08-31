@@ -34,18 +34,14 @@ function downloadsRowHeight() -> Float {
 construct DownloadProgressBar(fraction: Float) extends Widget {
     body {
         ZStack(alignment = StackAlignment.Leading) {
-            Rectangle(
-                width = downloadsProgressWidth(),
-                height = downloadsProgressHeight(),
-                radius = downloadsProgressHeight() * 0.5
-            )
+            Capsule()
+                .width(downloadsProgressWidth())
+                .height(downloadsProgressHeight())
                 .backgroundStyle(.Control)
 
-            Rectangle(
-                width = downloadsProgressWidth() * fraction,
-                height = downloadsProgressHeight(),
-                radius = downloadsProgressHeight() * 0.5
-            )
+            Capsule()
+                .width(downloadsProgressWidth() * fraction)
+                .height(downloadsProgressHeight())
                 .backgroundStyle(.Accent)
         }
     }
@@ -57,11 +53,9 @@ construct DownloadProgress(fraction: Float) extends Widget {
     body {
         VStack(spacing = Spacing.None) {
             if fraction < 0.0 {
-                Rectangle(
-                    width = downloadsProgressWidth(),
-                    height = downloadsProgressHeight(),
-                    radius = downloadsProgressHeight() * 0.5
-                )
+                Capsule()
+                    .width(downloadsProgressWidth())
+                    .height(downloadsProgressHeight())
                     .backgroundStyle(.Control)
             }
 

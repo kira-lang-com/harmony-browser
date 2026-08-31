@@ -1,0 +1,249 @@
+// The JSON wire model for Harmony AI.
+//
+// Kira has no dictionary and no generic struct, so a JSON document is a flat
+// arena: every node lives in `JsonDocument.nodes` once, and a reference to a
+// node is its `Int` index there. Nothing about a document is recursive -- an
+// object holds the indices of its members, an array the indices of its
+// elements -- so walking one cannot recurse, and a document's shape is data
+// rather than control flow. An index of -1 says "no node", which is what every
+// navigation answer falls back to.
+//
+// Every navigation function answers rather than trapping. Callers walk
+// untrusted network data with them: an out-of-range index, an absent member,
+// or a node of the wrong kind is the fallback, never a stop.
+
+enum JsonKind { Null Boolean Number Text Array Object }
+
+struct JsonNode {
+    var kind: JsonKind = JsonKind.Null
+    var boolean: Bool = false
+    var number: Float = 0.0
+    var integer: Int = 0
+    // True when the literal held no fraction and no exponent, so `integer` is
+    // exact. Token counts and ids arrive as JSON numbers and must not go
+    // through a Float.
+    var whole: Bool = false
+    var text: String = ""
+    // Element indices for an Array; value indices for an Object.
+    var children: [Int] = []
+    // Member names for an Object, index-aligned with `children`. Empty
+    // otherwise.
+    var names: [String] = []
+}
+
+struct JsonDocument {
+    var nodes: [JsonNode] = []
+    var root: Int = 0 - 1
+}
+
+// What a node is. A node that does not exist answers `Null`, which keeps
+// callers that only test for null from having to check the index first.
+function jsonKind(document: borrow JsonDocument, node: Int) -> JsonKind {
+    if node < 0 || node >= document.nodes.count {
+        return JsonKind.Null
+    }
+    let subject = document.nodes[node]
+    return subject.kind
+}
+
+// How many elements an array holds or how many members an object holds. Any
+// other node counts as empty, so `jsonCount` paired with `jsonAt` walks either
+// container the same way and a scalar simply walks zero children.
+function jsonCount(document: borrow JsonDocument, node: Int) -> Int {
+    if node < 0 || node >= document.nodes.count {
+        return 0
+    }
+    let subject = document.nodes[node]
+    if subject.kind == JsonKind.Array || subject.kind == JsonKind.Object {
+        return subject.children.count
+    }
+    return 0
+}
+
+// The index of element `index` of an array node, or member `index`'s value on
+// an object node. Anything else is no node.
+function jsonAt(document: borrow JsonDocument, node: Int, index: Int) -> Int {
+    if node < 0 || node >= document.nodes.count {
+        return 0 - 1
+    }
+    let subject = document.nodes[node]
+    if subject.kind != JsonKind.Array && subject.kind != JsonKind.Object {
+        return 0 - 1
+    }
+    if index < 0 || index >= subject.children.count {
+        return 0 - 1
+    }
+    return subject.children[index]
+}
+
+// The value bound to `name` on an object node, or no node when the node is
+// another kind or carries no such member.
+function jsonMember(document: borrow JsonDocument, node: Int, name: borrow String) -> Int {
+    if node < 0 || node >= document.nodes.count {
+        return 0 - 1
+    }
+    let subject = document.nodes[node]
+    if subject.kind != JsonKind.Object {
+        return 0 - 1
+    }
+    var index = 0
+    while index < subject.names.count && index < subject.children.count {
+        if subject.names[index] == name {
+            return subject.children[index]
+        }
+        index = index + 1
+    }
+    return 0 - 1
+}
+
+// The name of member `index` on an object node. An out-of-range index or a
+// node that is not an object answers empty text.
+function jsonMemberName(document: borrow JsonDocument, node: Int, index: Int) -> String {
+    if node < 0 || node >= document.nodes.count {
+        return ""
+    }
+    let subject = document.nodes[node]
+    if subject.kind != JsonKind.Object {
+        return ""
+    }
+    if index < 0 || index >= subject.names.count {
+        return ""
+    }
+    return subject.names[index]
+}
+
+// Whether an object node carries a member named `name`.
+function jsonHas(document: borrow JsonDocument, node: Int, name: borrow String) -> Bool {
+    return jsonMember(document, node, name) != 0 - 1
+}
+
+// The text of a Text node, or `fallback` everywhere else. This is the read
+// most call sites want: a field that may be absent, typed wrong, or null.
+function jsonText(document: borrow JsonDocument, node: Int, fallback: borrow String) -> String {
+    if node < 0 || node >= document.nodes.count {
+        return fallback
+    }
+    let subject = document.nodes[node]
+    if subject.kind != JsonKind.Text {
+        return fallback
+    }
+    return subject.text
+}
+
+// The exact integer of a whole Number node, or `fallback`. A number that was
+// written with a fraction or an exponent has no exact integer to answer.
+function jsonInt(document: borrow JsonDocument, node: Int, fallback: Int) -> Int {
+    if node < 0 || node >= document.nodes.count {
+        return fallback
+    }
+    let subject = document.nodes[node]
+    if subject.kind != JsonKind.Number || subject.whole == false {
+        return fallback
+    }
+    return subject.integer
+}
+
+// The number of a Number node, or `fallback`.
+function jsonFloat(document: borrow JsonDocument, node: Int, fallback: Float) -> Float {
+    if node < 0 || node >= document.nodes.count {
+        return fallback
+    }
+    let subject = document.nodes[node]
+    if subject.kind != JsonKind.Number {
+        return fallback
+    }
+    return subject.number
+}
+
+// The boolean of a Boolean node, or `fallback`.
+function jsonBool(document: borrow JsonDocument, node: Int, fallback: Bool) -> Bool {
+    if node < 0 || node >= document.nodes.count {
+        return fallback
+    }
+    let subject = document.nodes[node]
+    if subject.kind != JsonKind.Boolean {
+        return fallback
+    }
+    return subject.boolean
+}
+
+// Whether the node exists and is null. A missing node is not null; it is
+// nothing, and answers false like any other non-null kind.
+function jsonIsNull(document: borrow JsonDocument, node: Int) -> Bool {
+    return jsonKind(document, node) == JsonKind.Null && node >= 0 && node < document.nodes.count
+}
+
+// One hexadecimal digit of `\u00XX`, lower case.
+function jsonEscapeHexDigit(value: Int) -> String {
+    return "0123456789abcdef".substring(value, value + 1)
+}
+
+// How many bytes the UTF-8 sequence opened by `lead` runs to. Kira strings are
+// well-formed UTF-8, so the lead byte alone says the length.
+function jsonEscapeScalarLength(lead: Int) -> Int {
+    if lead >= 240 {
+        return 4
+    }
+    if lead >= 224 {
+        return 3
+    }
+    return 2
+}
+
+// Whether the bytes behind a lead byte are all continuation bytes.
+function jsonEscapeContinuesHold(value: borrow String, at: Int, length: Int) -> Bool {
+    var offset = 1
+    while offset < length {
+        let byte = value.charAt(at + offset)
+        if byte < 128 || byte > 191 {
+            return false
+        }
+        offset = offset + 1
+    }
+    return true
+}
+
+// The JSON text of `value`, WITHOUT surrounding quotes: the seven mandatory
+// escapes, plus \u00xx for every byte below 0x20, and \u007f for DEL. UTF-8
+// above 0x7F passes through unchanged, which is legal JSON and keeps every
+// language on the wire readable instead of unreadable.
+function jsonEscape(value: borrow String) -> String {
+    var escaped = ""
+    var index = 0
+    while index < value.count {
+        let byte = value.charAt(index)
+        if byte == 34 {
+            escaped = escaped + "\\\""
+        } else if byte == 92 {
+            escaped = escaped + "\\\\"
+        } else if byte == 8 {
+            escaped = escaped + "\\b"
+        } else if byte == 12 {
+            escaped = escaped + "\\f"
+        } else if byte == 10 {
+            escaped = escaped + "\\n"
+        } else if byte == 13 {
+            escaped = escaped + "\\r"
+        } else if byte == 9 {
+            escaped = escaped + "\\t"
+        } else if byte < 32 || byte == 127 {
+            escaped = escaped + "\\u00" + jsonEscapeHexDigit(byte / 16) + jsonEscapeHexDigit(byte % 16)
+        } else if byte < 128 {
+            escaped = escaped + value.substring(index, index + 1)
+        } else {
+            // One scalar above the ASCII range is two, three or four bytes,
+            // and a substring that cut one in half would trap. Slice it whole;
+            // bytes that do not sit inside a well-formed sequence are carried
+            // as \u00xx, which keeps the walk total on any input at all.
+            let length = jsonEscapeScalarLength(byte)
+            if index + length <= value.count && jsonEscapeContinuesHold(value, index, length) {
+                escaped = escaped + value.substring(index, index + length)
+                index = index + length - 1
+            } else {
+                escaped = escaped + "\\u00" + jsonEscapeHexDigit(byte / 16) + jsonEscapeHexDigit(byte % 16)
+            }
+        }
+        index = index + 1
+    }
+    return escaped
+}

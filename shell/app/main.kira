@@ -18,8 +18,14 @@ function harmonyShellVersion() -> String {
     return "0.1.0"
 }
 
-@Main
-function entry() {
+// The window, from opening to closing. Returns when the person closes it.
+//
+// Named apart from `entry` so that anything which needs a Harmony window --
+// entry, a test harness, a screenshot run -- opens the same one, rather than
+// each growing its own copy of the size and the theme.
+
+@MainThreadLifecycle
+function runHarmonyShell() {
     RunHarmonyShellApp(
         title = "Harmony",
         width = 1280,
@@ -36,6 +42,12 @@ function entry() {
         // capture this window without the shell knowing it is being captured.
         harness = KiraGraphics.HarnessConfig {}
     )
+    return
+}
+
+@Main
+function entry() {
+    runHarmonyShell()
 
     // The window has gone. The components it started have not, and their
     // channels closing is how each is told to shut down in its own order.

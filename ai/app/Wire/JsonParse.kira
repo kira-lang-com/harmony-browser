@@ -1,0 +1,563 @@
+// The JSON parser for Harmony AI.
+//
+// A full RFC 8259 read over Kira's byte-oriented strings. Strings are bytes,
+// and `charAt` and `substring` trap past the end, so every read of the input
+// goes through a bounds check first: a truncated document answers
+// `ok = false` with the offset it stopped at, never a stop of its own.
+//
+// The scanner is recursive descent over one cursor. Depth is capped at 128,
+// which is far past anything a model provider or an MCP server sends and keeps
+// a hostile document from turning into deep recursion.
+
+struct JsonParseResult {
+    var ok: Bool = false
+    var document: JsonDocument = JsonDocument {}
+    // What was wrong, for a person. Empty when `ok`.
+    var error: String = ""
+    // The byte offset the parser stopped at.
+    var offset: Int = 0
+}
+
+// Where the scan stands and why it stopped. `failed` holds the first error:
+// later failures inside the same value overwrite nothing, so the message is
+// the one that points nearest the real break.
+struct JsonScan {
+    var at: Int = 0
+    var failed: Bool = false
+    var why: String = ""
+}
+
+// The deepest nesting the parser will follow.
+function jsonScanDepthLimit() -> Int {
+    return 128
+}
+
+// Record the first failure and answer false, so callers write
+// `return jsonScanFail(...)` on every error path.
+function jsonScanFail(scan: borrow mut JsonScan, at: Int, why: borrow String) -> Bool {
+    if scan.failed == false {
+        scan.failed = true
+        scan.at = at
+        scan.why = why
+    }
+    return false
+}
+
+// Whether a byte is a decimal digit.
+function jsonScanIsDigit(byte: Int) -> Bool {
+    return byte >= 48 && byte <= 57
+}
+
+// Skip whitespace between tokens: space, tab, carriage return, line feed.
+function jsonScanWhitespace(text: borrow String, scan: borrow mut JsonScan) {
+    while scan.at < text.count {
+        let byte = text.charAt(scan.at)
+        if byte == 32 || byte == 9 || byte == 13 || byte == 10 {
+            scan.at = scan.at + 1
+        } else {
+            return
+        }
+    }
+    return
+}
+
+// Read four hexadecimal digits of a \u escape, or -1 after recording why.
+function jsonScanHex4(text: borrow String, scan: borrow mut JsonScan) -> Int {
+    if scan.at + 4 > text.count {
+        let ignored = jsonScanFail(scan, scan.at, "A \\u escape needs four hexadecimal digits.")
+        return -1
+    }
+    var value = 0
+    for offset in 0..4 {
+        let byte = text.charAt(scan.at + offset)
+        var digit = 0
+        if byte >= 48 && byte <= 57 {
+            digit = byte - 48
+        } else if byte >= 97 && byte <= 102 {
+            digit = byte - 87
+        } else if byte >= 65 && byte <= 70 {
+            digit = byte - 55
+        } else {
+            let ignored = jsonScanFail(scan, scan.at + offset, "A \\u escape needs four hexadecimal digits.")
+            return -1
+        }
+        value = value * 16 + digit
+    }
+    scan.at = scan.at + 4
+    return value
+}
+
+// Scan a string body from its opening quote to its closing quote, appending
+// the decoded text to `out`. Escapes carry \" \\ \/ \b \f \n \r \t and
+// \uXXXX; a surrogate pair combines into one scalar through scalarText, and a
+// lone surrogate is refused. Raw control bytes and invalid UTF-8 are refused.
+function jsonScanString(text: borrow String, scan: borrow mut JsonScan, out: borrow mut String) -> Bool {
+    // The opening quote is under the cursor; step past it.
+    scan.at = scan.at + 1
+    while true {
+        if scan.at >= text.count {
+            return jsonScanFail(scan, scan.at, "The document ends in the middle of a string.")
+        }
+        let byte = text.charAt(scan.at)
+        if byte == 34 {
+            scan.at = scan.at + 1
+            return true
+        }
+        if byte == 92 {
+            scan.at = scan.at + 1
+            if scan.at >= text.count {
+                return jsonScanFail(scan, scan.at, "The document ends behind an escape.")
+            }
+            let escape = text.charAt(scan.at)
+            if escape == 34 {
+                out = out + "\""
+                scan.at = scan.at + 1
+            } else if escape == 92 {
+                out = out + "\\"
+                scan.at = scan.at + 1
+            } else if escape == 47 {
+                out = out + "/"
+                scan.at = scan.at + 1
+            } else if escape == 98 {
+                out = out + scalarText(8)
+                scan.at = scan.at + 1
+            } else if escape == 102 {
+                out = out + scalarText(12)
+                scan.at = scan.at + 1
+            } else if escape == 110 {
+                out = out + "\n"
+                scan.at = scan.at + 1
+            } else if escape == 114 {
+                out = out + "\r"
+                scan.at = scan.at + 1
+            } else if escape == 116 {
+                out = out + "\t"
+                scan.at = scan.at + 1
+            } else if escape == 117 {
+                scan.at = scan.at + 1
+                let code = jsonScanHex4(text, scan)
+                if code < 0 {
+                    return false
+                }
+                if code >= 55296 && code <= 56319 {
+                    // A high surrogate must pair with an escaped low surrogate;
+                    // together they name one scalar above the BMP.
+                    if scan.at + 1 >= text.count || text.charAt(scan.at) != 92 || text.charAt(scan.at + 1) != 117 {
+                        return jsonScanFail(scan, scan.at, "A high surrogate must be followed by an escaped low surrogate.")
+                    }
+                    scan.at = scan.at + 2
+                    let low = jsonScanHex4(text, scan)
+                    if low < 0 {
+                        return false
+                    }
+                    if low < 56320 || low > 57343 {
+                        return jsonScanFail(scan, scan.at, "A high surrogate must be followed by a low surrogate.")
+                    }
+                    let combined = 65536 + (code - 55296) * 1024 + (low - 56320)
+                    out = out + scalarText(combined)
+                } else if code >= 56320 && code <= 57343 {
+                    return jsonScanFail(scan, scan.at, "A lone low surrogate cannot appear in a string.")
+                } else {
+                    out = out + scalarText(code)
+                }
+            } else {
+                return jsonScanFail(scan, scan.at, "That escape is not one a JSON string carries.")
+            }
+        } else if byte < 32 {
+            return jsonScanFail(scan, scan.at, "An unescaped control byte cannot sit in a string.")
+        } else if byte < 128 {
+            out = out + text.substring(scan.at, scan.at + 1)
+            scan.at = scan.at + 1
+        } else {
+            // UTF-8 passes through whole scalars. Checking the continuation
+            // bytes before slicing is what makes a broken sequence an error
+            // instead of a substring that would split a character and trap.
+            let length = jsonEscapeScalarLength(byte)
+            if scan.at + length > text.count {
+                return jsonScanFail(scan, scan.at, "The document ends in the middle of a character.")
+            }
+            if jsonEscapeContinuesHold(text, scan.at, length) == false {
+                return jsonScanFail(scan, scan.at, "A string carries bytes that are not valid UTF-8.")
+            }
+            out = out + text.substring(scan.at, scan.at + length)
+            scan.at = scan.at + length
+        }
+    }
+    return true
+}
+
+// Ten to the `power`, built by exact multiplication: every power of ten up to
+// 10^22 is exactly representable as a Float, so each step rounds once and
+// lands on the true value.
+function jsonScanPowerOfTen(power: Int) -> Float {
+    var result = 1.0
+    for index in 0..power {
+        result = result * 10.0
+    }
+    return result
+}
+
+// The Float for one JSON number, read off the digits the scanner already
+// checked: sign * significant * 10^(exponent - fractions). Significant digits
+// beyond eighteen stop being absorbed, which is past the precision a Float
+// can hold anyway, and dropped integer digits re-enter through the exponent.
+// One power-of-ten factor per side of zero keeps the whole conversion to a
+// single rounding for every number that fits a Float's range.
+function jsonScanNumberToFloat(digits: borrow String, negative: Bool, exponent: Int) -> Float {
+    var significant = 0
+    var fractions = 0
+    var integerDrops = 0
+    var seenSignificant = false
+    var inFraction = false
+    var index = negative ? 1 : 0
+    while index < digits.count {
+        let byte = digits.charAt(index)
+        if byte == 46 {
+            inFraction = true
+        } else if byte == 101 || byte == 69 {
+            // The exponent itself arrived separately.
+        } else {
+            let digit = byte - 48
+            if inFraction {
+                fractions = fractions + 1
+            }
+            if digit != 0 || seenSignificant {
+                seenSignificant = true
+                if significant <= 100000000000000000 {
+                    significant = significant * 10 + digit
+                } else if inFraction == false {
+                    integerDrops = integerDrops + 1
+                }
+            }
+        }
+        index = index + 1
+    }
+    var shift = exponent - fractions + integerDrops
+    if shift > 300 {
+        shift = 300
+    }
+    if shift < 0 - 300 {
+        shift = 0 - 300
+    }
+    var magnitude = 0.0
+    if significant == 0 {
+        magnitude = 0.0
+    } else if shift == 0 {
+        magnitude = Float(significant)
+    } else if shift > 22 {
+        magnitude = Float(significant) * jsonScanPowerOfTen(22) * jsonScanPowerOfTen(shift - 22)
+    } else if shift > 0 {
+        magnitude = Float(significant) * jsonScanPowerOfTen(shift)
+    } else if shift < 0 - 22 {
+        magnitude = Float(significant) / jsonScanPowerOfTen(22) / jsonScanPowerOfTen(0 - shift - 22)
+    } else {
+        magnitude = Float(significant) / jsonScanPowerOfTen(0 - shift)
+    }
+    if negative {
+        return 0.0 - magnitude
+    }
+    return magnitude
+}
+
+// Scan one number and append its node. The grammar is `-? ( 0 | [1-9][0-9]* )
+// ( . [0-9]+ )? ( [eE] [+-]? [0-9]+ )?`, so leading zeros, bare exponents and
+// bare fractions all fail here rather than producing a wrong number.
+function jsonScanNumber(text: borrow String, scan: borrow mut JsonScan, document: borrow mut JsonDocument) -> Bool {
+    let start = scan.at
+    var negative = false
+    if text.charAt(scan.at) == 45 {
+        negative = true
+        scan.at = scan.at + 1
+    }
+    if scan.at >= text.count {
+        return jsonScanFail(scan, scan.at, "The document ends where a number was starting.")
+    }
+    let first = text.charAt(scan.at)
+    if jsonScanIsDigit(first) == false {
+        return jsonScanFail(scan, scan.at, "A number opens with '-', so a digit follows.")
+    }
+    if first == 48 {
+        scan.at = scan.at + 1
+        if scan.at < text.count && jsonScanIsDigit(text.charAt(scan.at)) {
+            return jsonScanFail(scan, scan.at, "A number cannot open with '0' and another digit.")
+        }
+    } else {
+        while scan.at < text.count && jsonScanIsDigit(text.charAt(scan.at)) {
+            scan.at = scan.at + 1
+        }
+    }
+    var fraction = false
+    if scan.at < text.count && text.charAt(scan.at) == 46 {
+        fraction = true
+        scan.at = scan.at + 1
+        if scan.at >= text.count || jsonScanIsDigit(text.charAt(scan.at)) == false {
+            return jsonScanFail(scan, scan.at, "A fraction needs at least one digit behind the dot.")
+        }
+        while scan.at < text.count && jsonScanIsDigit(text.charAt(scan.at)) {
+            scan.at = scan.at + 1
+        }
+    }
+    var exponentValue = 0
+    var exponent = false
+    if scan.at < text.count && (text.charAt(scan.at) == 101 || text.charAt(scan.at) == 69) {
+        exponent = true
+        scan.at = scan.at + 1
+        var exponentNegative = false
+        if scan.at < text.count && (text.charAt(scan.at) == 43 || text.charAt(scan.at) == 45) {
+            exponentNegative = text.charAt(scan.at) == 45
+            scan.at = scan.at + 1
+        }
+        if scan.at >= text.count || jsonScanIsDigit(text.charAt(scan.at)) == false {
+            return jsonScanFail(scan, scan.at, "An exponent needs at least one digit behind it.")
+        }
+        while scan.at < text.count && jsonScanIsDigit(text.charAt(scan.at)) {
+            // Saturated far past any range a Float can name; the conversion
+            // clamps again on its way down to a power of ten.
+            if exponentValue < 100000 {
+                exponentValue = exponentValue * 10 + (text.charAt(scan.at) - 48)
+            }
+            scan.at = scan.at + 1
+        }
+        if exponentNegative {
+            exponentValue = 0 - exponentValue
+        }
+    }
+    let end = scan.at
+    let digits = text.substring(start, end)
+
+    if fraction == false && exponent == false {
+        // An integer literal is accumulated exactly; only a magnitude past
+        // what an Int can hold falls back to the float path.
+        var magnitude = 0
+        var overflowed = false
+        var index = negative ? 1 : 0
+        while index < digits.count {
+            let digit = digits.charAt(index) - 48
+            if magnitude > 922337203685477579 {
+                overflowed = true
+            }
+            if overflowed {
+                break
+            }
+            magnitude = magnitude * 10 + digit
+            index = index + 1
+        }
+        if overflowed == false {
+            let exact = negative ? 0 - magnitude : magnitude
+            document.nodes.append(JsonNode {
+                kind = JsonKind.Number
+                number = Float(exact)
+                integer = exact
+                whole = true
+            })
+            return true
+        }
+    }
+
+    document.nodes.append(JsonNode {
+        kind = JsonKind.Number
+        number = jsonScanNumberToFloat(digits, negative, exponentValue)
+        whole = false
+    })
+    return true
+}
+
+// Scan `true`, `false`, or `null` under the cursor and append its node.
+function jsonScanWord(text: borrow String, scan: borrow mut JsonScan, document: borrow mut JsonDocument, word: borrow String, kind: JsonKind, boolean: Bool) -> Bool {
+    if scan.at + word.count <= text.count && text.substring(scan.at, scan.at + word.count) == word {
+        scan.at = scan.at + word.count
+        document.nodes.append(JsonNode {
+            kind = kind
+            boolean = boolean
+        })
+        return true
+    }
+    return jsonScanFail(scan, scan.at, "Bare words other than true, false and null are not JSON.")
+}
+
+// Scan one value under the cursor and append its node to the document. The
+// node lands last, so a container's children are all in place by the time its
+// own node is appended and its index is simply where it landed. `depth` is
+// how many containers enclose this value.
+function jsonScanValue(text: borrow String, scan: borrow mut JsonScan, document: borrow mut JsonDocument, depth: Int) -> Bool {
+    if depth > jsonScanDepthLimit() {
+        return jsonScanFail(scan, scan.at, "The document nests deeper than 128 levels.")
+    }
+    if scan.failed {
+        return false
+    }
+    if scan.at >= text.count {
+        return jsonScanFail(scan, scan.at, "The document ends where a value was expected.")
+    }
+    let byte = text.charAt(scan.at)
+    if byte == 123 {
+        return jsonScanObject(text, scan, document, depth)
+    }
+    if byte == 91 {
+        return jsonScanArray(text, scan, document, depth)
+    }
+    if byte == 34 {
+        var decoded = ""
+        if jsonScanString(text, scan, decoded) == false {
+            return false
+        }
+        document.nodes.append(JsonNode {
+            kind = JsonKind.Text
+            text = decoded
+        })
+        return true
+    }
+    if byte == 45 || (byte >= 48 && byte <= 57) {
+        return jsonScanNumber(text, scan, document)
+    }
+    if byte == 116 {
+        return jsonScanWord(text, scan, document, "true", JsonKind.Boolean, true)
+    }
+    if byte == 102 {
+        return jsonScanWord(text, scan, document, "false", JsonKind.Boolean, false)
+    }
+    if byte == 110 {
+        return jsonScanWord(text, scan, document, "null", JsonKind.Null, false)
+    }
+    // Everything else -- bare identifiers, single quotes, NaN, Infinity --
+    // names itself by the byte that broke it.
+    return jsonScanFail(scan, scan.at, "Byte " + String(byte) + " cannot open a JSON value.")
+}
+
+// Scan an object: '{' name ':' value (',' name ':' value)* '}'. A trailing
+// comma fails because the comma's follower must be a quoted name.
+function jsonScanObject(text: borrow String, scan: borrow mut JsonScan, document: borrow mut JsonDocument, depth: Int) -> Bool {
+    scan.at = scan.at + 1
+    var indices: [Int] = []
+    var members: [String] = []
+    jsonScanWhitespace(text, scan)
+    if scan.at < text.count && text.charAt(scan.at) == 125 {
+        scan.at = scan.at + 1
+        document.nodes.append(JsonNode {
+            kind = JsonKind.Object
+            children = indices
+            names = members
+        })
+        return true
+    }
+    while true {
+        jsonScanWhitespace(text, scan)
+        if scan.at >= text.count {
+            return jsonScanFail(scan, scan.at, "The document ends in the middle of an object.")
+        }
+        if text.charAt(scan.at) != 34 {
+            return jsonScanFail(scan, scan.at, "A member name must be a string in double quotes.")
+        }
+        var name = ""
+        if jsonScanString(text, scan, name) == false {
+            return false
+        }
+        jsonScanWhitespace(text, scan)
+        if scan.at >= text.count || text.charAt(scan.at) != 58 {
+            return jsonScanFail(scan, scan.at, "A member name must be followed by ':'.")
+        }
+        scan.at = scan.at + 1
+        jsonScanWhitespace(text, scan)
+        if jsonScanValue(text, scan, document, depth + 1) == false {
+            return false
+        }
+        indices.append(document.nodes.count - 1)
+        members.append(name)
+        jsonScanWhitespace(text, scan)
+        if scan.at >= text.count {
+            return jsonScanFail(scan, scan.at, "The document ends in the middle of an object.")
+        }
+        let follower = text.charAt(scan.at)
+        if follower == 44 {
+            scan.at = scan.at + 1
+        } else if follower == 125 {
+            scan.at = scan.at + 1
+            break
+        } else {
+            return jsonScanFail(scan, scan.at, "A member must be followed by ',' or '}'.")
+        }
+    }
+    document.nodes.append(JsonNode {
+        kind = JsonKind.Object
+        children = indices
+        names = members
+    })
+    return true
+}
+
+// Scan an array: '[' value (',' value)* ']'. A trailing comma fails because
+// the comma's follower must open a value.
+function jsonScanArray(text: borrow String, scan: borrow mut JsonScan, document: borrow mut JsonDocument, depth: Int) -> Bool {
+    scan.at = scan.at + 1
+    var indices: [Int] = []
+    jsonScanWhitespace(text, scan)
+    if scan.at < text.count && text.charAt(scan.at) == 93 {
+        scan.at = scan.at + 1
+        document.nodes.append(JsonNode {
+            kind = JsonKind.Array
+            children = indices
+        })
+        return true
+    }
+    while true {
+        jsonScanWhitespace(text, scan)
+        if jsonScanValue(text, scan, document, depth + 1) == false {
+            return false
+        }
+        indices.append(document.nodes.count - 1)
+        jsonScanWhitespace(text, scan)
+        if scan.at >= text.count {
+            return jsonScanFail(scan, scan.at, "The document ends in the middle of an array.")
+        }
+        let follower = text.charAt(scan.at)
+        if follower == 44 {
+            scan.at = scan.at + 1
+        } else if follower == 93 {
+            scan.at = scan.at + 1
+            break
+        } else {
+            return jsonScanFail(scan, scan.at, "An element must be followed by ',' or ']'.")
+        }
+    }
+    document.nodes.append(JsonNode {
+        kind = JsonKind.Array
+        children = indices
+    })
+    return true
+}
+
+// Parse one complete JSON document from `text`. Anything malformed answers
+// ok = false with what was wrong and where; nothing here can trap on the
+// input, however truncated or hostile it is.
+function jsonParse(text: borrow String) -> JsonParseResult {
+    var scan = JsonScan {}
+    var document = JsonDocument {}
+    jsonScanWhitespace(text, scan)
+    if scan.at >= text.count {
+        return jsonParseStopped(scan.at, "The document holds no value.")
+    }
+    if jsonScanValue(text, scan, document, 0) == false {
+        return jsonParseStopped(scan.at, scan.why)
+    }
+    jsonScanWhitespace(text, scan)
+    if scan.at < text.count {
+        return jsonParseStopped(scan.at, "The document continues behind its top-level value.")
+    }
+    // Children land before their container, so the root is whatever was
+    // appended last.
+    document.root = document.nodes.count - 1
+    return JsonParseResult {
+        ok = true
+        document = document
+        offset = scan.at
+    }
+}
+
+// The answer for a document that could not be read.
+function jsonParseStopped(at: Int, why: borrow String) -> JsonParseResult {
+    return JsonParseResult {
+        ok = false
+        error = why
+        offset = at
+    }
+}
