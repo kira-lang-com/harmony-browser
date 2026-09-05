@@ -46,12 +46,46 @@ struct AiCapabilities {
     var note: String
 }
 
+// Which conversation a turn or a delta belongs to.
+//
+// A `distinct` type rather than a bare number, because a conversation is named
+// by an identity, not counted: nothing about it is added, ordered against a
+// length, or indexed into an array, and the compiler refuses the code that
+// treats it as though it were. The one number inside is the shell's to mint and
+// the component's only to echo, and `.raw` is the only way to reach it.
+//
+// The wire form is unchanged from the `struct ConversationId { var value: Int }`
+// this used to be: `@Derive(IpcMessage)` writes a distinct type as the same
+// one-field region, so a peer built against either declaration reads the other.
+//
+// Absence is a value of this type, not a second flag beside it: `conversationNone`
+// is the id a session carries while nothing is in flight and the id a runtime
+// answers with when it has nothing to send. It is the one id a shell must never
+// open, which is why the mint side starts above it.
+@Derive(IpcMessage)
+distinct ConversationId = Int
+
+// The id that names no conversation.
+function conversationNone() -> ConversationId {
+    return ConversationId(0)
+}
+
+// Whether this id names a conversation at all.
+function conversationPresent(id: ConversationId) -> Bool {
+    return id != conversationNone()
+}
+
+// Whether two ids name the same conversation.
+function conversationSame(a: ConversationId, b: ConversationId) -> Bool {
+    return a == b
+}
+
 // One thing a person said.
 @Derive(IpcMessage)
 struct AiTurn {
     // Which conversation this belongs to. A shell may have several open, and the
     // component answers each independently.
-    var conversation: Int
+    var conversation: ConversationId
     var text: String
 }
 
@@ -78,12 +112,12 @@ enum AiDeltaKind {
 // branch on which kind it is getting.
 @Derive(IpcMessage)
 struct AiDelta {
-    var conversation: Int
+    var conversation: ConversationId
     var text: String
     var kind: AiDeltaKind
 }
 
 @Derive(IpcMessage)
 struct AiCancel {
-    var conversation: Int
+    var conversation: ConversationId
 }

@@ -21,7 +21,7 @@ construct AiNoModelRuntime() extends AiRuntime {
         }
     }
 
-    function begin(session: AiSession, conversation: Int, text: borrow String) -> AiSession {
+    function begin(session: AiSession, conversation: ConversationId, text: borrow String) -> AiSession {
         return AiSession {
             conversation: conversation
             prompt: text
@@ -51,8 +51,8 @@ construct AiNoModelRuntime() extends AiRuntime {
         }
     }
 
-    function cancel(session: AiSession, conversation: Int) -> AiSession {
-        if session.conversation != conversation {
+    function cancel(session: AiSession, conversation: ConversationId) -> AiSession {
+        if conversationSame(session.conversation, conversation) == false {
             return session
         }
         return AiSession {

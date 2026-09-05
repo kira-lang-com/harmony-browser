@@ -215,10 +215,10 @@ function aiPointer(surfaces: borrow mut AiSurfaces, delivery: borrow IpcDelivery
 }
 
 function aiAnnounceSurfaces(attachment: borrow mut HarmonyAttachment, surfaces: borrow mut AiSurfaces) {
-    harmonyAnnounceComponentSurface(attachment, surfaces.sidebar, 1)
-    harmonyAnnounceComponentSurface(attachment, surfaces.document, 2)
+    harmonyAnnounceComponentSurface(attachment, surfaces.sidebar, HarmonySurfaceId(1))
+    harmonyAnnounceComponentSurface(attachment, surfaces.document, HarmonySurfaceId(2))
     if surfaces.inspector.isReady() {
-        harmonyAnnounceComponentSurface(attachment, surfaces.inspector, 3)
+        harmonyAnnounceComponentSurface(attachment, surfaces.inspector, HarmonySurfaceId(3))
     }
     return
 }

@@ -11,7 +11,7 @@ import KiraUI
 // knows the other is in a process with no window in it.
 
 struct AiViewFacts {
-    var conversation: Int = 0
+    var conversation: ConversationId = conversationNone()
     var prompt: String = ""
     var answer: String = ""
     var running: Bool = false
@@ -59,10 +59,10 @@ function aiViewRecord(session: borrow AiSession, capabilities: borrow AiCapabili
 // --- What the views ask ------------------------------------------------------
 
 function aiHasConversation() -> Bool {
-    return aiViewFacts().conversation > 0
+    return conversationPresent(aiViewFacts().conversation)
 }
 
-function aiCurrentConversation() -> Int {
+function aiCurrentConversation() -> ConversationId {
     return aiViewFacts().conversation
 }
 

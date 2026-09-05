@@ -32,9 +32,9 @@ import HarmonyCore
 // Small and copyable on purpose: it is passed to a runtime and comes back, once
 // per turn of the component's loop.
 struct AiSession {
-    // Which conversation the turn belongs to. Zero when nothing is in flight,
-    // which is why zero is never a conversation a shell may open.
-    var conversation: Int = 0
+    // Which conversation the turn belongs to. `conversationNone` when nothing is
+    // in flight, which is why that id is never a conversation a shell may open.
+    var conversation: ConversationId = conversationNone()
     var prompt: String = ""
     // How many deltas have gone out for this turn. A streaming runtime reads it
     // to know where it is; a one-piece one reads it to know whether it has
@@ -61,11 +61,11 @@ struct AiStep {
 // The empty delta: what `advance` answers when it has nothing.
 //
 // Named rather than written out at each site, because "nothing to send" is
-// tested by the conversation being zero and a runtime that spelled it slightly
+// tested by the conversation being absent and a runtime that spelled it slightly
 // differently would be a runtime whose silence the harness relayed.
 function aiNoDelta() -> AiDelta {
     return AiDelta {
-        conversation: 0
+        conversation: conversationNone()
         text: ""
         kind: AiDeltaKind.Continuing
     }
@@ -75,10 +75,10 @@ construct AiRuntime {
     // What this runtime is, and whether it can answer yet.
     @Required function capabilities() -> AiCapabilities
     // Begin answering. The text is everything the person said this turn.
-    @Required function begin(session: AiSession, conversation: Int, text: borrow String) -> AiSession
+    @Required function begin(session: AiSession, conversation: ConversationId, text: borrow String) -> AiSession
     // The next step: whatever is ready now, and the session it leaves behind.
     // The delta is `aiNoDelta()` when there is nothing to send.
     @Required function advance(session: AiSession) -> AiStep
     // Stop answering, and produce nothing further for this conversation.
-    @Required function cancel(session: AiSession, conversation: Int) -> AiSession
+    @Required function cancel(session: AiSession, conversation: ConversationId) -> AiSession
 }

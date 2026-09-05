@@ -66,9 +66,9 @@ function harmonyAiServe(attachment: borrow mut HarmonyAttachment, runtime: borro
 // Send on whatever the runtime has produced since the last turn.
 function harmonyAiRelay(attachment: borrow mut HarmonyAttachment, runtime: borrow Any AiRuntime, session: AiSession) -> AiSession {
     let step = runtime.advance(move session)
-    // Conversation zero is how a runtime says it has nothing, so it is never a
-    // conversation a shell can open.
-    if step.delta.conversation == 0 {
+    // An absent conversation is how a runtime says it has nothing, so it is never
+    // a conversation a shell can open.
+    if conversationPresent(step.delta.conversation) == false {
         return step.session
     }
     var out = IpcWriter {}

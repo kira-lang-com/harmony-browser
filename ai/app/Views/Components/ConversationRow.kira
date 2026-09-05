@@ -1,3 +1,4 @@
+import HarmonyCore
 import KiraUI
 
 // One conversation in the assistant's column.
@@ -6,7 +7,7 @@ import KiraUI
 // is named by its first line, and a line needs the width of a column rather than
 // the width of a tab.
 
-construct AiConversationRow(conversation: Int, title: String, active: Bool) extends Widget {
+construct AiConversationRow(conversation: ConversationId, title: String, active: Bool) extends Widget {
     body {
         ListRow(selected = active) {
             Icon(.BubbleLeft)

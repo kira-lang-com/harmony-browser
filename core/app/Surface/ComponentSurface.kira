@@ -124,7 +124,7 @@ function harmonyFillComponentSurface(
 function harmonyAnnounceComponentSurface(
     attachment: borrow mut HarmonyAttachment,
     surface: borrow mut HarmonyComponentSurface,
-    id: Int,
+    id: HarmonySurfaceId,
 ) {
     if surface.isReady() == false || surface.announced {
         return
@@ -163,7 +163,7 @@ function harmonyAnnounceComponentSurface(
 function harmonyDropComponentSurface(
     attachment: borrow mut HarmonyAttachment,
     surface: borrow mut HarmonyComponentSurface,
-    id: Int,
+    id: HarmonySurfaceId,
 ) {
     if surface.announced == false {
         return
@@ -196,7 +196,7 @@ function harmonyDropComponentSurface(
 function harmonyRaiseComponentOverlay(
     attachment: borrow mut HarmonyAttachment,
     surface: borrow mut HarmonyComponentSurface,
-    id: Int,
+    id: HarmonySurfaceId,
 ) {
     var out = IpcWriter {}
     encode_HarmonySurfaceNote(HarmonySurfaceNote {

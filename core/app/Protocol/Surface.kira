@@ -156,13 +156,26 @@ function harmonyRectSame(left: borrow HarmonyRect, right: borrow HarmonyRect) ->
     return left.width == right.width && left.height == right.height
 }
 
+// Names one surface within its component.
+//
+// A `distinct` type rather than a bare number, because it is a name and not a
+// count: nothing adds it, orders it, or indexes with it, and the numbers a
+// component picks mean nothing outside it. The shell keys off the component and
+// this together, so two components both calling their sidebar `1` is the
+// arrangement rather than a collision.
+//
+// The wire form is the same one-field region a `struct` with one `Int` member
+// wrote, so the type costs nothing here and breaks no peer.
+@Derive(IpcMessage)
+distinct HarmonySurfaceId = Int
+
 // One surface a component is publishing.
 @Derive(IpcMessage)
 struct HarmonySurface {
     var role: HarmonySurfaceRole
     // Names the surface within its component. The shell keys off the pair, so a
     // component never has to know what ids anything else is using.
-    var id: Int
+    var id: HarmonySurfaceId
     var layer: HarmonySurfaceLayer
     // Where it goes on the canvas. An overlay's rectangle is the whole canvas
     // and is sent anyway, so the shell composites both layers by one rule.

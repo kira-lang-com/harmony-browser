@@ -239,8 +239,8 @@ function browserDrawOverlay(surfaces: borrow mut BrowserSurfaces) -> Bool {
 }
 
 function browserAnnounceSurfaces(attachment: borrow mut HarmonyAttachment, surfaces: borrow mut BrowserSurfaces) {
-    harmonyAnnounceComponentSurface(attachment, surfaces.sidebar, 1)
-    harmonyAnnounceComponentSurface(attachment, surfaces.page, 2)
+    harmonyAnnounceComponentSurface(attachment, surfaces.sidebar, HarmonySurfaceId(1))
+    harmonyAnnounceComponentSurface(attachment, surfaces.page, HarmonySurfaceId(2))
     return
 }
 
@@ -251,7 +251,7 @@ function browserAnnounceSurfaces(attachment: borrow mut HarmonyAttachment, surfa
 // how the layer goes away.
 function browserAnnounceOverlay(attachment: borrow mut HarmonyAttachment, surfaces: borrow mut BrowserSurfaces, drawn: Bool) -> Bool {
     if drawn == false {
-        harmonyDropComponentSurface(attachment, surfaces.overlay, 3)
+        harmonyDropComponentSurface(attachment, surfaces.overlay, HarmonySurfaceId(3))
         return false
     }
     // Raised on the way UP only. `announced` is false exactly when this layer
@@ -259,9 +259,9 @@ function browserAnnounceOverlay(attachment: borrow mut HarmonyAttachment, surfac
     // the component whose overlay went up last composites over the others, and
     // one raised per frame it stays open would give the top to whoever redrew.
     let rising = surfaces.overlay.announced == false
-    harmonyAnnounceComponentSurface(attachment, surfaces.overlay, 3)
+    harmonyAnnounceComponentSurface(attachment, surfaces.overlay, HarmonySurfaceId(3))
     if rising && surfaces.overlay.announced {
-        harmonyRaiseComponentOverlay(attachment, surfaces.overlay, 3)
+        harmonyRaiseComponentOverlay(attachment, surfaces.overlay, HarmonySurfaceId(3))
     }
     return surfaces.overlay.announced
 }
